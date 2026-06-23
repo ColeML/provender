@@ -1,0 +1,62 @@
+[project]
+name = "provender"
+version = "0.1.0"
+description = "AI-driven weekly meal planner backed by Google Sheets. Provision for the week."
+readme = "README.md"
+authors = [{ name = "Cole Loewer" }]
+requires-python = ">=3.11"
+dependencies = [
+    "gspread>=6.1",
+    "google-auth>=2.35",
+    "recipe-scrapers>=15.0",
+    "pint>=0.24",
+    "httpx>=0.27",
+    "typer>=0.12",
+    "platformdirs>=4.3",
+]
+
+[project.scripts]
+prov = "provender.cli:app"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15",
+    "pytest>=8.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "D",    # pydocstyle
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "PL",   # pylint
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "D104",    # missing docstring in public package
+    "PLR0913", # too many arguments (CLI commands legitimately have many)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "PLR2004"]  # docstrings & magic-value checks relaxed in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

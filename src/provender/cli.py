@@ -1,0 +1,488 @@
+"""Command-line interface for the meal planner.
+
+These commands are the deterministic "hands" that Claude Code skills drive. Every
+command emits JSON to stdout so a skill can parse the result, and every command
+that touches Google Sheets fails with a clear, actionable message when
+credentials or the spreadsheet are not yet configured.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+import re
+import sys
+from datetime import date
+from pathlib import Path
+from typing import Annotated, Any
+
+import typer
+
+from provender import config as config_mod
+from provender import history as history_mod
+from provender import scale as scale_mod
+from provender import scrape as scrape_mod
+from provender import sheets as sheets_mod
+from provender import weather as weather_mod
+from provender.config import Settings
+from provender.models import Ingredient, Recipe
+
+app = typer.Typer(
+    help="Provender — AI-driven weekly meal planner backed by Google Sheets.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+
+def _emit(payload: Any) -> None:
+    """Print ``payload`` as pretty JSON to stdout."""
+    typer.echo(json.dumps(payload, indent=2, default=str))
+
+
+def _fail(message: str) -> None:
+    """Print an error to stderr and exit non-zero."""
+    typer.echo(message, err=True)
+    raise typer.Exit(code=1)
+
+
+def _read_json_input(source: str | None) -> Any:
+    """Read JSON from a file path, or from stdin when ``source`` is ``None``/``-``."""
+    try:
+        if source in (None, "-"):
+            return json.load(sys.stdin)
+        return json.loads(Path(source).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        _fail(f"File not found: {source}")
+    except json.JSONDecodeError as exc:
+        _fail(f"Invalid JSON input: {exc}")
+
+
+def _connect():  # returns gspread.Spreadsheet
+    """Connect to the configured spreadsheet or exit with a helpful error."""
+    try:
+        return sheets_mod.connect(Settings.load())
+    except sheets_mod.SheetsError as exc:
+        _fail(str(exc))
+
+
+@app.command()
+def init() -> None:
+    """Create any missing tabs in the spreadsheet (safe to re-run)."""
+    spreadsheet = _connect()
+    created = sheets_mod.ensure_schema(spreadsheet)
+    _emit({"spreadsheet": spreadsheet.title, "created_tabs": created})
+
+
+@app.command(name="set-spreadsheet")
+def set_spreadsheet(
+    spreadsheet: Annotated[
+        str, typer.Argument(help="Your Google Sheet's ID or full URL.")
+    ],
+) -> None:
+    """Save the target spreadsheet to the local config (no env var needed).
+
+    Resolution at runtime is env var (MEALPLAN_SPREADSHEET) first, then this.
+    """
+    path = config_mod.write_config_value("spreadsheet", spreadsheet)
+    _emit({"spreadsheet": spreadsheet, "saved_to": str(path)})
+
+
+@app.command()
+def config() -> None:
+    """Dump the Config tab as a flat key/value object."""
+    spreadsheet = _connect()
+    records = sheets_mod.read_table(spreadsheet, "Config")
+    _emit({row["key"]: row["value"] for row in records if row.get("key")})
+
+
+@app.command(name="config-set")
+def config_set(
+    key: Annotated[str, typer.Argument(help="Config key, e.g. 'people'.")],
+    value: Annotated[str, typer.Argument(help="Value to store.")],
+) -> None:
+    """Set (or update) a single key/value pair in the Config tab."""
+    spreadsheet = _connect()
+    action = sheets_mod.set_config_value(spreadsheet, key, value)
+    _emit({"key": key, "value": value, "action": action})
+
+
+@app.command()
+def scrape(url: Annotated[str, typer.Argument(help="Recipe page URL")]) -> None:
+    """Scrape a recipe and print it as JSON (does not save)."""
+    try:
+        recipe = scrape_mod.scrape(url)
+    except Exception as exc:  # surface any fetch/parse failure cleanly
+        _fail(f"Failed to scrape {url}: {exc}")
+        return
+    _emit(recipe.to_dict())
+
+
+@app.command()
+def weather(
+    location: Annotated[
+        str | None,
+        typer.Option(help="Override location; defaults to the Config 'location'."),
+    ] = None,
+    days: Annotated[int, typer.Option(help="Number of forecast days.")] = 7,
+) -> None:
+    """Print a daily forecast for the configured (or given) location."""
+    if location is None:
+        spreadsheet = _connect()
+        records = sheets_mod.read_table(spreadsheet, "Config")
+        location = next(
+            (r["value"] for r in records if r.get("key") == "location"), None
+        )
+        if not location:
+            _fail("No location given and none found in the Config tab.")
+    try:
+        forecast = weather_mod.forecast(location, days=days)
+    except Exception as exc:  # network or unexpected API shape -> clean message
+        _fail(f"Could not fetch weather for {location}: {exc}")
+        return
+    _emit([dataclasses.asdict(day) for day in forecast])
+
+
+@app.command()
+def scale(
+    recipe_json: Annotated[
+        str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
+    ] = None,
+    to: Annotated[int, typer.Option(help="Target number of servings.")] = ...,  # type: ignore[assignment]
+) -> None:
+    """Scale a recipe's quantities to a target serving count (linear)."""
+    recipe = Recipe.from_dict(_read_json_input(recipe_json))
+    scaled = scale_mod.scale_recipe(recipe, to)
+    _emit(scaled.to_dict())
+
+
+@app.command()
+def convert(
+    qty: Annotated[float, typer.Argument(help="Quantity to convert.")],
+    from_unit: Annotated[str, typer.Argument(help="Source unit, e.g. 'cup'.")],
+    to_unit: Annotated[str, typer.Argument(help="Target unit, e.g. 'ml'.")],
+) -> None:
+    """Convert a quantity between two compatible units."""
+    try:
+        result = scale_mod.convert(qty, from_unit, to_unit)
+    except Exception as exc:  # pint raises several distinct unit errors
+        _fail(f"Cannot convert {qty} {from_unit} -> {to_unit}: {exc}")
+        return
+    _emit({"qty": result, "unit": to_unit})
+
+
+@app.command(name="recipe-save")
+def recipe_save(
+    recipe_json: Annotated[
+        str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
+    ] = None,
+) -> None:
+    """Save a recipe (and its ingredients) to the Recipes/Ingredients tabs."""
+    recipe = Recipe.from_dict(_read_json_input(recipe_json))
+    if not recipe.recipe_id:
+        recipe.recipe_id = _slug(recipe.title)
+
+    spreadsheet = _connect()
+    recipe_row = {
+        "recipe_id": recipe.recipe_id,
+        "title": recipe.title,
+        "source_url": recipe.source_url,
+        "image_url": recipe.image_url,
+        "base_servings": recipe.base_servings,
+        "prep_min": recipe.prep_min,
+        "cook_min": recipe.cook_min,
+        "total_min": recipe.total_min,
+        "cost_estimate": recipe.cost_estimate,
+        "tags": ", ".join(recipe.tags),
+        "instructions": _format_instructions(recipe.instructions),
+        "rating": recipe.rating,
+        "ingredients_text": _format_ingredients_block(recipe.ingredients),
+    }
+    recipe_headers = sheets_mod.SCHEMA["Recipes"]
+    sheets_mod.append_rows(
+        spreadsheet, "Recipes", [[recipe_row.get(h, "") for h in recipe_headers]]
+    )
+
+    ing_headers = sheets_mod.SCHEMA["Ingredients"]
+    ing_rows = [
+        {
+            "recipe_id": recipe.recipe_id,
+            "name": ing.name,
+            "qty": ing.qty,
+            "unit": ing.unit,
+            "category": ing.category,
+            "notes": ing.notes,
+            "display": _format_ingredient(ing),
+        }
+        for ing in recipe.ingredients
+    ]
+    sheets_mod.append_rows(
+        spreadsheet,
+        "Ingredients",
+        [[row.get(h, "") for h in ing_headers] for row in ing_rows],
+    )
+    _emit({"saved": recipe.recipe_id, "ingredients": len(recipe.ingredients)})
+
+
+@app.command()
+def recipes() -> None:
+    """Print the Recipes tab as JSON."""
+    spreadsheet = _connect()
+    _emit(sheets_mod.read_table(spreadsheet, "Recipes"))
+
+
+@app.command()
+def ingredients(
+    recipe_id: Annotated[
+        str | None, typer.Option(help="Filter to a single recipe_id.")
+    ] = None,
+) -> None:
+    """Print the Ingredients tab as JSON, optionally filtered by recipe_id."""
+    spreadsheet = _connect()
+    rows = sheets_mod.read_table(spreadsheet, "Ingredients")
+    if recipe_id:
+        rows = [r for r in rows if str(r.get("recipe_id")) == recipe_id]
+    _emit(rows)
+
+
+@app.command(name="plan-read")
+def plan_read() -> None:
+    """Print the current WeekPlan rows as JSON."""
+    spreadsheet = _connect()
+    _emit(sheets_mod.read_table(spreadsheet, "WeekPlan"))
+
+
+@app.command(name="history-recent")
+def history_recent(
+    days: Annotated[
+        int | None,
+        typer.Option(
+            help="Look-back window. Defaults to Config 'no_repeat_days', then 30."
+        ),
+    ] = None,
+) -> None:
+    """Print meals planned within the repeat-avoidance window (dishes to avoid)."""
+    spreadsheet = _connect()
+    if days is None:
+        config_rows = sheets_mod.read_table(spreadsheet, "Config")
+        raw = next(
+            (r["value"] for r in config_rows if r.get("key") == "no_repeat_days"), None
+        )
+        try:
+            days = (
+                int(raw)
+                if raw not in (None, "")
+                else history_mod.DEFAULT_NO_REPEAT_DAYS
+            )
+        except (TypeError, ValueError):
+            days = history_mod.DEFAULT_NO_REPEAT_DAYS
+    rows = sheets_mod.read_table(spreadsheet, "History")
+    _emit(history_mod.filter_recent(rows, days, date.today()))
+
+
+@app.command(name="history-add")
+def history_add(
+    rows_json: Annotated[
+        str | None, typer.Argument(help="JSON list of History row objects.")
+    ] = None,
+) -> None:
+    """Append planned meals to the History tab (call after a plan is approved)."""
+    rows = _read_json_input(rows_json)
+    for row in rows:
+        if not row.get("id"):
+            row["id"] = f"{row.get('date', '')}-{row.get('recipe_id', '')}"
+    headers = sheets_mod.SCHEMA["History"]
+    spreadsheet = _connect()
+    table = [[row.get(h, "") for h in headers] for row in rows]
+    sheets_mod.append_rows(spreadsheet, "History", table)
+    _emit({"tab": "History", "rows_added": len(table)})
+
+
+_WEEKDAYS = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+
+
+def _normalize_weekplan(incoming: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map the planned days onto a fixed Monday-Sunday set of 7 day-slots.
+
+    Returns exactly 7 rows keyed by ``day``, in weekday order. Planned days carry
+    their full data; unplanned days are blank except for the ``day`` key. Keeping
+    the same 7 ``day`` keys every week means AppSheet sees in-place value updates
+    instead of churning row keys (which froze its sync before).
+    """
+    by_day: dict[str, dict[str, Any]] = {}
+    for row in incoming:
+        day = str(row.get("day", "")).strip().capitalize()
+        if day in _WEEKDAYS:
+            normalized = dict(row)
+            normalized["day"] = day
+            by_day[day] = normalized
+    return [by_day.get(day, {"day": day}) for day in _WEEKDAYS]
+
+
+@app.command(name="plan-write")
+def plan_write(
+    rows_json: Annotated[
+        str | None, typer.Argument(help="JSON list of WeekPlan row objects.")
+    ] = None,
+) -> None:
+    """Write the week as 7 stable day-slots (in-place updates, AppSheet-friendly)."""
+    incoming = _read_json_input(rows_json)
+    week = _normalize_weekplan(incoming)
+    headers = sheets_mod.SCHEMA["WeekPlan"]
+    table = [[row.get(h, "") for h in headers] for row in week]
+    spreadsheet = _connect()
+    sheets_mod.replace_table(spreadsheet, "WeekPlan", headers, table)
+    planned = sum(1 for row in week if row.get("recipe_id"))
+    _emit({"tab": "WeekPlan", "days_planned": planned, "rows": len(table)})
+
+
+# ShoppingList checkbox columns (bought, have_already), derived from SCHEMA so a
+# column reorder can't silently move the checkboxes onto the wrong columns.
+_SHOPPING_CHECKBOX_COLS = [
+    sheets_mod.SCHEMA["ShoppingList"].index("bought"),
+    sheets_mod.SCHEMA["ShoppingList"].index("have_already"),
+]
+
+
+def _assign_ids(rows: list[dict[str, Any]]) -> None:
+    """Give each row a unique, stable ``id`` (slug of the item) for app keys."""
+    seen: dict[str, int] = {}
+    for row in rows:
+        if row.get("id"):
+            continue
+        base = _slug(str(row.get("item", "item")))
+        seen[base] = seen.get(base, 0) + 1
+        row["id"] = base if seen[base] == 1 else f"{base}-{seen[base]}"
+
+
+@app.command(name="shopping-write")
+def shopping_write(
+    rows_json: Annotated[
+        str | None, typer.Argument(help="JSON list of ShoppingList row objects.")
+    ] = None,
+) -> None:
+    """Replace the ShoppingList tab and make bought/have_already tappable checkboxes."""
+    rows = _read_json_input(rows_json)
+    _assign_ids(rows)
+    for row in rows:
+        qty = row.get("qty")
+        row["display"] = _format_ingredient(
+            Ingredient(
+                name=str(row.get("item", "")),
+                qty=(qty if qty not in ("", None) else None),
+                unit=str(row.get("unit", "")),
+            )
+        )
+    headers = sheets_mod.SCHEMA["ShoppingList"]
+    spreadsheet = _connect()
+    table = [[row.get(h, "") for h in headers] for row in rows]
+    sheets_mod.replace_table(spreadsheet, "ShoppingList", headers, table)
+    sheets_mod.apply_checkboxes(
+        spreadsheet, "ShoppingList", _SHOPPING_CHECKBOX_COLS, len(table)
+    )
+    _emit(
+        {
+            "tab": "ShoppingList",
+            "rows_written": len(table),
+            "checkboxes": "bought, have_already",
+        }
+    )
+
+
+@app.command(name="shopping-clear")
+def shopping_clear() -> None:
+    """Clear all items from the ShoppingList tab (keeps the header row)."""
+    headers = sheets_mod.SCHEMA["ShoppingList"]
+    spreadsheet = _connect()
+    sheets_mod.replace_table(spreadsheet, "ShoppingList", headers, [])
+    _emit({"tab": "ShoppingList", "cleared": True})
+
+
+def _slug(text: str) -> str:
+    """Return a lowercase, hyphenated identifier derived from ``text``."""
+    cleaned = "".join(c if c.isalnum() else "-" for c in text.lower())
+    return "-".join(part for part in cleaned.split("-") if part) or "recipe"
+
+
+# Common cooking fractions, for rendering quantities like a real recipe.
+_FRACTIONS = [
+    (0.125, "⅛"),
+    (0.25, "¼"),
+    (0.333, "⅓"),
+    (0.375, "⅜"),
+    (0.5, "½"),
+    (0.625, "⅝"),
+    (0.667, "⅔"),
+    (0.75, "¾"),
+    (0.875, "⅞"),
+]
+_FRACTION_TOLERANCE = 0.02
+
+
+def _pretty_qty(qty: object) -> str:
+    """Render a quantity as a clean fraction/number string (e.g. 0.67 -> '⅔')."""
+    if qty in (None, ""):
+        return ""
+    try:
+        value = float(qty)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return str(qty)
+    whole = int(value)
+    frac = round(value - whole, 3)
+    symbol = next(
+        (s for f, s in _FRACTIONS if abs(frac - f) < _FRACTION_TOLERANCE), None
+    )
+    if symbol:
+        return f"{whole}{symbol}" if whole else symbol
+    if frac < _FRACTION_TOLERANCE:  # effectively a whole number
+        return str(whole)
+    return f"{value:g}"  # fallback: trim trailing zeros (3.50 -> 3.5)
+
+
+def _format_ingredients_block(ingredients: list[Ingredient]) -> str:
+    """Render all ingredients as one bulleted LongText block for the recipe page.
+
+    AppSheet caps inline related-record lists, so the full ingredient list lives
+    on the recipe row as text (like the instructions) to show holistically.
+    """
+    return "\n".join(f"• {_format_ingredient(ing)}" for ing in ingredients)
+
+
+def _format_ingredient(ing: Ingredient) -> str:
+    """Render an ingredient as one clean line: 'qty unit name — notes'.
+
+    Counted items with no explicit unit get the grocery 'ea' (each) unit, so buns
+    read as '24 ea buns'. Quantity-less items (e.g. 'salt to taste') stay as
+    'name — notes' with no unit.
+    """
+    unit = ing.unit or ("ea" if ing.qty is not None else "")
+    head = " ".join(part for part in (_pretty_qty(ing.qty), unit) if part)
+    line = f"{head} {ing.name}".strip() if head else ing.name
+    if ing.notes:
+        line = f"{line} — {ing.notes}"
+    return line
+
+
+def _format_instructions(steps: list[str]) -> str:
+    """Format steps as a numbered list with a blank line between each.
+
+    Renders cleanly in AppSheet's LongText fields on mobile. Strips any
+    pre-existing ``N.`` / ``N)`` prefix so steps aren't double-numbered.
+    """
+    cleaned = [
+        re.sub(r"^\s*\d+[.)]\s*", "", str(step).strip())
+        for step in steps
+        if str(step).strip()
+    ]
+    return "\n\n".join(f"{i}. {step}" for i, step in enumerate(cleaned, 1))
+
+
+if __name__ == "__main__":  # pragma: no cover
+    app()
