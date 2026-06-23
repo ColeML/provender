@@ -81,7 +81,7 @@ def set_spreadsheet(
 ) -> None:
     """Save the target spreadsheet to the local config (no env var needed).
 
-    Resolution at runtime is env var (MEALPLAN_SPREADSHEET) first, then this.
+    Resolution at runtime is env var (PROVENDER_SPREADSHEET) first, then this.
     """
     path = config_mod.write_config_value("spreadsheet", spreadsheet)
     _emit({"spreadsheet": spreadsheet, "saved_to": str(path)})
