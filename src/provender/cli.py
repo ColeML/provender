@@ -484,5 +484,22 @@ def _format_instructions(steps: list[str]) -> str:
     return "\n\n".join(f"{i}. {step}" for i, step in enumerate(cleaned, 1))
 
 
+def main() -> None:
+    """Entry point that turns any unhandled error into a clean message.
+
+    Commands already call :func:`_fail` for expected errors (which exits via
+    ``typer.Exit``, a ``SystemExit`` we deliberately don't catch). This wrapper
+    is the safety net for anything unanticipated — a gspread API error mid-write,
+    an unexpected response shape — so the user sees a one-line message on stderr
+    instead of a raw traceback.
+    """
+    try:
+        app()
+    except sheets_mod.SheetsError as exc:
+        _fail(str(exc))
+    except Exception as exc:  # last-resort guard for the CLI surface
+        _fail(f"Error: {exc}")
+
+
 if __name__ == "__main__":  # pragma: no cover
-    app()
+    main()

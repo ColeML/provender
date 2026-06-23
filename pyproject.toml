@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-prov = "provender.cli:app"
+prov = "provender.cli:main"
 
 [dependency-groups]
 dev = [
