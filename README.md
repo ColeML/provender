@@ -228,5 +228,6 @@ skills in `.claude/skills/`. All of them share the same Sheet.
 ```bash
 uv run ruff check .     # lint
 uv run ruff format .    # format (Google docstring convention)
+uv run ty check         # type check
 uv run pytest           # tests
 ```

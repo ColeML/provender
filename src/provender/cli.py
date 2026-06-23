@@ -14,7 +14,7 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 import typer
 
@@ -39,7 +39,7 @@ def _emit(payload: Any) -> None:
     typer.echo(json.dumps(payload, indent=2, default=str))
 
 
-def _fail(message: str) -> None:
+def _fail(message: str) -> NoReturn:
     """Print an error to stderr and exit non-zero."""
     typer.echo(message, err=True)
     raise typer.Exit(code=1)
@@ -113,7 +113,6 @@ def scrape(url: Annotated[str, typer.Argument(help="Recipe page URL")]) -> None:
         recipe = scrape_mod.scrape(url)
     except Exception as exc:  # surface any fetch/parse failure cleanly
         _fail(f"Failed to scrape {url}: {exc}")
-        return
     _emit(recipe.to_dict())
 
 
@@ -138,7 +137,6 @@ def weather(
         forecast = weather_mod.forecast(location, days=days)
     except Exception as exc:  # network or unexpected API shape -> clean message
         _fail(f"Could not fetch weather for {location}: {exc}")
-        return
     _emit([dataclasses.asdict(day) for day in forecast])
 
 
@@ -147,7 +145,8 @@ def scale(
     recipe_json: Annotated[
         str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
     ] = None,
-    to: Annotated[int, typer.Option(help="Target number of servings.")] = ...,  # type: ignore[assignment]
+    *,
+    to: Annotated[int, typer.Option(help="Target number of servings.")],
 ) -> None:
     """Scale a recipe's quantities to a target serving count (linear)."""
     recipe = Recipe.from_dict(_read_json_input(recipe_json))
@@ -166,7 +165,6 @@ def convert(
         result = scale_mod.convert(qty, from_unit, to_unit)
     except Exception as exc:  # pint raises several distinct unit errors
         _fail(f"Cannot convert {qty} {from_unit} -> {to_unit}: {exc}")
-        return
     _emit({"qty": result, "unit": to_unit})
 
 
@@ -426,7 +424,7 @@ _FRACTIONS = [
 _FRACTION_TOLERANCE = 0.02
 
 
-def _pretty_qty(qty: object) -> str:
+def _pretty_qty(qty: float | int | str | None) -> str:
     """Render a quantity as a clean fraction/number string (e.g. 0.67 -> '⅔')."""
     if qty in (None, ""):
         return ""

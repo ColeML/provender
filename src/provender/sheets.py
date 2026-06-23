@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import gspread
 from google.oauth2.service_account import Credentials
+from gspread.utils import ValueInputOption
 
 from provender.config import Settings
 
@@ -88,11 +89,11 @@ def connect(settings: Settings) -> gspread.Spreadsheet:
     if not settings.credentials_path.exists():
         raise SheetsError(
             f"Credentials file not found at {settings.credentials_path}. "
-            "Set MEALPLAN_CREDENTIALS or place the service-account key there."
+            "Set PROVENDER_CREDENTIALS or place the service-account key there."
         )
     if not settings.spreadsheet:
         raise SheetsError(
-            "No spreadsheet configured. Set MEALPLAN_SPREADSHEET to the sheet ID "
+            "No spreadsheet configured. Set PROVENDER_SPREADSHEET to the sheet ID "
             "or URL (and share the sheet with the service-account email)."
         )
 
@@ -182,7 +183,9 @@ def append_rows(
     if not rows:
         return
     worksheet = spreadsheet.worksheet(tab)
-    worksheet.append_rows([list(r) for r in rows], value_input_option="USER_ENTERED")
+    worksheet.append_rows(
+        [list(r) for r in rows], value_input_option=ValueInputOption.user_entered
+    )
 
 
 def apply_checkboxes(
@@ -259,5 +262,5 @@ def set_config_value(spreadsheet: gspread.Spreadsheet, key: str, value: str) -> 
     if key in keys:
         worksheet.update_cell(keys.index(key) + 1, 2, value)
         return "updated"
-    worksheet.append_row([key, value], value_input_option="USER_ENTERED")
+    worksheet.append_row([key, value], value_input_option=ValueInputOption.user_entered)
     return "added"
