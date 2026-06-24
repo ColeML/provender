@@ -158,7 +158,7 @@ def kroger_locations(
     try:
         stores = kroger_mod.find_locations(zip_code, chain=chain)
     except Exception as exc:  # surface auth/network failures cleanly
-        _fail(f"Kroger location lookup failed: {exc}")
+        _fail(f"Kroger location lookup failed for ZIP {zip_code!r}: {exc}")
     saved = None
     if save and stores:
         saved = stores[0]["location_id"]
@@ -189,7 +189,7 @@ def kroger_price(
     try:
         candidates = kroger_mod.search_prices(item, str(location))
     except Exception as exc:  # surface auth/network failures cleanly
-        _fail(f"Kroger price lookup failed: {exc}")
+        _fail(f"Kroger price lookup failed for {item!r}: {exc}")
     _emit(
         {
             "item": item,

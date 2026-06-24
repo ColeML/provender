@@ -88,9 +88,9 @@ class Settings:
     def load(cls) -> Settings:
         """Resolve settings from the environment, then the config file, then defaults.
 
-        - Spreadsheet: ``MEALPLAN_SPREADSHEET`` env var → config file
+        - Spreadsheet: ``PROVENDER_SPREADSHEET`` env var → config file
           ``"spreadsheet"`` → ``None``.
-        - Credentials: ``MEALPLAN_CREDENTIALS`` env var → config file
+        - Credentials: ``PROVENDER_CREDENTIALS`` env var → config file
           ``"credentials_path"`` → the default per-user path.
         """
         file_cfg = read_config_file()
