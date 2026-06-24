@@ -20,3 +20,5 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+kroger_token.json
+kroger.json

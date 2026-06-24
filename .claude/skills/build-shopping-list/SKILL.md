@@ -58,9 +58,11 @@ Combine the scaled ingredients across all recipes into a single list:
   to TRUE for anything you keep on the list but assume they own.
 - **Assign `category`** by store aisle: produce, meat, dairy, pantry, frozen,
   bakery, other.
-- **Estimate `est_cost`** per line: first run `uv run prov prices` and use the
-  learned price when one matches (`price × qty`); otherwise estimate from regional
-  prices. After shopping, the user can record real costs with
+- **Estimate `est_cost`** per line, in tier order: (1) learned price from
+  `uv run prov prices` (`price × qty`); (2) if Kroger is configured,
+  `uv run prov kroger-price "<item>"` — pick the right `candidates` entry (raw,
+  store-brand, non-organic), don't blindly trust `best`; (3) otherwise estimate.
+  After shopping, record real costs with
   `uv run prov price-set "<ingredient>" <price> --unit <u>` to sharpen future runs.
 - Fill `feeds_recipes` with the recipe titles/ids that need the item.
 

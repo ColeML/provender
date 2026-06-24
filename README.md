@@ -154,6 +154,23 @@ Useful keys: `people`, `location`, `default_budget`, `default_meals`,
 `dietary_restrictions`, `allergies`, `dislikes`, `pantry_staples`, `equipment`,
 `stores`, `theme_nights`, `no_repeat_days`, `preferences`.
 
+### Optional: real prices via Kroger
+
+Budget estimates default to your **learned prices** (`price-set`) → AI estimate.
+If you live near a **Kroger-family store** (Kroger, Dillons, Fry's, …) whose prices
+track your local stores, you can opt in to real store prices:
+
+1. Register a free app at **developer.kroger.com** (enable **Products** +
+   **Locations**) → get a Client ID + Secret.
+2. Save them (gitignored, never committed):
+   `~/Library/Application Support/provender/kroger.json` →
+   `{"client_id": "...", "client_secret": "..."}`
+3. Pick a store: `uv run prov kroger-locations <zip> --chain DILLONS --save`
+   (saves a `kroger_location_id`). Then `uv run prov kroger-price "ground beef"`.
+
+The price tier becomes **learned → Kroger → estimate**. Without creds, it's
+inert — nothing changes.
+
 ## Using it
 
 Day to day you just talk to your agent from the repo directory. The four workflows:
@@ -190,6 +207,7 @@ stdin (`-`). Run from the repo root.
 | `prov init` | Create the tabs (safe to re-run) |
 | `prov config` / `config-set KEY VALUE` | Read / upsert household settings |
 | `prov prices` / `price-set ITEM PRICE [--unit] [--store]` | Read / record learned grocery prices |
+| `prov kroger-locations <zip>` / `kroger-price "<item>"` | Optional: real store prices via the Kroger API |
 | `prov weather [--location] [--days]` | Forecast for the configured location |
 | `prov scrape <url>` | Scrape a recipe to JSON (no save) |
 | `prov recipe-save [file]` | Save a recipe + ingredients |

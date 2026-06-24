@@ -20,6 +20,7 @@ import typer
 
 from provender import config as config_mod
 from provender import history as history_mod
+from provender import kroger as kroger_mod
 from provender import prices as prices_mod
 from provender import scale as scale_mod
 from provender import scrape as scrape_mod
@@ -141,6 +142,61 @@ def prices() -> None:
     """Print the learned Prices tab as JSON."""
     spreadsheet = _connect()
     _emit(sheets_mod.read_table(spreadsheet, "Prices"))
+
+
+@app.command(name="kroger-locations")
+def kroger_locations(
+    zip_code: Annotated[str, typer.Argument(help="ZIP to search near, e.g. '67206'.")],
+    chain: Annotated[str, typer.Option(help="Filter to a chain, e.g. 'DILLONS'.")] = "",
+    save: Annotated[
+        bool, typer.Option(help="Save the first result as Config 'kroger_location_id'.")
+    ] = False,
+) -> None:
+    """Find nearby Kroger-family stores (opt-in; to pick a store for pricing)."""
+    if not kroger_mod.is_configured():
+        _fail("Kroger not configured — add credentials to the kroger.json config file.")
+    try:
+        stores = kroger_mod.find_locations(zip_code, chain=chain)
+    except Exception as exc:  # surface auth/network failures cleanly
+        _fail(f"Kroger location lookup failed: {exc}")
+    saved = None
+    if save and stores:
+        saved = stores[0]["location_id"]
+        sheets_mod.set_config_value(_connect(), "kroger_location_id", saved)
+    _emit({"stores": stores, "saved": saved})
+
+
+@app.command(name="kroger-price")
+def kroger_price(
+    item: Annotated[str, typer.Argument(help="Item to price, e.g. 'ground beef'.")],
+    location: Annotated[
+        str | None,
+        typer.Option(help="Store id; defaults to Config 'kroger_location_id'."),
+    ] = None,
+) -> None:
+    """Look up a real store price for an item (opt-in Kroger source)."""
+    if not kroger_mod.is_configured():
+        _fail("Kroger not configured — add credentials to the kroger.json config file.")
+    if location is None:
+        rows = sheets_mod.read_table(_connect(), "Config")
+        location = next(
+            (r["value"] for r in rows if r.get("key") == "kroger_location_id"), None
+        )
+        if not location:
+            _fail(
+                "No store set. Run kroger-locations <zip> --save, or pass --location."
+            )
+    try:
+        candidates = kroger_mod.search_prices(item, str(location))
+    except Exception as exc:  # surface auth/network failures cleanly
+        _fail(f"Kroger price lookup failed: {exc}")
+    _emit(
+        {
+            "item": item,
+            "best": kroger_mod.representative_price(candidates),
+            "candidates": candidates,
+        }
+    )
 
 
 @app.command()

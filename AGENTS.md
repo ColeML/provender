@@ -38,6 +38,7 @@ stdin (`-`).
 | `init` | Create/verify the tabs (Config, WeekPlan, Recipes, Ingredients, ShoppingList, History) |
 | `config` / `config-set KEY VALUE` | Read / upsert household settings |
 | `prices` / `price-set ITEM PRICE [--unit] [--store]` | Read / record learned grocery prices |
+| `kroger-locations <zip>` / `kroger-price "<item>"` | Optional real store prices (Kroger API, opt-in) |
 | `weather [--location] [--days]` | Open-Meteo forecast for the configured location |
 | `scrape <url>` | Scrape a recipe to JSON (title, image, ingredients, steps) |
 | `recipe-save [file]` | Save a recipe + ingredients (auto-formats display/instructions) |

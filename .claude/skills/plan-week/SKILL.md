@@ -102,16 +102,23 @@ and keep qualifiers like "minced" in `notes`. Also add `tags` (cuisine, "quick",
 
 ## 5. Estimate cost and fit the budget
 
-First pull learned prices: `uv run prov prices`. For each ingredient with a
-matching entry, use that real price (`price × quantity`); for the rest, estimate
-from typical regional prices and treat those as rougher. Sum each recipe into its
-`cost_estimate`, then sum the week. If over budget, swap the most expensive meals
-for cheaper ones and re-estimate. Show the math, and note which lines used a known
-price vs an estimate.
+Price each ingredient in this tier order:
 
-(There's no Walmart/Sam's price API — prices are learned. Encourage the user to
-record real costs with `uv run prov price-set "<ingredient>" <price> --unit <u>`
-so future budgets get sharper.)
+1. **Learned price** — `uv run prov prices`; if an entry matches, use it
+   (`price × quantity`). Most accurate (the user's real stores).
+2. **Kroger** (opt-in) — if configured, `uv run prov kroger-price "<item>"` returns
+   real store prices. **Don't blindly trust `best`** — it's a heuristic that can
+   mis-pick (e.g. "chicken breast" → deli slices). Inspect `candidates` and choose
+   the raw/generic, non-organic match, or refine the search term
+   (e.g. "boneless skinless chicken breast"). Skip silently if not configured.
+3. **Estimate** — typical regional prices; treat as rougher.
+
+Sum each recipe into its `cost_estimate`, then sum the week. If over budget, swap
+the most expensive meals and re-estimate. Show the math, noting which lines used a
+known/Kroger price vs an estimate.
+
+(There's no Walmart/Sam's price API. Encourage the user to record real costs with
+`uv run prov price-set "<ingredient>" <price> --unit <u>` so future budgets sharpen.)
 
 ## 6. Present for approval — STOP
 
