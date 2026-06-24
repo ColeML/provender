@@ -1,5 +1,8 @@
 """Tests for the recipe HTML renderer and the CLI page-writer helper."""
 
+import pytest
+import typer
+
 from provender import cli, render
 
 
@@ -79,3 +82,81 @@ def test_write_recipe_page_overwrites_in_place(tmp_path, monkeypatch):
     second = cli._write_recipe_page(row, "chicken-tikka")
     assert second == first  # same path
     assert "Chicken Tikka v2" in second.read_text(encoding="utf-8")
+
+
+def test_render_blocks_javascript_and_data_urls():
+    out = render.render_recipe_html(
+        {
+            "title": "x",
+            "source_url": "javascript:alert(1)",
+            "image_url": "data:text/html,<script>alert(2)</script>",
+            "ingredients_text": "",
+            "instructions": "",
+        }
+    )
+    assert "javascript:" not in out
+    assert "data:text/html" not in out
+    assert "Original recipe" not in out  # unsafe source link omitted
+    assert "<img" not in out  # unsafe image omitted
+
+
+def test_render_allows_https_urls():
+    out = render.render_recipe_html(
+        {
+            "title": "x",
+            "source_url": "https://ex.com/r",
+            "image_url": "https://ex.com/i.jpg",
+            "ingredients_text": "",
+            "instructions": "",
+        }
+    )
+    assert 'href="https://ex.com/r"' in out
+    assert 'src="https://ex.com/i.jpg"' in out
+
+
+def test_recipe_render_writes_target_page_and_persists_doc_url(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "_RENDER_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_connect", object)
+    monkeypatch.setattr(
+        cli, "_config_value", lambda ss, key, default="": "https://x.io/provender"
+    )
+    rows = [
+        {
+            "recipe_id": "beef-stew",
+            "title": "Beef Stew",
+            "ingredients_text": "• 1 lb beef",
+            "instructions": "1. Cook.",
+        },
+        {
+            "recipe_id": "tacos",
+            "title": "Tacos",
+            "ingredients_text": "• tortillas",
+            "instructions": "1. Assemble.",
+        },
+    ]
+    monkeypatch.setattr(cli.sheets_mod, "read_table", lambda ss, tab: rows)
+    captured = {}
+    monkeypatch.setattr(
+        cli.sheets_mod,
+        "replace_table",
+        lambda ss, tab, headers, data: captured.update(data=data),
+    )
+
+    cli.recipe_render(recipe_id="beef-stew", all_recipes=False)
+
+    # only the target recipe's page is written
+    assert (tmp_path / "beef-stew.html").exists()
+    assert not (tmp_path / "tacos.html").exists()
+    assert rows[0]["doc_url"] == "https://x.io/provender/recipes/beef-stew.html"
+
+    # doc_url is persisted for the target, left blank for the untouched recipe
+    schema = cli.sheets_mod.SCHEMA["Recipes"]
+    rid, doc = schema.index("recipe_id"), schema.index("doc_url")
+    written = {r[rid]: r[doc] for r in captured["data"]}
+    assert written["beef-stew"] == "https://x.io/provender/recipes/beef-stew.html"
+    assert written["tacos"] == ""
+
+
+def test_recipe_render_rejects_both_flags():
+    with pytest.raises(typer.Exit):
+        cli.recipe_render(recipe_id="x", all_recipes=True)

@@ -294,10 +294,10 @@ def recipe_save(
         str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
     ] = None,
 ) -> None:
-    """Save a recipe (and its ingredients) to the Recipes/Ingredients tabs."""
+    """Save a recipe + ingredients to the Sheet and render its shareable page."""
     recipe = Recipe.from_dict(_read_json_input(recipe_json))
     if not recipe.recipe_id:
-        recipe.recipe_id = _slug(recipe.title)
+        recipe.recipe_id = render_mod.slug(recipe.title)
 
     spreadsheet = _connect()
     recipe_row = {
@@ -341,12 +341,22 @@ def recipe_save(
         "Ingredients",
         [[row.get(h, "") for h in ing_headers] for row in ing_rows],
     )
-    _write_recipe_page(recipe_row, file_slug)
+    page_rendered = True
+    try:
+        _write_recipe_page(recipe_row, file_slug)
+    except OSError as exc:  # a failed page must not fail an already-saved recipe
+        page_rendered = False
+        typer.echo(
+            f"Warning: recipe saved, but rendering its page failed ({exc}); "
+            "re-run `prov recipe-render` once fixed.",
+            err=True,
+        )
     _emit(
         {
             "saved": recipe.recipe_id,
             "ingredients": len(recipe.ingredients),
             "doc_url": recipe_row["doc_url"],
+            "page_rendered": page_rendered,
         }
     )
 
@@ -366,6 +376,8 @@ def recipe_render(
     source of truth. Push the repo to publish them via GitHub Pages. Set the
     public base with `prov config-set render_base_url <url>`.
     """
+    if all_recipes and recipe_id:
+        _fail("Pass either a recipe_id or --all, not both.")
     if not all_recipes and not recipe_id:
         _fail("Pass a recipe_id or --all.")
     spreadsheet = _connect()
@@ -563,7 +575,7 @@ def _assign_ids(rows: list[dict[str, Any]]) -> None:
     for row in rows:
         if row.get("id"):
             continue
-        base = _slug(str(row.get("item", "item")))
+        base = render_mod.slug(str(row.get("item", "item")))
         seen[base] = seen.get(base, 0) + 1
         row["id"] = base if seen[base] == 1 else f"{base}-{seen[base]}"
 
@@ -609,12 +621,6 @@ def shopping_clear() -> None:
     spreadsheet = _connect()
     sheets_mod.replace_table(spreadsheet, "ShoppingList", headers, [])
     _emit({"tab": "ShoppingList", "cleared": True})
-
-
-def _slug(text: str) -> str:
-    """Return a lowercase, hyphenated identifier derived from ``text``."""
-    cleaned = "".join(c if c.isalnum() else "-" for c in text.lower())
-    return "-".join(part for part in cleaned.split("-") if part) or "recipe"
 
 
 # Common cooking fractions, for rendering quantities like a real recipe.

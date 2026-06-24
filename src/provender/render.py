@@ -11,6 +11,7 @@ from __future__ import annotations
 import html
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 _CSS = """
 :root { color-scheme: light dark; }
@@ -38,10 +39,21 @@ a.source { color: #b5651d; }
 """
 
 
-def slug(recipe_id: str) -> str:
-    """Return a filesystem-safe slug for ``recipe_id`` (lowercase, hyphenated)."""
-    cleaned = "".join(c if c.isalnum() else "-" for c in str(recipe_id).lower())
+def slug(text: str) -> str:
+    """Return a filesystem/URL-safe slug for ``text`` (lowercase, hyphenated)."""
+    cleaned = "".join(c if c.isalnum() else "-" for c in str(text).lower())
     return "-".join(part for part in cleaned.split("-") if part) or "recipe"
+
+
+def _safe_url(url: str) -> str:
+    """Return ``url`` only if http(s) or scheme-relative; else "".
+
+    Recipe URLs come from scraped third-party pages and the page is published
+    publicly, so a ``javascript:``/``data:`` scheme in an ``href``/``src`` would be
+    a stored-XSS vector that ``html.escape`` does not stop — block those schemes.
+    """
+    scheme = urlparse(str(url or "").strip()).scheme.lower()
+    return str(url).strip() if scheme in ("", "http", "https") else ""
 
 
 def _ingredient_items(ingredients_text: str) -> list[str]:
@@ -88,10 +100,9 @@ def render_recipe_html(recipe: dict[str, Any]) -> str:
     title = html.escape(str(recipe.get("title") or "Recipe"))
 
     image = ""
-    if recipe.get("image_url"):
-        image = (
-            f'<img class="hero" src="{html.escape(str(recipe["image_url"]))}" alt="">'
-        )
+    img_url = _safe_url(recipe.get("image_url", ""))
+    if img_url:
+        image = f'<img class="hero" src="{html.escape(img_url)}" alt="">'
 
     meta = _meta_line(recipe)
     meta_html = f'<p class="meta">{meta}</p>' if meta else ""
@@ -112,8 +123,9 @@ def render_recipe_html(recipe: dict[str, Any]) -> str:
     )
 
     source = ""
-    if recipe.get("source_url"):
-        url = html.escape(str(recipe["source_url"]))
+    src_url = _safe_url(recipe.get("source_url", ""))
+    if src_url:
+        url = html.escape(src_url)
         source = f'<p><a class="source" href="{url}">Original recipe ↗</a></p>'
 
     return f"""<!doctype html>

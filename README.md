@@ -245,6 +245,10 @@ Without `render_base_url`, `doc_url` is just a repo-relative path. (Pages serves
 files publicly — fine for recipes; if you fork this repo as a template, point
 `docs/recipes` at a separate Pages repo instead.)
 
+**Existing sheet?** `doc_url` is a new `Recipes` column. Run `prov recipe-render --all`
+once to render every page and backfill the column, then (if you use AppSheet)
+**Regenerate Structure** on the `Recipes` table.
+
 ## Other AI agents
 
 The CLI is the engine and the playbooks are plain Markdown, so any agent can drive
