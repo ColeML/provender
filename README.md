@@ -49,7 +49,7 @@ repeatable is a CLI command.** The Google Sheet is the single source of truth, s
 the agent writes it and your phone reads/edits it — always in sync.
 
 The Sheet has these tabs (created by `prov init`): `Config`, `WeekPlan`,
-`Recipes`, `Ingredients`, `ShoppingList`, `History`.
+`Recipes`, `Ingredients`, `ShoppingList`, `History`, `Prices`.
 
 ## Prerequisites
 
@@ -128,7 +128,7 @@ A *service account* is a robot Google identity the CLI logs in as.
 ### 4. Bootstrap the tabs
 
 ```bash
-uv run prov init     # creates Config, WeekPlan, Recipes, Ingredients, ShoppingList, History
+uv run prov init     # creates Config, WeekPlan, Recipes, Ingredients, ShoppingList, History, Prices
 ```
 
 If it prints `{"created_tabs": [...]}`, the whole chain works. ✅

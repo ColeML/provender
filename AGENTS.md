@@ -35,7 +35,7 @@ stdin (`-`).
 
 | Command | Purpose |
 |---|---|
-| `init` | Create/verify the tabs (Config, WeekPlan, Recipes, Ingredients, ShoppingList, History) |
+| `init` | Create/verify the tabs (Config, WeekPlan, Recipes, Ingredients, ShoppingList, History, Prices) |
 | `config` / `config-set KEY VALUE` | Read / upsert household settings |
 | `prices` / `price-set ITEM PRICE [--unit] [--store]` | Read / record learned grocery prices |
 | `kroger-locations <zip>` / `kroger-price "<item>"` | Optional real store prices (Kroger API, opt-in) |
