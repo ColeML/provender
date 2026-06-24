@@ -210,7 +210,8 @@ stdin (`-`). Run from the repo root.
 | `prov kroger-locations <zip>` / `kroger-price "<item>"` | Optional: real store prices via the Kroger API |
 | `prov weather [--location] [--days]` | Forecast for the configured location |
 | `prov scrape <url>` | Scrape a recipe to JSON (no save) |
-| `prov recipe-save [file]` | Save a recipe + ingredients |
+| `prov recipe-save [file]` | Save a recipe + ingredients (auto-renders its page) |
+| `prov recipe-render <id>` / `--all` | (Re)render shareable recipe page(s) to `docs/recipes/` |
 | `prov recipes` / `ingredients [--recipe-id]` | Read the library |
 | `prov scale [file] --to N` | Scale a recipe to N servings |
 | `prov convert QTY FROM TO` | Unit conversion, e.g. `convert 2 cup ml` |
@@ -224,6 +225,25 @@ stdin (`-`). Run from the repo root.
 The Google Sheets mobile app is enough day to day (tap the `bought` checkboxes to
 shop). For a nicer calendar / recipe cards / shopping checklist, layer a free
 **Google AppSheet** app on the same Sheet — see [`APPSHEET.md`](APPSHEET.md).
+
+## Recipe pages (shareable, AppSheet-friendly)
+
+Each recipe also renders to a clean, self-contained HTML page you can open on your
+phone or share as a link — handy when AppSheet feels fiddly. The page is a
+**derived view**, overwritten on every render; the Sheet stays the source of truth.
+
+`recipe-save` renders automatically; re-render the whole library with
+`prov recipe-render --all`. Pages are written to `docs/recipes/<slug>.html` and the
+URL is stored in each recipe's `doc_url` column (link it from AppSheet to open the
+page). To publish for free via **GitHub Pages** (one-time):
+
+1. Push the repo, then enable **Settings → Pages → Source: `main`, folder `/docs`**.
+2. Tell the CLI the public base so `doc_url` is a real link:
+   `prov config-set render_base_url "https://<user>.github.io/<repo>"`.
+
+Without `render_base_url`, `doc_url` is just a repo-relative path. (Pages serves the
+files publicly — fine for recipes; if you fork this repo as a template, point
+`docs/recipes` at a separate Pages repo instead.)
 
 ## Other AI agents
 

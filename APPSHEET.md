@@ -38,6 +38,9 @@ AppSheet usually auto-detects, but confirm:
 - `ShoppingList.bought` and `have_already` → **Yes/No** (renders as a toggle)
 - `ShoppingList.est_cost`, `Recipes.cost_estimate` → **Decimal** (or Price)
 - `Recipes.source_url` → **Url** (tappable link)
+- `Recipes.doc_url` → **Url** (tappable link) — opens the rendered recipe page
+  (`prov recipe-render`); relabel as **Open recipe page** for a clean read/share view
+  when AppSheet's own rendering feels fiddly
 - `WeekPlan.servings`, `Recipes.*_min`, `base_servings` → **Number**
 
 ## 4. Add relationships (Refs) for nice navigation

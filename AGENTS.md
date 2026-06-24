@@ -41,7 +41,8 @@ stdin (`-`).
 | `kroger-locations <zip>` / `kroger-price "<item>"` | Optional real store prices (Kroger API, opt-in) |
 | `weather [--location] [--days]` | Open-Meteo forecast for the configured location |
 | `scrape <url>` | Scrape a recipe to JSON (title, image, ingredients, steps) |
-| `recipe-save [file]` | Save a recipe + ingredients (auto-formats display/instructions) |
+| `recipe-save [file]` | Save a recipe + ingredients (auto-formats display/instructions; auto-renders its page) |
+| `recipe-render <id>` / `--all` | (Re)render a shareable HTML recipe page to `docs/recipes/`, record `doc_url` |
 | `recipes` / `ingredients [--recipe-id]` | Read the library |
 | `scale [file] --to N` / `convert QTY FROM TO` | Scaling + unit conversion (pint) |
 | `plan-read` / `plan-write [file]` | Read / replace the week calendar |
@@ -80,6 +81,10 @@ agents read them as instructions):
   `recipe-save`/`history-add` append (History is keyed by a unique `id`).
 - Readers of `WeekPlan` (e.g. build-shopping-list) must **skip rows with a blank
   `recipe_id`** (unplanned days).
+- **Recipe pages are a derived view, not a source.** `recipe-render` regenerates
+  `docs/recipes/<slug>.html` from the `Recipes` row and overwrites it; never hand-edit
+  the HTML or treat it as canonical. The Sheet is the source of truth; `doc_url` just
+  points at the rendered page.
 
 ## Dev
 

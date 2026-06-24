@@ -51,6 +51,7 @@ SCHEMA: dict[str, list[str]] = {
         "instructions",
         "rating",
         "ingredients_text",
+        "doc_url",
     ],
     "Ingredients": ["recipe_id", "name", "qty", "unit", "category", "notes", "display"],
     "ShoppingList": [
