@@ -1,6 +1,10 @@
-"""Tests for the Kroger parsers and credential loading (no network)."""
+"""Tests for the Kroger parsers, credentials, and (mocked) HTTP wrappers."""
 
 import json
+from unittest.mock import MagicMock, patch
+
+import httpx
+import pytest
 
 from provender import kroger
 
@@ -73,6 +77,10 @@ def test_representative_none_when_nothing_priced():
     assert kroger.representative_price([{"description": "x", "regular": None}]) is None
 
 
+def test_representative_none_when_empty():
+    assert kroger.representative_price([]) is None
+
+
 def test_credentials_round_trip(tmp_path, monkeypatch):
     monkeypatch.setattr(kroger, "config_dir", lambda: tmp_path)
     (tmp_path / "kroger.json").write_text(
@@ -86,3 +94,127 @@ def test_credentials_missing_returns_none(tmp_path, monkeypatch):
     monkeypatch.setattr(kroger, "config_dir", lambda: tmp_path)
     assert kroger.credentials() is None
     assert kroger.is_configured() is False
+
+
+# ---- HTTP wrappers (mocked; no network) ----
+
+
+def _with_creds(tmp_path, monkeypatch):
+    """Point config_dir at tmp_path and drop a valid creds file there."""
+    monkeypatch.setattr(kroger, "config_dir", lambda: tmp_path)
+    (tmp_path / "kroger.json").write_text(
+        json.dumps({"client_id": "cid", "client_secret": "sec"})
+    )
+
+
+@patch("provender.kroger.time.time", return_value=1000.0)
+def test_get_token_returns_unexpired_cache_without_calling_api(
+    _time, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(kroger, "config_dir", lambda: tmp_path)
+    (tmp_path / "kroger_token.json").write_text(
+        json.dumps({"access_token": "cached", "expires_at": 5000})
+    )
+    with patch("provender.kroger.httpx.post") as mock_post:
+        assert kroger._get_token() == "cached"
+    mock_post.assert_not_called()
+
+
+@patch("provender.kroger.time.time", return_value=1000.0)
+def test_get_token_refreshes_when_cache_expired_and_rewrites_cache(
+    _time, tmp_path, monkeypatch
+):
+    _with_creds(tmp_path, monkeypatch)
+    # expires_at == now (1000) is not > now + 30, so the cache is stale.
+    (tmp_path / "kroger_token.json").write_text(
+        json.dumps({"access_token": "old", "expires_at": 1000})
+    )
+    resp = MagicMock(status_code=httpx.codes.OK)
+    resp.json.return_value = {"access_token": "fresh", "expires_in": 1800}
+    with patch("provender.kroger.httpx.post", return_value=resp) as mock_post:
+        assert kroger._get_token() == "fresh"
+    mock_post.assert_called_once()
+    assert mock_post.call_args.kwargs["auth"] == ("cid", "sec")
+    cached = json.loads((tmp_path / "kroger_token.json").read_text())
+    assert cached == {"access_token": "fresh", "expires_at": 1000.0 + 1800}
+
+
+def test_get_token_raises_when_not_configured(tmp_path, monkeypatch):
+    monkeypatch.setattr(kroger, "config_dir", lambda: tmp_path)  # no creds file
+    with pytest.raises(kroger.KrogerError, match="not configured"):
+        kroger._get_token()
+
+
+@patch("provender.kroger.time.time", return_value=1000.0)
+def test_get_token_raises_on_auth_failure(_time, tmp_path, monkeypatch):
+    _with_creds(tmp_path, monkeypatch)
+    resp = MagicMock(status_code=httpx.codes.UNAUTHORIZED)
+    with (
+        patch("provender.kroger.httpx.post", return_value=resp),
+        pytest.raises(kroger.KrogerError, match="auth failed"),
+    ):
+        kroger._get_token()
+
+
+@patch("provender.kroger.httpx.get")
+@patch("provender.kroger._get_token", return_value="tok")
+def test_get_sends_bearer_token_and_returns_json(_token, mock_get):
+    resp = MagicMock()
+    resp.json.return_value = {"data": []}
+    mock_get.return_value = resp
+    out = kroger._get("/locations", {"filter.limit": 5})
+    assert out == {"data": []}
+    assert mock_get.call_args.args[0] == "https://api.kroger.com/v1/locations"
+    kwargs = mock_get.call_args.kwargs
+    assert kwargs["headers"]["Authorization"] == "Bearer tok"
+    assert kwargs["params"] == {"filter.limit": 5}
+    resp.raise_for_status.assert_called_once()
+
+
+@patch("provender.kroger._get")
+def test_find_locations_wires_params_and_parses(mock_get):
+    mock_get.return_value = {
+        "data": [
+            {
+                "locationId": "1",
+                "name": "Dillons",
+                "chain": "DILLONS",
+                "address": {"addressLine1": "1 Main", "city": "Wichita", "state": "KS"},
+            }
+        ]
+    }
+    out = kroger.find_locations("67206", chain="DILLONS", limit=3)
+    assert out[0]["location_id"] == "1"
+    path, params = mock_get.call_args.args
+    assert path == "/locations"
+    assert params["filter.zipCode.near"] == "67206"
+    assert params["filter.limit"] == 3
+    assert params["filter.chain"] == "DILLONS"
+
+
+@patch("provender.kroger._get")
+def test_find_locations_omits_chain_filter_when_blank(mock_get):
+    mock_get.return_value = {"data": []}
+    kroger.find_locations("67206")
+    _, params = mock_get.call_args.args
+    assert "filter.chain" not in params
+
+
+@patch("provender.kroger._get")
+def test_search_prices_wires_params_and_parses(mock_get):
+    mock_get.return_value = {
+        "data": [
+            {
+                "description": "Beef",
+                "brand": "Kroger",
+                "items": [{"size": "1 lb", "price": {"regular": 8.49, "promo": 0}}],
+            }
+        ]
+    }
+    out = kroger.search_prices("ground beef", "61500066", limit=5)
+    assert out[0]["regular"] == 8.49
+    path, params = mock_get.call_args.args
+    assert path == "/products"
+    assert params["filter.term"] == "ground beef"
+    assert params["filter.locationId"] == "61500066"
+    assert params["filter.limit"] == 5
