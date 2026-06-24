@@ -83,5 +83,6 @@ agents read them as instructions):
 ```bash
 uv run ruff check .     # lint
 uv run ruff format .    # format (Google docstring convention)
+uv run ty check         # type check (Astral ty)
 uv run pytest           # tests
 ```

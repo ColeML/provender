@@ -12,6 +12,7 @@ returned untouched so no fragile regex guessing happens here.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 import httpx
 from recipe_scrapers import scrape_html
@@ -24,7 +25,7 @@ _USER_AGENT = (
 )
 
 
-def _first_int(text: str | None) -> int | None:
+def _first_int(text: object) -> int | None:
     """Return the first integer found in ``text``, or ``None``."""
     if not text:
         return None
@@ -32,7 +33,7 @@ def _first_int(text: str | None) -> int | None:
     return int(match.group()) if match else None
 
 
-def _try(method) -> object | None:
+def _try(method: Any) -> Any:
     """Call a scraper accessor, swallowing the errors unsupported sites raise."""
     try:
         return method()
