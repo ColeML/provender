@@ -20,6 +20,7 @@ import typer
 
 from provender import config as config_mod
 from provender import history as history_mod
+from provender import prices as prices_mod
 from provender import scale as scale_mod
 from provender import scrape as scrape_mod
 from provender import sheets as sheets_mod
@@ -104,6 +105,42 @@ def config_set(
     spreadsheet = _connect()
     action = sheets_mod.set_config_value(spreadsheet, key, value)
     _emit({"key": key, "value": value, "action": action})
+
+
+@app.command(name="price-set")
+def price_set(
+    ingredient: Annotated[
+        str, typer.Argument(help="Ingredient name, e.g. 'chicken breast'.")
+    ],
+    price: Annotated[float, typer.Argument(help="Unit price, e.g. 2.50.")],
+    unit: Annotated[
+        str, typer.Option(help="Unit the price is per, e.g. 'lb', 'ea'.")
+    ] = "",
+    store: Annotated[str, typer.Option(help="Store the price is from.")] = "",
+) -> None:
+    """Record a learned grocery price (sharpens budget estimates over time)."""
+    spreadsheet = _connect()
+    headers = sheets_mod.SCHEMA["Prices"]
+    rows = sheets_mod.read_table(spreadsheet, "Prices")
+    updated = prices_mod.upsert_price(
+        rows, ingredient, price, unit, store, date.today().isoformat()
+    )
+    sheets_mod.replace_table(
+        spreadsheet,
+        "Prices",
+        headers,
+        [[r.get(h, "") for h in headers] for r in updated],
+    )
+    _emit(
+        {"ingredient": ingredient, "price": price, "unit": unit, "rows": len(updated)}
+    )
+
+
+@app.command()
+def prices() -> None:
+    """Print the learned Prices tab as JSON."""
+    spreadsheet = _connect()
+    _emit(sheets_mod.read_table(spreadsheet, "Prices"))
 
 
 @app.command()

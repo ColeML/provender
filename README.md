@@ -189,6 +189,7 @@ stdin (`-`). Run from the repo root.
 | `prov set-spreadsheet <id-or-url>` | Save your target Sheet to local config |
 | `prov init` | Create the tabs (safe to re-run) |
 | `prov config` / `config-set KEY VALUE` | Read / upsert household settings |
+| `prov prices` / `price-set ITEM PRICE [--unit] [--store]` | Read / record learned grocery prices |
 | `prov weather [--location] [--days]` | Forecast for the configured location |
 | `prov scrape <url>` | Scrape a recipe to JSON (no save) |
 | `prov recipe-save [file]` | Save a recipe + ingredients |
