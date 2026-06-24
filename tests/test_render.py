@@ -71,15 +71,14 @@ def test_recipe_doc_url_absolute_and_relative():
     assert cli._recipe_doc_url("", "beef-stew") == "recipes/beef-stew.html"
 
 
-def test_write_recipe_page_overwrites_in_place(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "_RENDER_DIR", tmp_path)
+def test_write_recipe_page_overwrites_in_place(tmp_path):
     row = _sample()
-    first = cli._write_recipe_page(row, "chicken-tikka")
+    first = cli._write_recipe_page(row, "chicken-tikka", tmp_path)
     assert first == tmp_path / "chicken-tikka.html"
     assert "Chicken Tikka" in first.read_text(encoding="utf-8")
 
     row["title"] = "Chicken Tikka v2"
-    second = cli._write_recipe_page(row, "chicken-tikka")
+    second = cli._write_recipe_page(row, "chicken-tikka", tmp_path)
     assert second == first  # same path
     assert "Chicken Tikka v2" in second.read_text(encoding="utf-8")
 
@@ -115,10 +114,10 @@ def test_render_allows_https_urls():
 
 
 def test_recipe_render_writes_target_page_and_persists_doc_url(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "_RENDER_DIR", tmp_path)
     monkeypatch.setattr(cli, "_connect", object)
+    cfg = {"render_base_url": "https://x.io/provender", "render_dir": str(tmp_path)}
     monkeypatch.setattr(
-        cli, "_config_value", lambda ss, key, default="": "https://x.io/provender"
+        cli, "_config_value", lambda ss, key, default="": cfg.get(key, default)
     )
     rows = [
         {

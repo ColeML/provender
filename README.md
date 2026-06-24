@@ -233,17 +233,29 @@ phone or share as a link — handy when AppSheet feels fiddly. The page is a
 **derived view**, overwritten on every render; the Sheet stays the source of truth.
 
 `recipe-save` renders automatically; re-render the whole library with
-`prov recipe-render --all`. Pages are written to `docs/recipes/<slug>.html` and the
-URL is stored in each recipe's `doc_url` column (link it from AppSheet to open the
-page). To publish for free via **GitHub Pages** (one-time):
+`prov recipe-render --all`. Pages are written to a configurable output dir (Config
+`render_dir`, default `docs/recipes`) and each recipe's URL is stored in its
+`doc_url` column (link it from AppSheet to open the page). Set the public base so
+`doc_url` is a real link: `prov config-set render_base_url "https://<user>.github.io/<repo>"`
+(without it, `doc_url` is a repo-relative path).
 
-1. Push the repo, then enable **Settings → Pages → Source: `main`, folder `/docs`**.
-2. Tell the CLI the public base so `doc_url` is a real link:
-   `prov config-set render_base_url "https://<user>.github.io/<repo>"`.
+Two ways to publish for free via **GitHub Pages**:
 
-Without `render_base_url`, `doc_url` is just a repo-relative path. (Pages serves the
-files publicly — fine for recipes; if you fork this repo as a template, point
-`docs/recipes` at a separate Pages repo instead.)
+- **Single repo (simplest):** leave `render_dir` at `docs/recipes`, commit the files,
+  and enable **Settings → Pages → `main` / `/docs`**.
+- **Dedicated content repo (recommended for ongoing use):** keep generated HTML out
+  of this code repo. Create e.g. `provender-recipes`, enable Pages on `main` / root,
+  then point the CLI at a local clone:
+  ```bash
+  prov config-set render_dir "/path/to/provender-recipes/recipes"
+  prov config-set render_base_url "https://<user>.github.io/provender-recipes"
+  ```
+  Render, then publish with a direct push (it's generated content — no PR needed):
+  ```bash
+  prov recipe-render --all
+  git -C /path/to/provender-recipes commit -am pages && git -C /path/to/provender-recipes push
+  ```
+  A `.nojekyll` file in the content repo makes Pages serve the static HTML directly.
 
 **Existing sheet?** `doc_url` is a new `Recipes` column. Run `prov recipe-render --all`
 once to render every page and backfill the column, then (if you use AppSheet)
