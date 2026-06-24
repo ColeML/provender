@@ -277,6 +277,42 @@ def history_recent(
     _emit(history_mod.filter_recent(rows, days, date.today()))
 
 
+@app.command()
+def history() -> None:
+    """Print the full History tab (all meals + ratings) for taste-learning."""
+    spreadsheet = _connect()
+    _emit(sheets_mod.read_table(spreadsheet, "History"))
+
+
+_RATING_RANGE = range(1, 6)  # valid ratings: 1-5
+
+
+@app.command()
+def rate(
+    recipe_id: Annotated[str, typer.Argument(help="The main's recipe_id to rate.")],
+    rating: Annotated[int, typer.Argument(help="Score 1-5.")],
+    notes: Annotated[
+        str, typer.Option(help="Optional note, e.g. 'kids loved it'.")
+    ] = "",
+) -> None:
+    """Rate the most recent time you cooked a main (drives taste-learning)."""
+    if rating not in _RATING_RANGE:
+        _fail("Rating must be between 1 and 5.")
+    spreadsheet = _connect()
+    headers = sheets_mod.SCHEMA["History"]
+    rows = sheets_mod.read_table(spreadsheet, "History")
+    updated, matched = history_mod.apply_rating(rows, recipe_id, rating, notes)
+    if not matched:
+        _fail(f"No History entry found for recipe_id {recipe_id!r}.")
+    sheets_mod.replace_table(
+        spreadsheet,
+        "History",
+        headers,
+        [[r.get(h, "") for h in headers] for r in updated],
+    )
+    _emit({"rated": recipe_id, "rating": rating})
+
+
 @app.command(name="history-add")
 def history_add(
     rows_json: Annotated[

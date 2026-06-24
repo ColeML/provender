@@ -197,6 +197,7 @@ stdin (`-`). Run from the repo root.
 | `prov convert QTY FROM TO` | Unit conversion, e.g. `convert 2 cup ml` |
 | `prov plan-read` / `plan-write [file]` | Read / replace the week calendar |
 | `prov history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains) |
+| `prov history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
 | `prov shopping-write [file]` / `shopping-clear` | Write / clear the shopping list |
 
 ## Phone GUI
