@@ -22,6 +22,7 @@ from provender import config as config_mod
 from provender import history as history_mod
 from provender import kroger as kroger_mod
 from provender import prices as prices_mod
+from provender import render as render_mod
 from provender import scale as scale_mod
 from provender import scrape as scrape_mod
 from provender import sheets as sheets_mod
@@ -65,6 +66,32 @@ def _connect():  # returns gspread.Spreadsheet
         return sheets_mod.connect(Settings.load())
     except sheets_mod.SheetsError as exc:
         _fail(str(exc))
+
+
+def _config_value(spreadsheet, key: str, default: str = "") -> str:
+    """Read a single Config-tab value by key (``default`` if unset)."""
+    for row in sheets_mod.read_table(spreadsheet, "Config"):
+        if row.get("key") == key:
+            return str(row.get("value") or "")
+    return default
+
+
+#: Where rendered recipe pages are written (served by GitHub Pages from /docs).
+_RENDER_DIR = Path("docs/recipes")
+
+
+def _recipe_doc_url(base_url: str, file_slug: str) -> str:
+    """Build a recipe's published URL, or a repo-relative path if no base is set."""
+    rel = f"recipes/{file_slug}.html"
+    return f"{base_url.rstrip('/')}/{rel}" if base_url else rel
+
+
+def _write_recipe_page(recipe_row: dict[str, Any], file_slug: str) -> Path:
+    """Render ``recipe_row`` to ``docs/recipes/<slug>.html`` (overwriting)."""
+    _RENDER_DIR.mkdir(parents=True, exist_ok=True)
+    path = _RENDER_DIR / f"{file_slug}.html"
+    path.write_text(render_mod.render_recipe_html(recipe_row), encoding="utf-8")
+    return path
 
 
 @app.command()
@@ -267,10 +294,10 @@ def recipe_save(
         str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
     ] = None,
 ) -> None:
-    """Save a recipe (and its ingredients) to the Recipes/Ingredients tabs."""
+    """Save a recipe + ingredients to the Sheet and render its shareable page."""
     recipe = Recipe.from_dict(_read_json_input(recipe_json))
     if not recipe.recipe_id:
-        recipe.recipe_id = _slug(recipe.title)
+        recipe.recipe_id = render_mod.slug(recipe.title)
 
     spreadsheet = _connect()
     recipe_row = {
@@ -288,6 +315,9 @@ def recipe_save(
         "rating": recipe.rating,
         "ingredients_text": _format_ingredients_block(recipe.ingredients),
     }
+    base_url = _config_value(spreadsheet, "render_base_url")
+    file_slug = render_mod.slug(recipe.recipe_id)
+    recipe_row["doc_url"] = _recipe_doc_url(base_url, file_slug)
     recipe_headers = sheets_mod.SCHEMA["Recipes"]
     sheets_mod.append_rows(
         spreadsheet, "Recipes", [[recipe_row.get(h, "") for h in recipe_headers]]
@@ -311,7 +341,68 @@ def recipe_save(
         "Ingredients",
         [[row.get(h, "") for h in ing_headers] for row in ing_rows],
     )
-    _emit({"saved": recipe.recipe_id, "ingredients": len(recipe.ingredients)})
+    page_rendered = True
+    try:
+        _write_recipe_page(recipe_row, file_slug)
+    except OSError as exc:  # a failed page must not fail an already-saved recipe
+        page_rendered = False
+        typer.echo(
+            f"Warning: recipe saved, but rendering its page failed ({exc}); "
+            "re-run `prov recipe-render` once fixed.",
+            err=True,
+        )
+    _emit(
+        {
+            "saved": recipe.recipe_id,
+            "ingredients": len(recipe.ingredients),
+            "doc_url": recipe_row["doc_url"],
+            "page_rendered": page_rendered,
+        }
+    )
+
+
+@app.command(name="recipe-render")
+def recipe_render(
+    recipe_id: Annotated[
+        str | None, typer.Argument(help="Recipe to render; omit with --all.")
+    ] = None,
+    all_recipes: Annotated[
+        bool, typer.Option("--all", help="Re-render every recipe in the library.")
+    ] = False,
+) -> None:
+    """Render recipe page(s) to docs/recipes/ and record each doc_url in the Sheet.
+
+    Pages are a derived view, overwritten on each render; the Sheet stays the
+    source of truth. Push the repo to publish them via GitHub Pages. Set the
+    public base with `prov config-set render_base_url <url>`.
+    """
+    if all_recipes and recipe_id:
+        _fail("Pass either a recipe_id or --all, not both.")
+    if not all_recipes and not recipe_id:
+        _fail("Pass a recipe_id or --all.")
+    spreadsheet = _connect()
+    rows = sheets_mod.read_table(spreadsheet, "Recipes")
+    base_url = _config_value(spreadsheet, "render_base_url")
+    targets = (
+        rows
+        if all_recipes
+        else [r for r in rows if str(r.get("recipe_id")) == recipe_id]
+    )
+    if not targets:
+        _fail(f"No recipe found for recipe_id {recipe_id!r}.")
+
+    rendered = []
+    for row in targets:  # mutating row updates the shared `rows` list in place
+        file_slug = render_mod.slug(str(row.get("recipe_id")))
+        row["doc_url"] = _recipe_doc_url(base_url, file_slug)
+        _write_recipe_page(row, file_slug)
+        rendered.append({"recipe_id": row.get("recipe_id"), "doc_url": row["doc_url"]})
+
+    headers = sheets_mod.SCHEMA["Recipes"]
+    sheets_mod.replace_table(
+        spreadsheet, "Recipes", headers, [[r.get(h, "") for h in headers] for r in rows]
+    )
+    _emit({"rendered": rendered})
 
 
 @app.command()
@@ -484,7 +575,7 @@ def _assign_ids(rows: list[dict[str, Any]]) -> None:
     for row in rows:
         if row.get("id"):
             continue
-        base = _slug(str(row.get("item", "item")))
+        base = render_mod.slug(str(row.get("item", "item")))
         seen[base] = seen.get(base, 0) + 1
         row["id"] = base if seen[base] == 1 else f"{base}-{seen[base]}"
 
@@ -530,12 +621,6 @@ def shopping_clear() -> None:
     spreadsheet = _connect()
     sheets_mod.replace_table(spreadsheet, "ShoppingList", headers, [])
     _emit({"tab": "ShoppingList", "cleared": True})
-
-
-def _slug(text: str) -> str:
-    """Return a lowercase, hyphenated identifier derived from ``text``."""
-    cleaned = "".join(c if c.isalnum() else "-" for c in text.lower())
-    return "-".join(part for part in cleaned.split("-") if part) or "recipe"
 
 
 # Common cooking fractions, for rendering quantities like a real recipe.
