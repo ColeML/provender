@@ -24,7 +24,7 @@ _SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
 ]
 
-#: Tab name -> ordered column headers. Mirrors the schema in ``PLAN.md``.
+#: Tab name -> ordered column headers. The source of truth for tab structure.
 SCHEMA: dict[str, list[str]] = {
     "Config": ["key", "value"],
     "WeekPlan": [

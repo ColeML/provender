@@ -9,7 +9,7 @@ phone. The shopping list is a Sheets tab with checkboxes you tick on your phone.
 
 | Fork | Choice |
 |---|---|
-| Budget | **AI estimates** — Claude estimates per-recipe cost from ingredients + regional norms; refine later with an optional `Prices` tab |
+| Budget | **AI estimates** — Claude estimates per-recipe cost from ingredients + regional norms; refined with learned prices (`Prices` tab) and opt-in Kroger lookups |
 | Interface | **Claude Code skills** — you converse ("plan next week, $120, 5 dinners, quick Monday"); skills call the CLI |
 | Recipe sourcing | **On-the-fly scraping** — Claude suggests, scrapes the chosen ones, saves to Sheets |
 | Shopping list | **Google Sheets tab + checkboxes** — phone-friendly, no fragile auth; Keep/Tasks deferred |
@@ -31,15 +31,16 @@ the Python testable and dumb.
 
 ## Stack
 
-Mirrors your existing YouVersion conventions (flat layout, `setup.py`, pip-tools,
-black/isort/pylint @ line-length 100, Python 3.11+ — same as `yv-cronitor`/`yv-bigquery`).
+Industry-standard Python tooling (not the YouVersion stack): Python 3.11+ managed
+with [uv](https://docs.astral.sh/uv/), **ruff** for lint + format (line-length 88,
+Google docstring convention), **ty** for type-checking, **pytest** for tests.
 
 - `gspread` + `google-auth` — Google Sheets (service-account auth)
 - `recipe-scrapers` — supports hundreds of recipe sites; falls back to JSON-LD
 - `pint` — unit conversion (g↔oz, ml↔cup, etc.)
-- `httpx` — weather/geocoding calls
+- `httpx` — weather/geocoding + Kroger calls
 - **Open-Meteo** — free, no API key: 7-day forecast + geocoding
-- `click` or `typer` — CLI
+- `typer` — CLI
 
 No Anthropic SDK needed — the AI is Claude Code itself.
 
@@ -57,24 +58,27 @@ One spreadsheet, shared with the service-account email. Tabs:
    `category` (produce/meat/dairy/pantry/…), `notes`.
 5. **ShoppingList** — generated: `item`, `qty`, `unit`, `category`, `bought` (checkbox),
    `feeds_recipes`, `est_cost`, `have_already`.
-6. **Prices** *(optional, future)* — `ingredient`, `price`, `unit` for budget refinement.
-7. **History** — `date`, `recipe_id`, `title`, `meal_slot`. Accumulates every planned
-   meal (never replaced) and drives **repeat-avoidance**: `plan-week` skips any dish
-   planned within `no_repeat_days` (Config key, default 30). Also the seed for future
-   taste-learning.
+6. **Prices** — `ingredient`, `unit`, `price`, `store`, `updated`: learned grocery
+   prices (`price-set`/`prices`) that sharpen budget estimates over time.
+7. **History** — `id`, `date`, `recipe_id`, `title`, `meal_slot`, `rating`, `notes`.
+   Accumulates every planned meal (never replaced) and drives **repeat-avoidance**:
+   `plan-week` skips any dish planned within `no_repeat_days` (Config key, default 30).
+   The `rating`/`notes` columns power **taste-learning** (`rate`).
 
 ## CLI surface (`prov`)
 
-Deterministic tools the skills call. No AI inside these.
+Deterministic tools the skills call. No AI inside these. A representative subset
+below; **see [`AGENTS.md`](AGENTS.md) for the full command reference** (init,
+config, prices, kroger-*, history/rate, convert, …).
 
 - `prov scrape <url>` — scrape → JSON (title, servings, times, ingredients, steps)
-- `prov recipe-save <json>` — write a recipe + its ingredients to Sheets
-- `prov scale <recipe_id> --to <servings>` — multiply quantities, normalize units
-  via pint, emit scaled list (Claude handles the judgment calls — see below)
+- `prov recipe-save [file]` — write a recipe + its ingredients to Sheets (JSON in)
+- `prov scale [file] --to <N>` — multiply quantities, normalize units via pint, emit
+  scaled list (Claude handles the judgment calls — see below)
 - `prov weather` — read location from Config, return 7-day forecast
-- `prov plan-write <json>` — write/replace a week in WeekPlan
-- `prov plan-read [--week ...]` — read current plan
-- `prov shopping-write <json>` — write the combined ShoppingList tab w/ checkboxes
+- `prov plan-write [file]` — write/replace a week in WeekPlan
+- `prov plan-read` — read current plan
+- `prov shopping-write [file]` — write the combined ShoppingList tab w/ checkboxes
 - `prov config` — dump Config as JSON
 
 ## Claude Code skills (the actual UX)
@@ -96,8 +100,8 @@ Markdown skills in `.claude/skills/` that orchestrate the CLI + supply AI judgme
 
 ## Build phases
 
-- **Phase 0 — scaffold & auth.** Flat-layout package, setup.py/pyproject (line-length
-  100), pip-tools, Maker.Makefile. Google Cloud service account; share Sheet with its
+- **Phase 0 — scaffold & auth.** `src/`-layout package, `pyproject.toml`, uv +
+  ruff/ty/pytest (line-length 88). Google Cloud service account; share Sheet with its
   email; store creds JSON locally (gitignored). `prov config` proves the connection.
 - **Phase 1 — Sheets I/O.** Schema + read/write helpers + `config`/`plan-read`.
 - **Phase 2 — scraping.** `scrape` + `recipe-save` over `recipe-scrapers`.
@@ -117,17 +121,17 @@ Markdown skills in `.claude/skills/` that orchestrate the CLI + supply AI judgme
 - **Pantry tracking** — mark staples you own (`have_already`) so they drop off the list.
 - **`.ics` calendar export** — push dinners to Google Calendar so they show on your
   phone alongside everything else.
-- **Taste learning** — a `History` tab + ratings; future plans lean toward winners.
+- **Taste learning** *(shipped)* — `History` ratings via `rate`; plans favor 4–5★
+  mains and avoid 1–2★.
 - **Theme nights** — Taco Tuesday / Pizza Friday as soft constraints in Config.
 - **Rough nutrition** estimates per meal (AI, optional).
 - **Seasonal/local produce** awareness from month + location.
-- **Budget refinement** — graduate from pure AI estimates to the `Prices` tab (the
-  "Hybrid" option) once you know your real local prices.
+- **Budget refinement** *(shipped)* — beyond pure AI estimates, use learned prices
+  (`price-set`/`prices`) and opt-in Kroger lookups (`kroger-price`) for real costs.
 
 ## Open setup items (need you, later)
 
 - Create the Google Cloud project + service account, download creds JSON.
 - Create the spreadsheet and share it with the service-account email.
-- Confirm package/CLI name (`prov`?) and repo conventions match `yv-cronitor`.
 ```
 
