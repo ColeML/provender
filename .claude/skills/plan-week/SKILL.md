@@ -75,6 +75,11 @@ wants a side suggested). Apply, in priority order:
    "griddle", the chosen recipe's method must match (after scraping in step 4,
    verify this — adapt the method to the device, or change the note to the
    recipe's real method). Never note a device the recipe doesn't use.
+9. **Taste** — run `uv run prov history` for past ratings. Favor mains the
+   household rated **4–5**; avoid **1–2** unless the user asks. (Ratings differ
+   from repeat-avoidance: a 5-star main is welcome back *after* the no-repeat
+   window; a 1-star one shouldn't return at all.) After cooking, the user records
+   a rating with `uv run prov rate <recipe_id> <1-5> [--notes "…"]`.
 
 ## 4. Source real recipes
 

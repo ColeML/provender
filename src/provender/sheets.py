@@ -65,7 +65,7 @@ SCHEMA: dict[str, list[str]] = {
         "have_already",
         "display",
     ],
-    "History": ["id", "date", "recipe_id", "title", "meal_slot"],
+    "History": ["id", "date", "recipe_id", "title", "meal_slot", "rating", "notes"],
 }
 
 

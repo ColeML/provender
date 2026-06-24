@@ -44,6 +44,7 @@ stdin (`-`).
 | `scale [file] --to N` / `convert QTY FROM TO` | Scaling + unit conversion (pint) |
 | `plan-read` / `plan-write [file]` | Read / replace the week calendar |
 | `history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains only) |
+| `history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
 | `shopping-write [file]` / `shopping-clear` | Write / clear the shopping list (tappable checkboxes) |
 
 ## Workflows (the "skills")
