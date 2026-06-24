@@ -102,10 +102,16 @@ and keep qualifiers like "minced" in `notes`. Also add `tags` (cuisine, "quick",
 
 ## 5. Estimate cost and fit the budget
 
-For each recipe, estimate its total cost from the ingredient list using typical
-US grocery prices for the user's region (you have no price API — estimate). Put
-the number in the recipe's `cost_estimate`. Sum across the week. If over budget,
-swap the most expensive meals for cheaper ones and re-estimate. Show the math.
+First pull learned prices: `uv run prov prices`. For each ingredient with a
+matching entry, use that real price (`price × quantity`); for the rest, estimate
+from typical regional prices and treat those as rougher. Sum each recipe into its
+`cost_estimate`, then sum the week. If over budget, swap the most expensive meals
+for cheaper ones and re-estimate. Show the math, and note which lines used a known
+price vs an estimate.
+
+(There's no Walmart/Sam's price API — prices are learned. Encourage the user to
+record real costs with `uv run prov price-set "<ingredient>" <price> --unit <u>`
+so future budgets get sharper.)
 
 ## 6. Present for approval — STOP
 
