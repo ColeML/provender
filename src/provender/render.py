@@ -149,3 +149,37 @@ def render_recipe_html(recipe: dict[str, Any]) -> str:
 </body>
 </html>
 """
+
+
+def render_index_html(recipes: list[dict[str, Any]]) -> str:
+    """Render a site index linking every recipe page, sorted by title.
+
+    Args:
+        recipes: All ``Recipes`` rows. Rows without a ``recipe_id`` are skipped;
+            each link targets ``recipes/<slug>.html`` (the per-recipe page).
+
+    Returns:
+        A self-contained HTML index page as a string.
+    """
+    items = []
+    for r in sorted(recipes, key=lambda r: str(r.get("title") or "").lower()):
+        rid = r.get("recipe_id")
+        if not rid:
+            continue
+        title = html.escape(str(r.get("title") or rid))
+        items.append(f'<li><a href="recipes/{slug(str(rid))}.html">{title}</a></li>')
+    body = "".join(items)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provender recipes</title>
+<style>{_CSS}</style>
+</head>
+<body>
+<h1>Provender recipes</h1>
+<ul class="ingredients">{body}</ul>
+</body>
+</html>
+"""

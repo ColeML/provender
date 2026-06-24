@@ -76,8 +76,19 @@ def _config_value(spreadsheet, key: str, default: str = "") -> str:
     return default
 
 
-#: Where rendered recipe pages are written (served by GitHub Pages from /docs).
-_RENDER_DIR = Path("docs/recipes")
+#: Default output dir for rendered pages when the ``render_dir`` Config key is unset.
+_DEFAULT_RENDER_DIR = "docs/recipes"
+
+
+def _render_dir(spreadsheet) -> Path:
+    """Resolve where recipe pages are written (Config ``render_dir``, else default).
+
+    Point ``render_dir`` at a local clone of a dedicated Pages repo to publish there
+    rather than committing generated HTML into this repo.
+    """
+    return Path(
+        _config_value(spreadsheet, "render_dir", _DEFAULT_RENDER_DIR)
+    ).expanduser()
 
 
 def _recipe_doc_url(base_url: str, file_slug: str) -> str:
@@ -86,10 +97,12 @@ def _recipe_doc_url(base_url: str, file_slug: str) -> str:
     return f"{base_url.rstrip('/')}/{rel}" if base_url else rel
 
 
-def _write_recipe_page(recipe_row: dict[str, Any], file_slug: str) -> Path:
-    """Render ``recipe_row`` to ``docs/recipes/<slug>.html`` (overwriting)."""
-    _RENDER_DIR.mkdir(parents=True, exist_ok=True)
-    path = _RENDER_DIR / f"{file_slug}.html"
+def _write_recipe_page(
+    recipe_row: dict[str, Any], file_slug: str, out_dir: Path
+) -> Path:
+    """Render ``recipe_row`` to ``<out_dir>/<slug>.html`` (overwriting)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{file_slug}.html"
     path.write_text(render_mod.render_recipe_html(recipe_row), encoding="utf-8")
     return path
 
@@ -343,7 +356,7 @@ def recipe_save(
     )
     page_rendered = True
     try:
-        _write_recipe_page(recipe_row, file_slug)
+        _write_recipe_page(recipe_row, file_slug, _render_dir(spreadsheet))
     except OSError as exc:  # a failed page must not fail an already-saved recipe
         page_rendered = False
         typer.echo(
@@ -391,18 +404,24 @@ def recipe_render(
     if not targets:
         _fail(f"No recipe found for recipe_id {recipe_id!r}.")
 
+    out_dir = _render_dir(spreadsheet)
     rendered = []
     for row in targets:  # mutating row updates the shared `rows` list in place
         file_slug = render_mod.slug(str(row.get("recipe_id")))
         row["doc_url"] = _recipe_doc_url(base_url, file_slug)
-        _write_recipe_page(row, file_slug)
+        _write_recipe_page(row, file_slug, out_dir)
         rendered.append({"recipe_id": row.get("recipe_id"), "doc_url": row["doc_url"]})
+
+    # Refresh the site index (the full library) at the served root, one level up
+    # from the per-recipe pages — matches the `<base>/recipes/<slug>.html` layout.
+    index_path = out_dir.parent / "index.html"
+    index_path.write_text(render_mod.render_index_html(rows), encoding="utf-8")
 
     headers = sheets_mod.SCHEMA["Recipes"]
     sheets_mod.replace_table(
         spreadsheet, "Recipes", headers, [[r.get(h, "") for h in headers] for r in rows]
     )
-    _emit({"rendered": rendered})
+    _emit({"rendered": rendered, "index": str(index_path)})
 
 
 @app.command()

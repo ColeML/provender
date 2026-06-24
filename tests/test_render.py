@@ -71,15 +71,14 @@ def test_recipe_doc_url_absolute_and_relative():
     assert cli._recipe_doc_url("", "beef-stew") == "recipes/beef-stew.html"
 
 
-def test_write_recipe_page_overwrites_in_place(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "_RENDER_DIR", tmp_path)
+def test_write_recipe_page_overwrites_in_place(tmp_path):
     row = _sample()
-    first = cli._write_recipe_page(row, "chicken-tikka")
+    first = cli._write_recipe_page(row, "chicken-tikka", tmp_path)
     assert first == tmp_path / "chicken-tikka.html"
     assert "Chicken Tikka" in first.read_text(encoding="utf-8")
 
     row["title"] = "Chicken Tikka v2"
-    second = cli._write_recipe_page(row, "chicken-tikka")
+    second = cli._write_recipe_page(row, "chicken-tikka", tmp_path)
     assert second == first  # same path
     assert "Chicken Tikka v2" in second.read_text(encoding="utf-8")
 
@@ -115,10 +114,14 @@ def test_render_allows_https_urls():
 
 
 def test_recipe_render_writes_target_page_and_persists_doc_url(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "_RENDER_DIR", tmp_path)
     monkeypatch.setattr(cli, "_connect", object)
+    site = tmp_path / "site"
+    cfg = {
+        "render_base_url": "https://x.io/provender",
+        "render_dir": str(site / "recipes"),
+    }
     monkeypatch.setattr(
-        cli, "_config_value", lambda ss, key, default="": "https://x.io/provender"
+        cli, "_config_value", lambda ss, key, default="": cfg.get(key, default)
     )
     rows = [
         {
@@ -144,9 +147,11 @@ def test_recipe_render_writes_target_page_and_persists_doc_url(tmp_path, monkeyp
 
     cli.recipe_render(recipe_id="beef-stew", all_recipes=False)
 
-    # only the target recipe's page is written
-    assert (tmp_path / "beef-stew.html").exists()
-    assert not (tmp_path / "tacos.html").exists()
+    # only the target recipe's page is written; the index lists the full library
+    assert (site / "recipes" / "beef-stew.html").exists()
+    assert not (site / "recipes" / "tacos.html").exists()
+    index = (site / "index.html").read_text(encoding="utf-8")
+    assert "Beef Stew" in index and "Tacos" in index
     assert rows[0]["doc_url"] == "https://x.io/provender/recipes/beef-stew.html"
 
     # doc_url is persisted for the target, left blank for the untouched recipe
@@ -160,3 +165,17 @@ def test_recipe_render_writes_target_page_and_persists_doc_url(tmp_path, monkeyp
 def test_recipe_render_rejects_both_flags():
     with pytest.raises(typer.Exit):
         cli.recipe_render(recipe_id="x", all_recipes=True)
+
+
+def test_render_index_lists_links_sorted_and_skips_blank():
+    out = render.render_index_html(
+        [
+            {"recipe_id": "tacos", "title": "Tacos"},
+            {"recipe_id": "beef-stew", "title": "Beef Stew"},
+            {"recipe_id": "", "title": "skip me"},
+        ]
+    )
+    assert '<a href="recipes/beef-stew.html">Beef Stew</a>' in out
+    assert '<a href="recipes/tacos.html">Tacos</a>' in out
+    assert "skip me" not in out  # blank recipe_id skipped
+    assert out.index("Beef Stew") < out.index("Tacos")  # sorted by title

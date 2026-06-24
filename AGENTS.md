@@ -42,7 +42,7 @@ stdin (`-`).
 | `weather [--location] [--days]` | Open-Meteo forecast for the configured location |
 | `scrape <url>` | Scrape a recipe to JSON (title, image, ingredients, steps) |
 | `recipe-save [file]` | Save a recipe + ingredients (auto-formats display/instructions; auto-renders its page) |
-| `recipe-render <id>` / `--all` | (Re)render a shareable HTML recipe page to `docs/recipes/`, record `doc_url` |
+| `recipe-render <id>` / `--all` | (Re)render a shareable HTML recipe page to `render_dir` (Config; default `docs/recipes`), record `doc_url` |
 | `recipes` / `ingredients [--recipe-id]` | Read the library |
 | `scale [file] --to N` / `convert QTY FROM TO` | Scaling + unit conversion (pint) |
 | `plan-read` / `plan-write [file]` | Read / replace the week calendar |
