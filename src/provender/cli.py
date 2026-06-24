@@ -412,11 +412,16 @@ def recipe_render(
         _write_recipe_page(row, file_slug, out_dir)
         rendered.append({"recipe_id": row.get("recipe_id"), "doc_url": row["doc_url"]})
 
+    # Refresh the site index (the full library) at the served root, one level up
+    # from the per-recipe pages — matches the `<base>/recipes/<slug>.html` layout.
+    index_path = out_dir.parent / "index.html"
+    index_path.write_text(render_mod.render_index_html(rows), encoding="utf-8")
+
     headers = sheets_mod.SCHEMA["Recipes"]
     sheets_mod.replace_table(
         spreadsheet, "Recipes", headers, [[r.get(h, "") for h in headers] for r in rows]
     )
-    _emit({"rendered": rendered})
+    _emit({"rendered": rendered, "index": str(index_path)})
 
 
 @app.command()
