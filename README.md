@@ -210,7 +210,8 @@ stdin (`-`). Run from the repo root.
 | `prov kroger-locations <zip>` / `kroger-price "<item>"` | Optional: real store prices via the Kroger API |
 | `prov weather [--location] [--days]` | Forecast for the configured location |
 | `prov scrape <url>` | Scrape a recipe to JSON (no save) |
-| `prov recipe-save [file]` | Save a recipe + ingredients (auto-renders its page) |
+| `prov recipe-save [file]` | Save (append) a recipe + ingredients (auto-renders its page) |
+| `prov recipe-update [file]` | Edit an existing recipe in place (upsert by `recipe_id`; no duplicate) |
 | `prov recipe-render <id>` / `--all` | (Re)render shareable recipe page(s) to `docs/recipes/` |
 | `prov recipes` / `ingredients [--recipe-id]` | Read the library |
 | `prov scale [file] --to N` | Scale a recipe to N servings |

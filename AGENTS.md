@@ -41,7 +41,8 @@ stdin (`-`).
 | `kroger-locations <zip>` / `kroger-price "<item>"` | Optional real store prices (Kroger API, opt-in) |
 | `weather [--location] [--days]` | Open-Meteo forecast for the configured location |
 | `scrape <url>` | Scrape a recipe to JSON (title, image, ingredients, steps) |
-| `recipe-save [file]` | Save a recipe + ingredients (auto-formats display/instructions; auto-renders its page) |
+| `recipe-save [file]` | Save (append) a recipe + ingredients (auto-formats display/instructions; auto-renders its page) |
+| `recipe-update [file]` | Upsert a recipe by `recipe_id`: replace its row + ingredients in place (no duplicate); send the full recipe |
 | `recipe-render <id>` / `--all` | (Re)render a shareable HTML recipe page to `render_dir` (Config; default `docs/recipes`), record `doc_url` |
 | `recipes` / `ingredients [--recipe-id]` | Read the library |
 | `scale [file] --to N` / `convert QTY FROM TO` | Scaling + unit conversion (pint) |
@@ -79,6 +80,9 @@ agents read them as instructions):
   overwrites them in place (unplanned days blanked) rather than churning row keys —
   this is what keeps AppSheet's sync reliable. `shopping-write` replaces its tab;
   `recipe-save`/`history-add` append (History is keyed by a unique `id`).
+  `recipe-update` upserts a recipe by `recipe_id` (replaces its row + ingredients
+  in place) — use it to edit an existing recipe instead of re-running `recipe-save`,
+  which would append a duplicate.
 - Readers of `WeekPlan` (e.g. build-shopping-list) must **skip rows with a blank
   `recipe_id`** (unplanned days).
 - **Recipe pages are a derived view, not a source.** `recipe-render` regenerates
