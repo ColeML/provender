@@ -301,19 +301,14 @@ def convert(
     _emit({"qty": result, "unit": to_unit})
 
 
-@app.command(name="recipe-save")
-def recipe_save(
-    recipe_json: Annotated[
-        str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
-    ] = None,
-) -> None:
-    """Save a recipe + ingredients to the Sheet and render its shareable page."""
-    recipe = Recipe.from_dict(_read_json_input(recipe_json))
-    if not recipe.recipe_id:
-        recipe.recipe_id = render_mod.slug(recipe.title)
+def _build_recipe_row(recipe: Recipe, base_url: str) -> tuple[dict[str, Any], str]:
+    """Build a Recipes-tab row dict (with ``doc_url``) and its page file slug.
 
-    spreadsheet = _connect()
-    recipe_row = {
+    Shared by ``recipe-save`` (append) and ``recipe-update`` (upsert) so both write
+    rows in exactly the same shape and formatting.
+    """
+    file_slug = render_mod.slug(recipe.recipe_id)
+    row = {
         "recipe_id": recipe.recipe_id,
         "title": recipe.title,
         "source_url": recipe.source_url,
@@ -327,47 +322,154 @@ def recipe_save(
         "instructions": _format_instructions(recipe.instructions),
         "rating": recipe.rating,
         "ingredients_text": _format_ingredients_block(recipe.ingredients),
+        "doc_url": _recipe_doc_url(base_url, file_slug),
     }
-    base_url = _config_value(spreadsheet, "render_base_url")
-    file_slug = render_mod.slug(recipe.recipe_id)
-    recipe_row["doc_url"] = _recipe_doc_url(base_url, file_slug)
-    recipe_headers = sheets_mod.SCHEMA["Recipes"]
-    sheets_mod.append_rows(
-        spreadsheet, "Recipes", [[recipe_row.get(h, "") for h in recipe_headers]]
-    )
+    return row, file_slug
 
-    ing_headers = sheets_mod.SCHEMA["Ingredients"]
-    ing_rows = [
+
+def _build_ingredient_rows(recipe: Recipe) -> list[dict[str, Any]]:
+    """Build the Ingredients-tab row dicts for a recipe, with formatted display."""
+    return [
         {
             "recipe_id": recipe.recipe_id,
             "name": ing.name,
             "qty": ing.qty,
-            "unit": ing.unit,
+            "unit": _unit_or_each(ing),
             "category": ing.category,
             "notes": ing.notes,
             "display": _format_ingredient(ing),
         }
         for ing in recipe.ingredients
     ]
+
+
+def _render_recipe_page_safe(
+    recipe_row: dict[str, Any], file_slug: str, spreadsheet
+) -> bool:
+    """Render a recipe's page, returning whether it succeeded.
+
+    A failed page must never fail an already-persisted recipe, so an OS error is
+    reported on stderr and swallowed; the caller surfaces ``page_rendered``.
+    """
+    try:
+        _write_recipe_page(recipe_row, file_slug, _render_dir(spreadsheet))
+        return True
+    except OSError as exc:
+        recipe_id = recipe_row.get("recipe_id")
+        typer.echo(
+            f"Warning: {recipe_id} was written to the Sheet, but rendering its page "
+            f"failed ({exc}); re-run `prov recipe-render {recipe_id}` once fixed.",
+            err=True,
+        )
+        return False
+
+
+@app.command(name="recipe-save")
+def recipe_save(
+    recipe_json: Annotated[
+        str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
+    ] = None,
+) -> None:
+    """Save a recipe + ingredients to the Sheet and render its shareable page.
+
+    Appends — use ``recipe-update`` to edit an existing recipe by ``recipe_id``.
+    """
+    recipe = Recipe.from_dict(_read_json_input(recipe_json))
+    if not recipe.recipe_id:
+        recipe.recipe_id = render_mod.slug(recipe.title)
+
+    spreadsheet = _connect()
+    base_url = _config_value(spreadsheet, "render_base_url")
+    recipe_row, file_slug = _build_recipe_row(recipe, base_url)
+    recipe_headers = sheets_mod.SCHEMA["Recipes"]
+    sheets_mod.append_rows(
+        spreadsheet, "Recipes", [[recipe_row.get(h, "") for h in recipe_headers]]
+    )
+
+    ing_headers = sheets_mod.SCHEMA["Ingredients"]
+    ing_rows = _build_ingredient_rows(recipe)
     sheets_mod.append_rows(
         spreadsheet,
         "Ingredients",
         [[row.get(h, "") for h in ing_headers] for row in ing_rows],
     )
-    page_rendered = True
-    try:
-        _write_recipe_page(recipe_row, file_slug, _render_dir(spreadsheet))
-    except OSError as exc:  # a failed page must not fail an already-saved recipe
-        page_rendered = False
-        typer.echo(
-            f"Warning: recipe saved, but rendering its page failed ({exc}); "
-            "re-run `prov recipe-render` once fixed.",
-            err=True,
-        )
+    page_rendered = _render_recipe_page_safe(recipe_row, file_slug, spreadsheet)
     _emit(
         {
             "saved": recipe.recipe_id,
             "ingredients": len(recipe.ingredients),
+            "doc_url": recipe_row["doc_url"],
+            "page_rendered": page_rendered,
+        }
+    )
+
+
+@app.command(name="recipe-update")
+def recipe_update(
+    recipe_json: Annotated[
+        str | None, typer.Argument(help="Path to a recipe JSON file, or '-' for stdin.")
+    ] = None,
+) -> None:
+    """Upsert a recipe by ``recipe_id``: replace its row + ingredients in place.
+
+    Unlike ``recipe-save`` (which always appends), this finds the existing row by
+    ``recipe_id`` and overwrites it, then replaces that recipe's Ingredients rows,
+    so editing a recipe never leaves a duplicate. If no row matches the given
+    ``recipe_id`` it is appended (insert-or-update); the emitted ``action`` says
+    which happened, so a mistyped id surfaces as an unexpected ``created``.
+
+    Send the **complete** recipe — fields you omit are written as empty/defaults,
+    not merged. The site index (``index.html``) is refreshed by ``recipe-render``;
+    run it after a title change to update the library listing.
+    """
+    recipe = Recipe.from_dict(_read_json_input(recipe_json))
+    if not recipe.recipe_id:
+        _fail("recipe-update needs a recipe_id; use recipe-save to create a recipe.")
+
+    spreadsheet = _connect()
+    base_url = _config_value(spreadsheet, "render_base_url")
+    recipe_row, file_slug = _build_recipe_row(recipe, base_url)
+
+    # Recipes: overwrite the matching row in place (preserving order), else append.
+    rec_headers = sheets_mod.SCHEMA["Recipes"]
+    recipes = sheets_mod.read_table(spreadsheet, "Recipes")
+    target_id = str(recipe.recipe_id)
+    action = "created"
+    for i, row in enumerate(recipes):
+        if str(row.get("recipe_id")) == target_id:
+            recipes[i] = recipe_row
+            action = "updated"
+            break
+    else:
+        recipes.append(recipe_row)
+    sheets_mod.replace_table(
+        spreadsheet,
+        "Recipes",
+        rec_headers,
+        [[r.get(h, "") for h in rec_headers] for r in recipes],
+    )
+
+    # Ingredients: drop this recipe's old lines, then write the fresh set.
+    ing_headers = sheets_mod.SCHEMA["Ingredients"]
+    others = [
+        r
+        for r in sheets_mod.read_table(spreadsheet, "Ingredients")
+        if str(r.get("recipe_id")) != target_id
+    ]
+    ing_rows = _build_ingredient_rows(recipe)
+    sheets_mod.replace_table(
+        spreadsheet,
+        "Ingredients",
+        ing_headers,
+        [[r.get(h, "") for h in ing_headers] for r in (*others, *ing_rows)],
+    )
+
+    page_rendered = _render_recipe_page_safe(recipe_row, file_slug, spreadsheet)
+    _emit(
+        {
+            "action": action,
+            "recipe_id": recipe.recipe_id,
+            "ingredients": len(ing_rows),
             "doc_url": recipe_row["doc_url"],
             "page_rendered": page_rendered,
         }
@@ -686,6 +788,15 @@ def _format_ingredients_block(ingredients: list[Ingredient]) -> str:
     return "\n".join(f"• {_format_ingredient(ing)}" for ing in ingredients)
 
 
+def _unit_or_each(ing: Ingredient) -> str:
+    """Resolve an ingredient's unit: counted items with no unit get 'ea' (each).
+
+    A quantity with no unit means a countable item (buns, tortillas), so it takes
+    the grocery 'ea' unit; a quantity-less item (e.g. 'salt to taste') stays unitless.
+    """
+    return ing.unit or ("ea" if ing.qty is not None else "")
+
+
 def _format_ingredient(ing: Ingredient) -> str:
     """Render an ingredient as one clean line: 'qty unit name — notes'.
 
@@ -693,7 +804,7 @@ def _format_ingredient(ing: Ingredient) -> str:
     read as '24 ea buns'. Quantity-less items (e.g. 'salt to taste') stay as
     'name — notes' with no unit.
     """
-    unit = ing.unit or ("ea" if ing.qty is not None else "")
+    unit = _unit_or_each(ing)
     head = " ".join(part for part in (_pretty_qty(ing.qty), unit) if part)
     line = f"{head} {ing.name}".strip() if head else ing.name
     if ing.notes:
