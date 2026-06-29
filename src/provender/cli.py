@@ -334,7 +334,7 @@ def _build_ingredient_rows(recipe: Recipe) -> list[dict[str, Any]]:
             "recipe_id": recipe.recipe_id,
             "name": ing.name,
             "qty": ing.qty,
-            "unit": ing.unit,
+            "unit": _unit_or_each(ing),
             "category": ing.category,
             "notes": ing.notes,
             "display": _format_ingredient(ing),
@@ -788,6 +788,15 @@ def _format_ingredients_block(ingredients: list[Ingredient]) -> str:
     return "\n".join(f"• {_format_ingredient(ing)}" for ing in ingredients)
 
 
+def _unit_or_each(ing: Ingredient) -> str:
+    """Resolve an ingredient's unit: counted items with no unit get 'ea' (each).
+
+    A quantity with no unit means a countable item (buns, tortillas), so it takes
+    the grocery 'ea' unit; a quantity-less item (e.g. 'salt to taste') stays unitless.
+    """
+    return ing.unit or ("ea" if ing.qty is not None else "")
+
+
 def _format_ingredient(ing: Ingredient) -> str:
     """Render an ingredient as one clean line: 'qty unit name — notes'.
 
@@ -795,7 +804,7 @@ def _format_ingredient(ing: Ingredient) -> str:
     read as '24 ea buns'. Quantity-less items (e.g. 'salt to taste') stay as
     'name — notes' with no unit.
     """
-    unit = ing.unit or ("ea" if ing.qty is not None else "")
+    unit = _unit_or_each(ing)
     head = " ".join(part for part in (_pretty_qty(ing.qty), unit) if part)
     line = f"{head} {ing.name}".strip() if head else ing.name
     if ing.notes:

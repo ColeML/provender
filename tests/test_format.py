@@ -1,7 +1,12 @@
 """Tests for instruction and ingredient formatting."""
 
-from provender.cli import _format_ingredient, _format_instructions, _pretty_qty
-from provender.models import Ingredient
+from provender.cli import (
+    _build_ingredient_rows,
+    _format_ingredient,
+    _format_instructions,
+    _pretty_qty,
+)
+from provender.models import Ingredient, Recipe
 
 
 def test_pretty_qty_fractions_and_wholes():
@@ -22,6 +27,21 @@ def test_countable_items_use_ea_unit():
     assert _format_ingredient(Ingredient(name="salt", qty=None, notes="to taste")) == (
         "salt — to taste"
     )
+
+
+def test_stored_unit_uses_ea_for_countable_items():
+    recipe = Recipe(
+        title="Tacos",
+        recipe_id="tacos",
+        ingredients=[
+            Ingredient(name="tortillas", qty=12, unit=""),  # countable -> 'ea'
+            Ingredient(name="chicken", qty=1, unit="lb"),  # explicit unit kept
+            Ingredient(name="salt", qty=None, notes="to taste"),  # unitless stays ""
+        ],
+    )
+    rows = _build_ingredient_rows(recipe)
+    stored = {r["name"]: r["unit"] for r in rows}
+    assert stored == {"tortillas": "ea", "chicken": "lb", "salt": ""}
 
 
 def test_format_ingredient_clean_lines():
