@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -100,9 +101,29 @@ class Recipe:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Recipe:
-        """Build a ``Recipe`` from a plain dict (inverse of :meth:`to_dict`)."""
+        """Build a ``Recipe`` from a plain dict (inverse of :meth:`to_dict`).
+
+        ``tags`` and ``instructions`` are lists, but ``prov recipes`` reads them
+        back from the Sheet as strings (a comma-joined ``tags`` and a
+        blank-line-separated, numbered ``instructions`` block). Normalize those
+        string shapes so a recipe round-tripped through the Sheet can be fed
+        straight back to ``recipe-update`` — otherwise each character would be
+        treated as its own tag/step.
+        """
         ingredients = [Ingredient.from_dict(i) for i in data.get("ingredients", [])]
         known = {f.name for f in dataclasses.fields(cls)}
         kwargs = {k: v for k, v in data.items() if k in known}
         kwargs["ingredients"] = ingredients
+
+        tags = kwargs.get("tags")
+        if isinstance(tags, str):
+            kwargs["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+
+        instructions = kwargs.get("instructions")
+        if isinstance(instructions, str):
+            steps = re.split(r"\n\s*\n", instructions)
+            if len(steps) <= 1:
+                steps = instructions.split("\n")
+            kwargs["instructions"] = [s.strip() for s in steps if s.strip()]
+
         return cls(**kwargs)
