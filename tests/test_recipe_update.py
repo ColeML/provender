@@ -117,6 +117,36 @@ def test_save_appends_to_both_tabs(monkeypatch, tmp_path):
     assert (tmp_path / "recipes" / "stew.html").exists()
 
 
+def test_update_tolerates_sheet_string_shapes(monkeypatch, tmp_path):
+    """Round-trip guard: tags/instructions read back as strings must not char-split.
+
+    ``prov recipes`` emits ``tags`` as a comma-joined string and ``instructions``
+    as a blank-line-separated numbered block. Feeding that straight back to
+    ``recipe-update`` once exploded each character into its own tag/step.
+    """
+    recipes = [{"recipe_id": "soup", "title": "Soup"}]
+    captured, _ = _wire(monkeypatch, tmp_path, recipes, [])
+    _stdin(
+        monkeypatch,
+        {
+            "recipe_id": "soup",
+            "title": "Soup",
+            "tags": "asian, chicken, quick",
+            "instructions": "1. Boil water.\n\n2. Add noodles.",
+            "ingredients": [],
+        },
+    )
+
+    cli.recipe_update(recipe_json="-")
+
+    rec_schema = cli.sheets_mod.SCHEMA["Recipes"]
+    row = captured["Recipes"][0]
+    tags = row[rec_schema.index("tags")]
+    instructions = row[rec_schema.index("instructions")]
+    assert tags == "asian, chicken, quick"
+    assert instructions == "1. Boil water.\n\n2. Add noodles."
+
+
 def test_update_missing_recipe_id_appends(monkeypatch, tmp_path):
     recipes = [{"recipe_id": "tacos", "title": "Tacos"}]
     captured, emitted = _wire(monkeypatch, tmp_path, recipes, [])
