@@ -16,6 +16,7 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, NoReturn
 
+import truststore
 import typer
 
 from provender import config as config_mod
@@ -834,7 +835,13 @@ def main() -> None:
     is the safety net for anything unanticipated — a gspread API error mid-write,
     an unexpected response shape — so the user sees a one-line message on stderr
     instead of a raw traceback.
+
+    Verification is routed through the OS trust store (:mod:`truststore`) so the
+    CLI honors any roots the machine already trusts — e.g. a corporate
+    TLS-inspection proxy's CA that ``certifi`` doesn't ship and that Python 3.14's
+    strict X.509 checks would otherwise reject.
     """
+    truststore.inject_into_ssl()
     try:
         app()
     except sheets_mod.SheetsError as exc:
