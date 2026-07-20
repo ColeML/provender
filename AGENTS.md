@@ -85,6 +85,14 @@ agents read them as instructions):
   which would append a duplicate.
 - Readers of `WeekPlan` (e.g. build-shopping-list) must **skip rows with a blank
   `recipe_id`** (unplanned days).
+- **Every side and dessert is a saved recipe, linked from its day** — the side in
+  `WeekPlan.side_recipe_id` (one, an AppSheet Ref) and any extras (a dessert, a
+  second side) in `WeekPlan.extras_recipe_ids` (comma-separated recipe ids). Never
+  leave a side/dessert as free text only: build-shopping-list reads `recipe_id` +
+  `side_recipe_id` + `extras_recipe_ids`, so an unlinked dish is dropped from the list.
+- **Every `Ingredients` row has a unique `id`** (`<recipe_id>_<name-slug>`, suffixed
+  on repeat) — so a recipe can use an ingredient twice without a key clash. It's the
+  AppSheet key for that tab.
 - **Recipe pages are a derived view, not a source.** `recipe-render` regenerates
   `docs/recipes/<slug>.html` from the `Recipes` row and overwrites it; never hand-edit
   the HTML or treat it as canonical. The Sheet is the source of truth; `doc_url` just

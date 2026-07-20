@@ -51,10 +51,12 @@ One spreadsheet, shared with the service-account email. Tabs:
 1. **Config** — household defaults: `people`, `location`, `dietary_restrictions`,
    `allergies`, `dislikes`, `equipment`, `default_budget`, `default_meals`. Edit by hand.
 2. **WeekPlan** — the calendar: `date`, `day`, `meal_slot` (dinner/lunch), `recipe_id`,
-   `servings`, `day_prefs` (e.g. "quick"), `side_recipe_id`, `status`.
+   `servings`, `day_prefs` (e.g. "quick"), `side_recipe_id`, `extras_recipe_ids`
+   (comma-separated recipe ids for a dessert or second side), `status`.
 3. **Recipes** — `recipe_id`, `title`, `source_url`, `base_servings`, `prep_min`,
    `cook_min`, `total_min`, `cost_estimate`, `tags`, `instructions`, `rating`.
-4. **Ingredients** — normalized, one row each: `recipe_id`, `name`, `qty`, `unit`,
+4. **Ingredients** — normalized, one row each: `id` (unique key `<recipe_id>_<name-slug>`,
+   suffixed on repeat), `recipe_id`, `name`, `qty`, `unit`,
    `category` (produce/meat/dairy/pantry/…), `notes`.
 5. **ShoppingList** — generated: `item`, `qty`, `unit`, `category`, `bought` (checkbox),
    `feeds_recipes`, `est_cost`, `have_already`.

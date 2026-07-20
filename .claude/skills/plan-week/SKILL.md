@@ -140,13 +140,24 @@ disagree). Concretely:
 
 Then save every main and side and write the calendar:
 
+**Every side must be saved as its own recipe and linked from its day's
+`side_recipe_id`** — even trivial ones (a cucumber salad, steamed edamame, dinner
+rolls). Never leave a side as free text in `day_prefs` only: `build-shopping-list`
+collects `recipe_id` + `side_recipe_id` + `extras_recipe_ids`, so a side or dessert
+that isn't a linked recipe is silently dropped from the grocery list.
+`side_recipe_id` is an AppSheet Ref (one recipe), so it holds exactly one side per
+day. Any extras beyond that one side — a second side, a dessert — go in
+`extras_recipe_ids` as a comma-separated list of recipe ids; save those as recipes
+too. That way everything on the day flows into the shopping list.
+
 ```bash
 # Save each recipe (gives it a recipe_id; note the id from the JSON output)
 echo '<recipe-json>' | uv run prov recipe-save -
 
 # Write the week. Provide one row per PLANNED day; plan-write normalizes to the
 # 7 fixed day-slots (Mon-Sun, keyed by `day`) and blanks unplanned days itself.
-# Each row: {date, day, meal_slot, recipe_id, servings, day_prefs, side_recipe_id, status}
+# Each row: {date, day, meal_slot, recipe_id, servings, day_prefs, side_recipe_id, extras_recipe_ids, status}
+# extras_recipe_ids: comma-separated recipe ids for any dessert / second side (else "").
 # `day` must be a full weekday name ("Monday"…). Stable day keys keep AppSheet in sync.
 echo '<weekplan-rows-json>' | uv run prov plan-write -
 
