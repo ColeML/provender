@@ -329,19 +329,32 @@ def _build_recipe_row(recipe: Recipe, base_url: str) -> tuple[dict[str, Any], st
 
 
 def _build_ingredient_rows(recipe: Recipe) -> list[dict[str, Any]]:
-    """Build the Ingredients-tab row dicts for a recipe, with formatted display."""
-    return [
-        {
-            "recipe_id": recipe.recipe_id,
-            "name": ing.name,
-            "qty": ing.qty,
-            "unit": _unit_or_each(ing),
-            "category": ing.category,
-            "notes": ing.notes,
-            "display": _format_ingredient(ing),
-        }
-        for ing in recipe.ingredients
-    ]
+    """Build the Ingredients-tab row dicts for a recipe, with formatted display.
+
+    Each row gets a unique ``id`` of ``<recipe_id>_<name-slug>``, suffixed
+    (``-2``, ``-3``, …) when a recipe repeats an ingredient (e.g. salt in both a
+    dressing and a topping). The ``recipe_id`` prefix keeps ids unique across the
+    whole tab, so it is a safe single-column key for the phone app.
+    """
+    rows: list[dict[str, Any]] = []
+    seen: dict[str, int] = {}
+    for ing in recipe.ingredients:
+        base = f"{recipe.recipe_id}_{render_mod.slug(ing.name)}"
+        seen[base] = seen.get(base, 0) + 1
+        row_id = base if seen[base] == 1 else f"{base}-{seen[base]}"
+        rows.append(
+            {
+                "id": row_id,
+                "recipe_id": recipe.recipe_id,
+                "name": ing.name,
+                "qty": ing.qty,
+                "unit": _unit_or_each(ing),
+                "category": ing.category,
+                "notes": ing.notes,
+                "display": _format_ingredient(ing),
+            }
+        )
+    return rows
 
 
 def _render_recipe_page_safe(

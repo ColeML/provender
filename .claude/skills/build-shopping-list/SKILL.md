@@ -12,13 +12,16 @@ provides the data; you do the merging and categorizing. Run from the project roo
 ## 1. Read the plan and pantry
 
 ```bash
-uv run prov plan-read     # WeekPlan rows: recipe_id, servings, side_recipe_id
+uv run prov plan-read     # WeekPlan rows: recipe_id, servings, side_recipe_id, extras_recipe_ids
 uv run prov config        # for pantry_staples (things already on hand)
 ```
 
-Collect every `recipe_id` AND `side_recipe_id` in the plan, along with each row's
-`servings`. `WeekPlan` always has 7 day-slots (Mon-Sun); **skip rows whose
-`recipe_id` is blank** — those are unplanned days.
+Collect every recipe the plan references — the `recipe_id` (main), the
+`side_recipe_id` (side), AND every id in `extras_recipe_ids` (a comma-separated
+list of any dessert or second side) — along with each row's `servings`. `WeekPlan`
+always has 7 day-slots (Mon-Sun); **skip rows whose `recipe_id` is blank** — those
+are unplanned days. A row can have extras with no side, so read `extras_recipe_ids`
+even when `side_recipe_id` is empty.
 
 ## 2. Pull each recipe's ingredients
 
