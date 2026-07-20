@@ -8,9 +8,10 @@ as a pure function so it can be unit-tested without touching Google Sheets.
 Future idea — a smarter *fallback* than an AI guess when no learned price exists,
 for the generic items we typically buy (non-organic produce, ground beef, etc.):
 
-- **BLS Average Price Data** — free official US averages for ~70 staple items,
-  by Census region (we're South); real $/lb. https://www.bls.gov/cpi/factsheets/average-prices.htm
-- **USDA ERS** — $/lb for ~150 fruits & vegetables.
+- **BLS (Bureau of Labor Statistics) Average Price Data** — free official US
+  averages for ~70 staple items, by Census region (we're South); real $/lb.
+  https://www.bls.gov/cpi/factsheets/average-prices.htm
+- **USDA ERS (Economic Research Service)** — $/lb for ~150 fruits & vegetables.
 
 Both are generic (non-branded) and regional, not store-specific — so they'd sit
 *below* the learned Prices tab but *above* a pure estimate. (Open Prices was

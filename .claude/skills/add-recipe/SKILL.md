@@ -5,7 +5,7 @@ description: Scrape a recipe from a URL, parse its ingredients into structured f
 
 # Add a recipe to the library
 
-Scrape, structure, and persist a single recipe. Run from the project root.
+Scrape, structure, and save a single recipe. Run from the project root.
 
 ## 1. Scrape
 
@@ -47,5 +47,6 @@ Example: `"2 cloves garlic, minced"` →
 echo '<recipe-json>' | uv run prov recipe-save -
 ```
 
-If you don't set `recipe_id`, one is generated from the title. Report the saved
-`recipe_id` and ingredient count so the user can reference it later in a plan.
+If you don't set `recipe_id`, `recipe-save` generates one from the title. Report
+the saved `recipe_id` and ingredient count so the user can reference it later in a
+plan.

@@ -13,7 +13,7 @@ import httpx
 _GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 _FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
-# WMO weather interpretation codes, condensed to plain-language buckets.
+# WMO (World Meteorological Organization) weather codes, condensed to plain buckets.
 _WMO_CODES: dict[int, str] = {
     0: "clear",
     1: "mostly clear",
