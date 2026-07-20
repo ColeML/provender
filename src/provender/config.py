@@ -56,14 +56,9 @@ def read_config_file() -> dict[str, Any]:
 
 
 def write_config_value(key: str, value: str) -> Path:
-    """Set ``key`` to ``value`` in the local config file, creating it if needed.
+    """Set ``key`` to ``value`` in the local config file, returning its path.
 
-    Args:
-        key: Config key (e.g. ``"spreadsheet"`` or ``"credentials_path"``).
-        value: Value to store.
-
-    Returns:
-        The path to the config file that was written.
+    Creates the file if it doesn't exist.
     """
     path = config_file()
     data = read_config_file()

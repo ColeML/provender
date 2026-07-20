@@ -135,5 +135,4 @@ Markdown skills in `.claude/skills/` that orchestrate the CLI + supply AI judgme
 
 - Create the Google Cloud project + service account, download creds JSON.
 - Create the spreadsheet and share it with the service-account email.
-```
 
