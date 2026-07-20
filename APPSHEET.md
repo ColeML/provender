@@ -6,8 +6,8 @@ can layer **Google AppSheet** on top of the *same* spreadsheet for free (persona
 use). No backend changes — Claude Code keeps writing the sheet; AppSheet reads and
 writes the same data live.
 
-> The sheet is already prepped for this: `ShoppingList` has a stable `id` key
-> column, and `Recipes` is keyed by `recipe_id`.
+> The sheet is already prepped for this: `ShoppingList` and `Ingredients` each have
+> a stable `id` key column, and `Recipes` is keyed by `recipe_id`.
 
 ## 1. Create the app
 
@@ -28,7 +28,7 @@ A good key is unique per row so AppSheet tracks edits correctly:
 | `Recipes` | `recipe_id` | set its **Label** to `title` so refs show nicely |
 | `WeekPlan` | `day` | 7 fixed slots (Mon-Sun); stable keys = reliable sync |
 | `Config` | `key` | |
-| `Ingredients` | *(let AppSheet auto-key)* | append-only, display under a recipe |
+| `Ingredients` | `id` | unique (`<recipe_id>_<name-slug>`, suffixed on repeat); lets a recipe use an ingredient twice (e.g. salt in a dressing and a topping) without a key clash |
 | `History` | `id` | unique (`date` + `recipe_id`); a recipe can recur on different dates |
 
 ## 3. Set column types
@@ -51,6 +51,9 @@ In **Data → Columns**, change these to type **Ref**:
   its ingredients nested underneath.
 - `WeekPlan.recipe_id` and `WeekPlan.side_recipe_id` → Ref to `Recipes` → the
   calendar shows the real recipe title and links straight to the recipe card.
+- `WeekPlan.extras_recipe_ids` → **EnumList** of type Ref to `Recipes` (it holds a
+  comma-separated list — a dessert or second side). Leave it as plain text if you'd
+  rather not bother; the shopping-list step reads it either way.
 
 ## 5. Build the views (UX → Views)
 
