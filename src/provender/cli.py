@@ -11,7 +11,10 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+import shutil
+import subprocess
 import sys
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, NoReturn
@@ -378,6 +381,86 @@ def _render_recipe_page_safe(
         return False
 
 
+#: Config ``auto_publish`` values that turn on committing rendered pages.
+_TRUTHY = {"true", "1", "yes", "on"}
+
+
+def _auto_publish_enabled(spreadsheet) -> bool:
+    """Whether Config ``auto_publish`` opts in to committing rendered pages.
+
+    Off by default: the shipped default renders into this repo's ``docs/recipes``,
+    so publishing only makes sense once ``render_dir`` points at a separate Pages
+    repo and the user turns it on with ``prov config-set auto_publish true``.
+    """
+    return _config_value(spreadsheet, "auto_publish").strip().lower() in _TRUTHY
+
+
+def _refresh_index(spreadsheet, out_dir: Path) -> None:
+    """Rebuild the library ``index.html`` at the served root from the Recipes tab.
+
+    Per-recipe saves only render their own page, so the index would otherwise not
+    list a brand-new recipe until the next full render.
+    """
+    rows = sheets_mod.read_table(spreadsheet, "Recipes")
+    (out_dir.parent / "index.html").write_text(
+        render_mod.render_index_html(rows), encoding="utf-8"
+    )
+
+
+def _publish_pages(spreadsheet, out_dir: Path, message: str) -> dict[str, Any]:
+    """Best-effort commit + push of the rendered pages in ``out_dir``'s git repo.
+
+    Keeps the GitHub Pages site in sync with the Sheet so recipe links don't 404.
+    Runs only when Config ``auto_publish`` is on and ``out_dir`` sits inside a git
+    work tree. Never raises: git missing, nothing to commit, no remote, or a failed
+    push are reported on stderr and swallowed so an already-saved recipe survives.
+    Returns a small status dict that the calling command includes in its JSON.
+    """
+    if not _auto_publish_enabled(spreadsheet):
+        return {"published": False, "reason": "disabled"}
+    if shutil.which("git") is None:
+        return {"published": False, "reason": "git-not-found"}
+
+    def _git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(out_dir), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    if _git("rev-parse", "--is-inside-work-tree").returncode != 0:
+        return {"published": False, "reason": "not-a-git-repo"}
+
+    _refresh_index(spreadsheet, out_dir)
+    _git("add", "-A")
+    if _git("diff", "--cached", "--quiet").returncode == 0:
+        return {"published": False, "reason": "nothing-to-commit"}
+    return _commit_and_push(_git, message)
+
+
+def _commit_and_push(
+    git: Callable[..., subprocess.CompletedProcess[str]], message: str
+) -> dict[str, Any]:
+    """Commit staged pages and push, warning (not raising) on any git failure."""
+    commit = git("commit", "-m", message)
+    if commit.returncode != 0:
+        typer.echo(
+            f"Warning: auto-publish commit failed: {commit.stderr.strip()}", err=True
+        )
+        return {"published": False, "reason": "commit-failed"}
+    if not git("remote").stdout.strip():
+        return {"published": True, "pushed": False, "reason": "no-remote"}
+
+    push = git("push")
+    if push.returncode != 0:
+        typer.echo(
+            f"Warning: pages committed but push failed: {push.stderr.strip()}", err=True
+        )
+        return {"published": True, "pushed": False, "reason": "push-failed"}
+    return {"published": True, "pushed": True}
+
+
 @app.command(name="recipe-save")
 def recipe_save(
     recipe_json: Annotated[
@@ -408,12 +491,18 @@ def recipe_save(
         [[row.get(h, "") for h in ing_headers] for row in ing_rows],
     )
     page_rendered = _render_recipe_page_safe(recipe_row, file_slug, spreadsheet)
+    publish = _publish_pages(
+        spreadsheet,
+        _render_dir(spreadsheet),
+        f"chore: publish recipe {recipe.recipe_id}",
+    )
     _emit(
         {
             "saved": recipe.recipe_id,
             "ingredients": len(recipe.ingredients),
             "doc_url": recipe_row["doc_url"],
             "page_rendered": page_rendered,
+            "publish": publish,
         }
     )
 
@@ -479,6 +568,11 @@ def recipe_update(
     )
 
     page_rendered = _render_recipe_page_safe(recipe_row, file_slug, spreadsheet)
+    publish = _publish_pages(
+        spreadsheet,
+        _render_dir(spreadsheet),
+        f"chore: update recipe {recipe.recipe_id}",
+    )
     _emit(
         {
             "action": action,
@@ -486,6 +580,7 @@ def recipe_update(
             "ingredients": len(ing_rows),
             "doc_url": recipe_row["doc_url"],
             "page_rendered": page_rendered,
+            "publish": publish,
         }
     )
 
@@ -502,8 +597,9 @@ def recipe_render(
     """Render recipe page(s) to docs/recipes/ and record each doc_url in the Sheet.
 
     Pages are a derived view, overwritten on each render; the Sheet stays the
-    source of truth. Push the repo to publish them via GitHub Pages. Set the
-    public base with `prov config-set render_base_url <url>`.
+    source of truth. Set the public base with `prov config-set render_base_url
+    <url>`. With Config `auto_publish` on, rendered pages are committed and pushed
+    to the pages repo automatically; otherwise push the repo yourself to publish.
     """
     if all_recipes and recipe_id:
         _fail("Pass either a recipe_id or --all, not both.")
@@ -537,7 +633,10 @@ def recipe_render(
     sheets_mod.replace_table(
         spreadsheet, "Recipes", headers, [[r.get(h, "") for h in headers] for r in rows]
     )
-    _emit({"rendered": rendered, "index": str(index_path)})
+    publish = _publish_pages(
+        spreadsheet, out_dir, f"chore: render {len(rendered)} recipe page(s)"
+    )
+    _emit({"rendered": rendered, "index": str(index_path), "publish": publish})
 
 
 @app.command()
