@@ -217,6 +217,7 @@ stdin (`-`). Run from the repo root.
 | `prov scale [file] --to N` | Scale a recipe to N servings |
 | `prov convert QTY FROM TO` | Unit conversion, e.g. `convert 2 cup ml` |
 | `prov plan-read` / `plan-write [file]` | Read / replace the week calendar |
+| `prov plan-clear DAY [--keep-history]` | Blank one day-slot when a planned day gets missed (also drops its History row) |
 | `prov history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains) |
 | `prov history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
 | `prov shopping-write [file]` / `shopping-clear` | Write / clear the shopping list |

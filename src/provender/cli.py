@@ -795,6 +795,72 @@ def plan_write(
     _emit({"tab": "WeekPlan", "days_planned": planned, "rows": len(table)})
 
 
+@app.command(name="plan-clear")
+def plan_clear(
+    day: Annotated[str, typer.Argument(help="Weekday to clear, e.g. 'Thursday'.")],
+    keep_history: Annotated[
+        bool,
+        typer.Option(
+            "--keep-history",
+            help="Leave the day's History row alone (by default it is removed).",
+        ),
+    ] = False,
+) -> None:
+    """Blank one day-slot, for when a planned day gets missed.
+
+    The day's History row is removed too, unless ``--keep-history`` is passed: the
+    meal was never cooked, so keeping it would block that dish from returning for
+    the whole repeat-avoidance window.
+    """
+    target = day.strip().capitalize()
+    if target not in _WEEKDAYS:
+        _fail(f"Unknown day {day!r}. Expected one of: {', '.join(_WEEKDAYS)}.")
+
+    spreadsheet = _connect()
+    existing = sheets_mod.read_table(spreadsheet, "WeekPlan")
+    cleared = next(
+        (r for r in existing if str(r.get("day", "")).strip().capitalize() == target),
+        {},
+    )
+    recipe_id = str(cleared.get("recipe_id", "")).strip()
+    on_date = str(cleared.get("date", "")).strip()[:10]
+
+    # Dropping the row before normalizing is what blanks the slot: the day is
+    # absent from the input, so _normalize_weekplan refills it with just its key.
+    kept = [r for r in existing if str(r.get("day", "")).strip().capitalize() != target]
+    week = _normalize_weekplan(kept)
+    headers = sheets_mod.SCHEMA["WeekPlan"]
+    sheets_mod.replace_table(
+        spreadsheet,
+        "WeekPlan",
+        headers,
+        [[row.get(h, "") for h in headers] for row in week],
+    )
+
+    removed = 0
+    if recipe_id and not keep_history:
+        history_headers = sheets_mod.SCHEMA["History"]
+        rows = sheets_mod.read_table(spreadsheet, "History")
+        remaining, removed = history_mod.drop_entries(rows, on_date, recipe_id)
+        if removed:
+            sheets_mod.replace_table(
+                spreadsheet,
+                "History",
+                history_headers,
+                [[r.get(h, "") for h in history_headers] for r in remaining],
+            )
+
+    _emit(
+        {
+            "tab": "WeekPlan",
+            "cleared": target,
+            "recipe_id": recipe_id,
+            "days_planned": sum(1 for row in week if row.get("recipe_id")),
+            "history_rows_removed": removed,
+        }
+    )
+
+
 # ShoppingList checkbox columns (bought, have_already), derived from SCHEMA so a
 # column reorder can't silently move the checkboxes onto the wrong columns.
 _SHOPPING_CHECKBOX_COLS = [

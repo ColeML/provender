@@ -47,6 +47,7 @@ stdin (`-`).
 | `recipes` / `ingredients [--recipe-id]` | Read the library |
 | `scale [file] --to N` / `convert QTY FROM TO` | Scaling + unit conversion (pint) |
 | `plan-read` / `plan-write [file]` | Read / replace the week calendar |
+| `plan-clear DAY [--keep-history]` | Blank one day-slot when a planned day gets missed (also drops its History row) |
 | `history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains only) |
 | `history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
 | `shopping-write [file]` / `shopping-clear` | Write / clear the shopping list (tappable checkboxes) |
@@ -83,6 +84,10 @@ agents read them as instructions):
   `recipe-update` upserts a recipe by `recipe_id` (replaces its row + ingredients
   in place) — use it to edit an existing recipe instead of re-running `recipe-save`,
   which would append a duplicate.
+- **A missed day is cleared with `plan-clear DAY`, not by rewriting the week.** It
+  blanks that one slot and removes the day's `History` row, because History records
+  what was *planned* — leaving a meal you never cooked in there blocks that dish for
+  the whole repeat-avoidance window. Pass `--keep-history` if you did eat it.
 - Readers of `WeekPlan` (e.g. build-shopping-list) must **skip rows with a blank
   `recipe_id`** (unplanned days).
 - **Every side and dessert is a saved recipe, linked from its day** — the side in
