@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from provender.history import apply_rating, filter_recent
+from provender.history import apply_rating, drop_entries, filter_recent
 
 TODAY = date(2026, 6, 13)
 
@@ -52,3 +52,30 @@ def test_apply_rating_targets_most_recent_occurrence():
 def test_apply_rating_no_match_returns_false():
     _, matched = apply_rating([{"date": "2026-06-01", "recipe_id": "x"}], "y", 4, "")
     assert matched is False
+
+
+DROP_ROWS = [
+    {"date": "2026-08-13", "recipe_id": "queso", "title": "Crock Pot Queso"},
+    {"date": "2026-08-13", "recipe_id": "other", "title": "Other Dish"},
+    {"date": "2026-07-02", "recipe_id": "queso", "title": "Crock Pot Queso"},
+]
+
+
+def test_drop_entries_removes_only_that_date_and_recipe():
+    kept, removed = drop_entries(DROP_ROWS, "2026-08-13", "queso")
+    assert removed == 1
+    # the same dish on an earlier date survives, as does the other dish that day
+    assert [r["recipe_id"] for r in kept] == ["other", "queso"]
+    assert kept[1]["date"] == "2026-07-02"
+
+
+def test_drop_entries_no_match_is_a_noop():
+    kept, removed = drop_entries(DROP_ROWS, "2026-08-13", "nothing-here")
+    assert removed == 0
+    assert kept == DROP_ROWS
+
+
+def test_drop_entries_ignores_blank_identifiers():
+    # a blank date or recipe_id would match far too many rows
+    assert drop_entries(DROP_ROWS, "", "queso") == (DROP_ROWS, 0)
+    assert drop_entries(DROP_ROWS, "2026-08-13", "") == (DROP_ROWS, 0)

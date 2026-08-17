@@ -56,6 +56,38 @@ def filter_recent(
     return recent
 
 
+def drop_entries(
+    rows: list[dict[str, Any]], on_date: str, recipe_id: str
+) -> tuple[list[dict[str, Any]], int]:
+    """Remove History rows matching both ``on_date`` and ``recipe_id``.
+
+    Used when a planned day is cleared. History records what was *planned*, not
+    what was eaten, so a missed meal leaves behind a row that blocks that dish
+    from returning for the whole repeat-avoidance window. Both fields must match,
+    so an earlier entry for the same dish on a different date survives.
+
+    Args:
+        rows: History records.
+        on_date: The cleared day's ISO ``YYYY-MM-DD`` date.
+        recipe_id: The cleared day's main recipe_id.
+
+    Returns:
+        ``(kept_rows, removed_count)``. Returns the input unchanged when either
+        field is empty, since a blank value would match too much.
+    """
+    if not on_date or not recipe_id:
+        return rows, 0
+    kept = [
+        r
+        for r in rows
+        if not (
+            str(r.get("date", "")).strip()[:10] == on_date
+            and str(r.get("recipe_id", "")).strip() == recipe_id
+        )
+    ]
+    return kept, len(rows) - len(kept)
+
+
 def apply_rating(
     rows: list[dict[str, Any]], recipe_id: str, rating: int, notes: str
 ) -> tuple[list[dict[str, Any]], bool]:

@@ -28,3 +28,17 @@ def test_day_casing_is_normalized():
     week = _normalize_weekplan([{"day": "monDAY", "recipe_id": "x"}])
     by_day = {r["day"]: r for r in week}
     assert by_day["Monday"]["recipe_id"] == "x"
+
+
+def test_dropping_a_day_blanks_that_slot_and_keeps_the_rest():
+    # how plan-clear works: omit the day, and normalization refills it blank
+    existing = [
+        {"day": "Wednesday", "recipe_id": "chicken-salad", "servings": 8},
+        {"day": "Thursday", "recipe_id": "queso", "servings": 16},
+        {"day": "Friday", "recipe_id": "honey-garlic", "servings": 8},
+    ]
+    kept = [r for r in existing if r["day"] != "Thursday"]
+    by_day = {r["day"]: r for r in _normalize_weekplan(kept)}
+    assert by_day["Thursday"] == {"day": "Thursday"}
+    assert by_day["Wednesday"]["recipe_id"] == "chicken-salad"
+    assert by_day["Friday"]["recipe_id"] == "honey-garlic"
