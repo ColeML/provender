@@ -30,6 +30,7 @@ from provender import render as render_mod
 from provender import scale as scale_mod
 from provender import scrape as scrape_mod
 from provender import sheets as sheets_mod
+from provender import shopping as shopping_mod
 from provender import weather as weather_mod
 from provender.config import Settings
 from provender.models import Ingredient, Recipe
@@ -804,24 +805,26 @@ _SHOPPING_CHECKBOX_COLS = [
 
 
 def _assign_ids(rows: list[dict[str, Any]]) -> None:
-    """Give each row a unique, stable ``id`` (slug of the item) for app keys."""
-    seen: dict[str, int] = {}
+    """Give each row a unique, stable ``id`` (slug of the item) for app keys.
+
+    Ids already on the rows are kept and reserved, so merging into an existing
+    list cannot hand a new line the same key as one already on the tab.
+    """
+    taken = {str(row["id"]) for row in rows if row.get("id")}
     for row in rows:
         if row.get("id"):
             continue
         base = render_mod.slug(str(row.get("item", "item")))
-        seen[base] = seen.get(base, 0) + 1
-        row["id"] = base if seen[base] == 1 else f"{base}-{seen[base]}"
+        candidate, suffix = base, 1
+        while candidate in taken:
+            suffix += 1
+            candidate = f"{base}-{suffix}"
+        taken.add(candidate)
+        row["id"] = candidate
 
 
-@app.command(name="shopping-write")
-def shopping_write(
-    rows_json: Annotated[
-        str | None, typer.Argument(help="JSON list of ShoppingList row objects.")
-    ] = None,
-) -> None:
-    """Replace the ShoppingList tab and make bought/have_already tappable checkboxes."""
-    rows = _read_json_input(rows_json)
+def _prepare_shopping_rows(rows: list[dict[str, Any]]) -> None:
+    """Fill in each row's stable id and its fraction-formatted display text."""
     _assign_ids(rows)
     for row in rows:
         qty = row.get("qty")
@@ -832,18 +835,67 @@ def shopping_write(
                 unit=str(row.get("unit", "")),
             )
         )
+
+
+def _write_shopping_rows(spreadsheet, rows: list[dict[str, Any]]) -> int:
+    """Replace the tab with ``rows`` and re-apply the two checkbox columns."""
     headers = sheets_mod.SCHEMA["ShoppingList"]
-    spreadsheet = _connect()
     table = [[row.get(h, "") for h in headers] for row in rows]
     sheets_mod.replace_table(spreadsheet, "ShoppingList", headers, table)
     sheets_mod.apply_checkboxes(
         spreadsheet, "ShoppingList", _SHOPPING_CHECKBOX_COLS, len(table)
     )
+    return len(table)
+
+
+@app.command(name="shopping-write")
+def shopping_write(
+    rows_json: Annotated[
+        str | None, typer.Argument(help="JSON list of ShoppingList row objects.")
+    ] = None,
+) -> None:
+    """Replace the ShoppingList tab, keeping ticks on items that are still on it."""
+    rows = _read_json_input(rows_json)
+    spreadsheet = _connect()
+    kept = shopping_mod.carry_over_check_state(
+        sheets_mod.read_table(spreadsheet, "ShoppingList"), rows
+    )
+    _prepare_shopping_rows(rows)
+    written = _write_shopping_rows(spreadsheet, rows)
     _emit(
         {
             "tab": "ShoppingList",
-            "rows_written": len(table),
+            "rows_written": written,
+            "check_state_kept": kept,
             "checkboxes": "bought, have_already",
+        }
+    )
+
+
+@app.command(name="shopping-add")
+def shopping_add(
+    rows_json: Annotated[
+        str | None, typer.Argument(help="JSON list of ShoppingList row objects.")
+    ] = None,
+) -> None:
+    """Merge rows into the existing list, for a day planned after the first pass.
+
+    Lines already on the list gain the extra quantity, cost, and recipe names but
+    keep their ticks; genuinely new lines are appended unticked. Nothing you have
+    already marked off is disturbed.
+    """
+    incoming = _read_json_input(rows_json)
+    spreadsheet = _connect()
+    existing = sheets_mod.read_table(spreadsheet, "ShoppingList")
+    merged, added, updated = shopping_mod.merge_rows(existing, incoming)
+    _prepare_shopping_rows(merged)
+    written = _write_shopping_rows(spreadsheet, merged)
+    _emit(
+        {
+            "tab": "ShoppingList",
+            "rows_written": written,
+            "items_added": added,
+            "items_updated": updated,
         }
     )
 

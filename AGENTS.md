@@ -49,7 +49,8 @@ stdin (`-`).
 | `plan-read` / `plan-write [file]` | Read / replace the week calendar |
 | `history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains only) |
 | `history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
-| `shopping-write [file]` / `shopping-clear` | Write / clear the shopping list (tappable checkboxes) |
+| `shopping-write [file]` / `shopping-clear` | Rebuild / clear the shopping list (tappable checkboxes; keeps ticks on surviving items) |
+| `shopping-add [file]` | Merge one more day's items into the existing list without disturbing ticked rows |
 
 ## Workflows (the "skills")
 
@@ -78,7 +79,9 @@ agents read them as instructions):
 - **Equipment honesty**: only cite a device in a day's note if the recipe uses it.
 - `WeekPlan` is always **7 stable day-slots** (Mon-Sun), keyed by `day`. `plan-write`
   overwrites them in place (unplanned days blanked) rather than churning row keys —
-  this is what keeps AppSheet's sync reliable. `shopping-write` replaces its tab;
+  this is what keeps AppSheet's sync reliable. `shopping-write` rebuilds its tab
+  but carries `bought`/`have_already` across for items still on the list — to add
+  a single late-planned day, use `shopping-add` rather than rebuilding;
   `recipe-save`/`history-add` append (History is keyed by a unique `id`).
   `recipe-update` upserts a recipe by `recipe_id` (replaces its row + ingredients
   in place) — use it to edit an existing recipe instead of re-running `recipe-save`,
