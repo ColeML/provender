@@ -83,6 +83,44 @@ def test_update_replaces_row_and_ingredients_in_place(monkeypatch, tmp_path):
     assert (tmp_path / "recipes" / "soup.html").exists()
 
 
+def test_update_collapses_preexisting_duplicate_rows(monkeypatch, tmp_path):
+    """A recipe_id that already has two rows (e.g. from a prior recipe-save
+    collision) must end up as exactly one row after recipe-update, not two."""
+    recipes = [
+        {"recipe_id": "tacos", "title": "Tacos", "base_servings": 4},
+        {"recipe_id": "salad", "title": "Old Salad", "base_servings": 6},
+        {"recipe_id": "salad", "title": "Old Salad", "base_servings": 6},
+    ]
+    ingredients = [
+        {"recipe_id": "salad", "name": "lettuce", "qty": 1},
+        {"recipe_id": "salad", "name": "lettuce", "qty": 1},
+    ]
+    captured, emitted = _wire(monkeypatch, tmp_path, recipes, ingredients)
+    _stdin(
+        monkeypatch,
+        {
+            "recipe_id": "salad",
+            "title": "New Salad",
+            "instructions": ["Toss it."],
+            "ingredients": [{"name": "lettuce", "qty": 2, "unit": "cup"}],
+        },
+    )
+
+    cli.recipe_update(recipe_json="-")
+
+    assert emitted["action"] == "updated"
+    assert len(captured["Recipes"]) == 2
+    assert len(captured["Ingredients"]) == 1
+    rec_schema = cli.sheets_mod.SCHEMA["Recipes"]
+    rid, title = rec_schema.index("recipe_id"), rec_schema.index("title")
+    # the edit lands at the first "salad" row's original position (index 1),
+    # not appended after the unrelated "tacos" row.
+    assert [(r[rid], r[title]) for r in captured["Recipes"]] == [
+        ("tacos", "Tacos"),
+        ("salad", "New Salad"),
+    ]
+
+
 def test_save_appends_to_both_tabs(monkeypatch, tmp_path):
     """Guard the refactor: recipe-save still appends a Recipes + Ingredients row."""
     appended: dict[str, list] = {}
@@ -92,6 +130,7 @@ def test_save_appends_to_both_tabs(monkeypatch, tmp_path):
     monkeypatch.setattr(
         cli, "_config_value", lambda ss, key, default="": cfg.get(key, default)
     )
+    monkeypatch.setattr(cli.sheets_mod, "read_table", lambda ss, tab: [])
     monkeypatch.setattr(
         cli.sheets_mod,
         "append_rows",
@@ -115,6 +154,31 @@ def test_save_appends_to_both_tabs(monkeypatch, tmp_path):
     assert len(appended["Recipes"]) == 1
     assert len(appended["Ingredients"]) == 1
     assert (tmp_path / "recipes" / "stew.html").exists()
+
+
+def test_save_rejects_existing_recipe_id(monkeypatch, tmp_path):
+    """recipe-save must not append a duplicate row for an existing recipe_id."""
+    monkeypatch.setattr(cli, "_connect", object)
+    monkeypatch.setattr(
+        cli.sheets_mod, "read_table", lambda ss, tab: [{"recipe_id": "stew"}]
+    )
+    monkeypatch.setattr(
+        cli.sheets_mod,
+        "append_rows",
+        lambda ss, tab, rows: pytest.fail("should not append when recipe_id exists"),
+    )
+    _stdin(
+        monkeypatch,
+        {
+            "recipe_id": "stew",
+            "title": "Stew",
+            "instructions": ["Simmer."],
+            "ingredients": [{"name": "beef", "qty": 1, "unit": "lb"}],
+        },
+    )
+
+    with pytest.raises(typer.Exit):
+        cli.recipe_save(recipe_json="-")
 
 
 def test_update_tolerates_sheet_string_shapes(monkeypatch, tmp_path):
