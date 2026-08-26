@@ -476,6 +476,15 @@ def recipe_save(
         recipe.recipe_id = render_mod.slug(recipe.title)
 
     spreadsheet = _connect()
+    existing_ids = {
+        str(r.get("recipe_id")) for r in sheets_mod.read_table(spreadsheet, "Recipes")
+    }
+    if str(recipe.recipe_id) in existing_ids:
+        _fail(
+            f"recipe_id '{recipe.recipe_id}' already exists; use recipe-update to "
+            "edit it instead of recipe-save, which only appends."
+        )
+
     base_url = _config_value(spreadsheet, "render_base_url")
     recipe_row, file_slug = _build_recipe_row(recipe, base_url)
     recipe_headers = sheets_mod.SCHEMA["Recipes"]
@@ -533,18 +542,25 @@ def recipe_update(
     base_url = _config_value(spreadsheet, "render_base_url")
     recipe_row, file_slug = _build_recipe_row(recipe, base_url)
 
-    # Recipes: overwrite the matching row in place (preserving order), else append.
+    # Replace at the first matching row's position (so an edit doesn't sink to
+    # the bottom of the tab), then drop any other rows sharing this recipe_id --
+    # collapsing pre-existing duplicates instead of only patching the first match.
     rec_headers = sheets_mod.SCHEMA["Recipes"]
     recipes = sheets_mod.read_table(spreadsheet, "Recipes")
     target_id = str(recipe.recipe_id)
-    action = "created"
-    for i, row in enumerate(recipes):
-        if str(row.get("recipe_id")) == target_id:
-            recipes[i] = recipe_row
-            action = "updated"
-            break
+    first = next(
+        (i for i, r in enumerate(recipes) if str(r.get("recipe_id")) == target_id),
+        None,
+    )
+    action = "updated" if first is not None else "created"
+    if first is None:
+        recipes = [*recipes, recipe_row]
     else:
-        recipes.append(recipe_row)
+        recipes = [
+            recipe_row if i == first else r
+            for i, r in enumerate(recipes)
+            if i == first or str(r.get("recipe_id")) != target_id
+        ]
     sheets_mod.replace_table(
         spreadsheet,
         "Recipes",
