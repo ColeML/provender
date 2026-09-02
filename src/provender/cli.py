@@ -285,7 +285,7 @@ def scale(
     *,
     to: Annotated[int, typer.Option(help="Target number of servings.")],
 ) -> None:
-    """Scale a recipe's quantities to a target serving count (linear)."""
+    """Scale a recipe's quantities to a target serving count."""
     recipe = Recipe.from_dict(_read_json_input(recipe_json))
     scaled = scale_mod.scale_recipe(recipe, to)
     _emit(scaled.to_dict())
@@ -939,19 +939,11 @@ def shopping_clear() -> None:
     _emit({"tab": "ShoppingList", "cleared": True})
 
 
-# Common cooking fractions, for rendering quantities like a real recipe.
-_FRACTIONS = [
-    (0.125, "⅛"),
-    (0.25, "¼"),
-    (0.333, "⅓"),
-    (0.375, "⅜"),
-    (0.5, "½"),
-    (0.625, "⅝"),
-    (0.667, "⅔"),
-    (0.75, "¾"),
-    (0.875, "⅞"),
-]
-_FRACTION_TOLERANCE = 0.02
+# Symbols for scale_mod's canonical kitchen fractions (eighths + thirds), for
+# rendering quantities like a real recipe.
+_FRACTION_SYMBOLS = ("⅛", "¼", "⅓", "⅜", "½", "⅝", "⅔", "¾", "⅞")
+_FRACTIONS = list(zip(scale_mod._KITCHEN_FRACTIONS, _FRACTION_SYMBOLS, strict=False))
+_FRACTION_TOLERANCE = scale_mod._FRACTION_TOLERANCE
 
 
 def _pretty_qty(qty: float | int | str | None) -> str:
