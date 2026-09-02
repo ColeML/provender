@@ -81,7 +81,26 @@ echo '<shopping-rows-json>' | uv run prov shopping-write -
 ```
 
 `shopping-write` replaces the whole tab, so it also clears any previous list (use
-`uv run prov shopping-clear` to wipe it manually). Sort rows by `category` so
-the list reads aisle-by-aisle. Report the total estimated cost and the item count,
-and tell the user the list is in the ShoppingList tab with checkboxes they tick
-from the Google Sheets phone app while shopping.
+`uv run prov shopping-clear` to wipe it manually). It does carry over `bought` and
+`have_already` for any item still on the rebuilt list, so a regeneration no longer
+sends the user back around the store — but only items whose name *and* unit still
+match are recognized, so keep names stable between runs. Sort rows by `category`
+so the list reads aisle-by-aisle. Report the total estimated cost and the item
+count, and tell the user the list is in the ShoppingList tab with checkboxes they
+tick from the Google Sheets phone app while shopping.
+
+## 6. Adding a day planned later
+
+When a day was unknown at first pass (a potluck, an undecided night) and gets
+planned afterwards, **do not rebuild the whole list** — price just that day's
+recipes and merge them in:
+
+```bash
+echo '<rows-for-that-day-json>' | uv run prov shopping-add -
+```
+
+`shopping-add` sums quantities, costs, and `feeds_recipes` for lines already on
+the list, appends genuinely new ones unticked, and never clears a ticked row. It
+matches on item name + unit, so "3 lb chicken breast" and "1 ea rotisserie
+chicken" stay separate lines. Report what was added versus merged into an existing
+line.

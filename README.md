@@ -220,7 +220,8 @@ stdin (`-`). Run from the repo root.
 | `prov plan-clear DAY [--keep-history]` | Blank one day-slot when a planned day gets missed (also drops its History row) |
 | `prov history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains) |
 | `prov history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
-| `prov shopping-write [file]` / `shopping-clear` | Write / clear the shopping list |
+| `prov shopping-write [file]` / `shopping-clear` | Rebuild / clear the shopping list (keeps ticks on surviving items) |
+| `prov shopping-add [file]` | Merge one more day's items into the existing list |
 
 ## Phone GUI
 
