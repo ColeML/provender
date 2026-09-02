@@ -134,7 +134,9 @@ the shopping step to scale — that makes the recipe page and shopping list
 disagree). Concretely:
 
 - Scale each recipe's ingredients to the cooked servings and set its
-  `base_servings` to that number (use `uv run prov scale ... --to N`).
+  `base_servings` to that number (use `uv run prov scale ... --to N` — don't
+  hand-multiply quantities yourself; `scale` snaps volume units to a clean
+  kitchen fraction, e.g. `0.444 cup` -> `7⅛ tbsp`, which raw arithmetic won't).
 - For **single-batch** recipes (a sheet-pan pizza, a whole roast), don't scale —
   set the plan's `servings` to the recipe's natural yield instead.
 

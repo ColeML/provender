@@ -23,8 +23,11 @@ echo '<recipe-json>' | uv run prov scale - --to <target_servings>
 ```
 
 This multiplies every numeric quantity by `target / base_servings` and preserves
-"to taste" items. If `base_servings` is unknown the factor is 1.0 — ask the user
-what the original yield was rather than mis-scaling.
+"to taste" items. Volume quantities (cup/tbsp/tsp) are also snapped to a clean
+kitchen fraction, stepping down a unit when that's cleaner (e.g. `0.444 cup` ->
+`7⅛ tbsp`), so you don't need to hand-round those yourself. If `base_servings`
+is unknown the factor is 1.0 — ask the user what the original yield was rather
+than mis-scaling.
 
 ## 3. Apply judgment (the important part)
 
@@ -44,11 +47,12 @@ Adjust the linear output:
 
 ## 4. Convert units when it helps
 
+`scale` already cleans up cup/tbsp/tsp fractions. For anything else awkward
+(e.g. converting to a non-volume unit, or a unit outside that ladder):
+
 ```bash
 uv run prov convert <qty> <from_unit> <to_unit>
 ```
-
-Convert awkward amounts to practical ones (e.g. 6 tsp → 2 tbsp, 16 tbsp → 1 cup).
 
 ## 5. Present
 
