@@ -63,8 +63,8 @@ The Sheet has these tabs (created by `prov init`): `Config`, `WeekPlan`,
 ### 1. Install
 
 ```bash
-uv sync                 # create the venv and install everything
-uv run prov --help  # confirm the CLI runs
+uv sync --project python  # create the venv and install everything
+uv run --project python prov --help  # confirm the CLI runs
 ```
 
 ### 2. Google credentials (one-time, ~5–10 min)
@@ -113,7 +113,7 @@ A *service account* is a robot Google identity the CLI logs in as.
    no shell editing):
 
    ```bash
-   uv run prov set-spreadsheet "<sheet-id-or-url>"
+   uv run --project python prov set-spreadsheet "<sheet-id-or-url>"
    ```
 
    …or use an environment variable (handy for CI or switching sheets):
@@ -128,7 +128,7 @@ A *service account* is a robot Google identity the CLI logs in as.
 ### 4. Bootstrap the tabs
 
 ```bash
-uv run prov init     # creates Config, WeekPlan, Recipes, Ingredients, ShoppingList, History, Prices
+uv run --project python prov init     # creates Config, WeekPlan, Recipes, Ingredients, ShoppingList, History, Prices
 ```
 
 If it prints `{"created_tabs": [...]}`, the whole chain works. ✅
@@ -139,15 +139,15 @@ Set your defaults (the agent reads these every plan). Either edit the **Config**
 directly (key/value rows) or use the CLI:
 
 ```bash
-uv run prov config-set people 4
-uv run prov config-set location "Edmond, OK"      # for the weather forecast
-uv run prov config-set default_budget 120
-uv run prov config-set default_meals 5
-uv run prov config-set allergies "none"
-uv run prov config-set dislikes "mushrooms"
-uv run prov config-set pantry_staples "salt, pepper, olive oil"
-uv run prov config-set equipment "oven, stovetop, Instant Pot, slow cooker, griddle"
-uv run prov config-set no_repeat_days 30           # don't repeat a main within N days
+uv run --project python prov config-set people 4
+uv run --project python prov config-set location "Edmond, OK"      # for the weather forecast
+uv run --project python prov config-set default_budget 120
+uv run --project python prov config-set default_meals 5
+uv run --project python prov config-set allergies "none"
+uv run --project python prov config-set dislikes "mushrooms"
+uv run --project python prov config-set pantry_staples "salt, pepper, olive oil"
+uv run --project python prov config-set equipment "oven, stovetop, Instant Pot, slow cooker, griddle"
+uv run --project python prov config-set no_repeat_days 30           # don't repeat a main within N days
 ```
 
 Useful keys: `people`, `location`, `default_budget`, `default_meals`,
@@ -165,8 +165,8 @@ track your local stores, you can opt in to real store prices:
 2. Save them (gitignored, never committed):
    `~/Library/Application Support/provender/kroger.json` →
    `{"client_id": "...", "client_secret": "..."}`
-3. Pick a store: `uv run prov kroger-locations <zip> --chain DILLONS --save`
-   (saves a `kroger_location_id`). Then `uv run prov kroger-price "ground beef"`.
+3. Pick a store: `uv run --project python prov kroger-locations <zip> --chain DILLONS --save`
+   (saves a `kroger_location_id`). Then `uv run --project python prov kroger-price "ground beef"`.
 
 The price tier becomes **learned → Kroger → estimate**. Without creds, it's
 inert — nothing changes.
@@ -285,8 +285,8 @@ skills in `.claude/skills/`. All of them share the same Sheet.
 ## Development
 
 ```bash
-uv run ruff check .     # lint
-uv run ruff format .    # format (Google docstring convention)
-uv run ty check         # type check
-uv run pytest           # tests
+uv run --project python ruff check python     # lint
+uv run --project python ruff format python    # format (Google docstring convention)
+uv run --project python ty check python       # type check
+uv run --project python pytest python         # tests
 ```

@@ -12,8 +12,8 @@ provides the data; you do the merging and categorizing. Run from the project roo
 ## 1. Read the plan and pantry
 
 ```bash
-uv run prov plan-read     # WeekPlan rows: recipe_id, servings, side_recipe_id, extras_recipe_ids
-uv run prov config        # for pantry_staples (things already on hand)
+uv run --project python prov plan-read     # WeekPlan rows: recipe_id, servings, side_recipe_id, extras_recipe_ids
+uv run --project python prov config        # for pantry_staples (things already on hand)
 ```
 
 Collect every recipe the plan references — the `recipe_id` (main), the
@@ -28,10 +28,10 @@ even when `side_recipe_id` is empty.
 For every recipe id in the plan:
 
 ```bash
-uv run prov ingredients --recipe-id "<recipe_id>"
+uv run --project python prov ingredients --recipe-id "<recipe_id>"
 ```
 
-(Or `uv run prov ingredients` once for all, then filter.)
+(Or `uv run --project python prov ingredients` once for all, then filter.)
 
 ## 3. Scale to planned servings (usually a no-op now)
 
@@ -41,7 +41,7 @@ needed. Only scale if a row's `servings` differs from the recipe's
 `base_servings`:
 
 ```bash
-uv run prov scale "<recipe-json>" --to <servings>
+uv run --project python prov scale "<recipe-json>" --to <servings>
 ```
 
 If you do scale, apply judgment (see the **scale-recipe** skill): spices/salt
@@ -52,7 +52,7 @@ don't scale linearly, round discrete items (eggs, cans) to whole.
 Combine the scaled ingredients across all recipes into a single list:
 
 - **Same ingredient + compatible units** → sum quantities (convert units with
-  `uv run prov convert <qty> <from> <to>` when needed, e.g. tbsp → cup).
+  `uv run --project python prov convert <qty> <from> <to>` when needed, e.g. tbsp → cup).
 - **Same ingredient, incompatible units** (e.g. "2 cloves garlic" + "1 tsp garlic
   powder") → keep as separate line items; they're different products.
 - **Round up to purchasable amounts** (you can't buy 1.3 onions → 2; 0.5 lb beef →
@@ -62,11 +62,11 @@ Combine the scaled ingredients across all recipes into a single list:
 - **Assign `category`** by store aisle: produce, meat, dairy, pantry, frozen,
   bakery, other.
 - **Estimate `est_cost`** per line, in tier order: (1) learned price from
-  `uv run prov prices` (`price × qty`); (2) if Kroger is configured,
-  `uv run prov kroger-price "<item>"` — pick the right `candidates` entry (raw,
+  `uv run --project python prov prices` (`price × qty`); (2) if Kroger is configured,
+  `uv run --project python prov kroger-price "<item>"` — pick the right `candidates` entry (raw,
   store-brand, non-organic), don't blindly trust `best`; (3) otherwise estimate.
   After shopping, record real costs with
-  `uv run prov price-set "<ingredient>" <price> --unit <u>` to sharpen future runs.
+  `uv run --project python prov price-set "<ingredient>" <price> --unit <u>` to sharpen future runs.
 - Fill `feeds_recipes` with the recipe titles/ids that need the item.
 
 ## 5. Write the list
@@ -77,11 +77,11 @@ Combine the scaled ingredients across all recipes into a single list:
 # AppSheet; `display` is the fraction-formatted line (e.g. "3½ lb chicken breast").
 # Leave `bought` and `have_already` empty — shopping-write turns those two columns
 # into tappable checkboxes (unchecked) for marking off on the phone at the store.
-echo '<shopping-rows-json>' | uv run prov shopping-write -
+echo '<shopping-rows-json>' | uv run --project python prov shopping-write -
 ```
 
 `shopping-write` replaces the whole tab, so it also clears any previous list (use
-`uv run prov shopping-clear` to wipe it manually). It does carry over `bought` and
+`uv run --project python prov shopping-clear` to wipe it manually). It does carry over `bought` and
 `have_already` for any item still on the rebuilt list, so a regeneration no longer
 sends the user back around the store — but only items whose name *and* unit still
 match are recognized, so keep names stable between runs. Sort rows by `category`
@@ -96,7 +96,7 @@ planned afterwards, **do not rebuild the whole list** — price just that day's
 recipes and merge them in:
 
 ```bash
-echo '<rows-for-that-day-json>' | uv run prov shopping-add -
+echo '<rows-for-that-day-json>' | uv run --project python prov shopping-add -
 ```
 
 `shopping-add` sums quantities, costs, and `feeds_recipes` for lines already on

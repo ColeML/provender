@@ -7,14 +7,14 @@ description: Plan a week of meals to a budget, household size, and per-day prefe
 
 You are the meal planner's brain. The `prov` CLI does deterministic work
 (scrape, weather, Sheets I/O); you supply all judgment. Run CLI commands with
-`uv run prov <cmd>` from the project root. Every command emits JSON.
+`uv run --project python prov <cmd>` from the project root. Every command emits JSON.
 
 ## 1. Gather constraints
 
 Read household defaults first:
 
 ```bash
-uv run prov config
+uv run --project python prov config
 ```
 
 This gives `people`, `location`, `dietary_restrictions`, `allergies`, `dislikes`,
@@ -32,7 +32,7 @@ confirm with the user, asking only for what's missing or being overridden:
 ## 2. Get the weather
 
 ```bash
-uv run prov weather
+uv run --project python prov weather
 ```
 
 Use it to bias the menu: cold/rainy → soups, stews, braises, comfort food; hot →
@@ -42,7 +42,7 @@ grilling, salads, no-oven meals; pleasant → anything. Match days to the foreca
 ## 2b. Check recent history (avoid repeats)
 
 ```bash
-uv run prov history-recent
+uv run --project python prov history-recent
 ```
 
 This returns meals planned within the repeat-avoidance window — the `Config` key
@@ -75,18 +75,18 @@ wants a side suggested). Apply, in priority order:
    "griddle", the chosen recipe's method must match (after scraping in step 4,
    verify this — adapt the method to the device, or change the note to the
    recipe's real method). Never note a device the recipe doesn't use.
-9. **Taste** — run `uv run prov history` for past ratings. Favor mains the
+9. **Taste** — run `uv run --project python prov history` for past ratings. Favor mains the
    household rated **4–5**; avoid **1–2** unless the user asks. (Ratings differ
    from repeat-avoidance: a 5-star main is welcome back *after* the no-repeat
    window; a 1-star one shouldn't return at all.) After cooking, the user records
-   a rating with `uv run prov rate <recipe_id> <1-5> [--notes "…"]`.
+   a rating with `uv run --project python prov rate <recipe_id> <1-5> [--notes "…"]`.
 
 ## 4. Source real recipes
 
 For each chosen main and side, find a real recipe URL (web search) and scrape it:
 
 ```bash
-uv run prov scrape "<url>"
+uv run --project python prov scrape "<url>"
 ```
 
 Prefer scraper-friendly sites — **budgetbytes.com works reliably** and fits a
@@ -104,9 +104,9 @@ and keep qualifiers like "minced" in `notes`. Also add `tags` (cuisine, "quick",
 
 Price each ingredient in this tier order:
 
-1. **Learned price** — `uv run prov prices`; if an entry matches, use it
+1. **Learned price** — `uv run --project python prov prices`; if an entry matches, use it
    (`price × quantity`). Most accurate (the user's real stores).
-2. **Kroger** (opt-in) — if configured, `uv run prov kroger-price "<item>"` returns
+2. **Kroger** (opt-in) — if configured, `uv run --project python prov kroger-price "<item>"` returns
    real store prices. **Don't blindly trust `best`** — it's a heuristic that can
    mis-pick (e.g. "chicken breast" → deli slices). Inspect `candidates` and choose
    the raw/generic, non-organic match, or refine the search term
@@ -118,7 +118,7 @@ the most expensive meals and re-estimate. Show the math, noting which lines used
 known/Kroger price vs an estimate.
 
 (There's no Walmart/Sam's price API. Encourage the user to record real costs with
-`uv run prov price-set "<ingredient>" <price> --unit <u>` so future budgets sharpen.)
+`uv run --project python prov price-set "<ingredient>" <price> --unit <u>` so future budgets sharpen.)
 
 ## 6. Present for approval — STOP
 
@@ -134,7 +134,7 @@ the shopping step to scale — that makes the recipe page and shopping list
 disagree). Concretely:
 
 - Scale each recipe's ingredients to the cooked servings and set its
-  `base_servings` to that number (use `uv run prov scale ... --to N` — don't
+  `base_servings` to that number (use `uv run --project python prov scale ... --to N` — don't
   hand-multiply quantities yourself; `scale` snaps volume units to a clean
   kitchen fraction, e.g. `0.444 cup` -> `7⅛ tbsp`, which raw arithmetic won't).
 - For **single-batch** recipes (a sheet-pan pizza, a whole roast), don't scale —
@@ -154,19 +154,19 @@ too. That way everything on the day flows into the shopping list.
 
 ```bash
 # Save each recipe (gives it a recipe_id; note the id from the JSON output)
-echo '<recipe-json>' | uv run prov recipe-save -
+echo '<recipe-json>' | uv run --project python prov recipe-save -
 
 # Write the week. Provide one row per PLANNED day; plan-write normalizes to the
 # 7 fixed day-slots (Mon-Sun, keyed by `day`) and blanks unplanned days itself.
 # Each row: {date, day, meal_slot, recipe_id, servings, day_prefs, side_recipe_id, extras_recipe_ids, status}
 # extras_recipe_ids: comma-separated recipe ids for any dessert / second side (else "").
 # `day` must be a full weekday name ("Monday"…). Stable day keys keep AppSheet in sync.
-echo '<weekplan-rows-json>' | uv run prov plan-write -
+echo '<weekplan-rows-json>' | uv run --project python prov plan-write -
 
 # Record ONLY the mains in History so they aren't repeated next time. One row per
 # main: {date, recipe_id, title, meal_slot: "dinner"}. Do NOT record sides —
 # sides are allowed to repeat.
-echo '<history-rows-json>' | uv run prov history-add -
+echo '<history-rows-json>' | uv run --project python prov history-add -
 ```
 
 History **accumulates** (it is not replaced like WeekPlan), so always append the
