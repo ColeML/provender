@@ -16,11 +16,29 @@ ingredient parsing/merging, scaling); the CLI does the exact, repeatable work
 
 ## Where the code lives
 
-The Python CLI is in `python/`. It is Provender v1 — the working meal planner,
-backed by Google Sheets — and it stays there and stays working while v2 (a
-TypeScript app on Vercel + Neon) is built at the repo root. Run v1 from the repo
-root with `--project python`, as every command below shows. The tag
-`v1-python-sheets` and the branch `legacy/python-cli` are fixed points to return to.
+Two apps live here during the rewrite.
+
+**v2, the TypeScript app** — at the repo root (`src/`, `server/`). Next.js on Vercel with a
+Neon Postgres database. This is where new work goes. Read
+[`coding-standards.md`](coding-standards.md) and [`DESIGN.md`](DESIGN.md) before writing any
+of it, and note the architecture rule: all logic lives in `server/services/*`, and the tRPC
+procedures, the REST handlers under `/v1`, and Server Components are all thin callers of it.
+
+```bash
+pnpm install
+pnpm dev          # http://localhost:3000
+pnpm lint         # oxlint
+pnpm fmt:check    # oxfmt
+pnpm typecheck    # next typegen && tsc --noEmit
+pnpm vitest run   # vitest, once
+pnpm build        # catches prerender failures the others miss
+pnpm db:generate  # generate a migration after a schema change
+```
+
+**v1, the Python CLI** — in `python/`. The working meal planner, backed by Google Sheets. It
+stays there and stays working until v2 reaches parity; run it from the repo root with
+`uv run --project python prov <cmd>`, as every command below shows. The tag `v1-python-sheets`
+and the branch `legacy/python-cli` are fixed points to return to.
 
 ## Setup (once per machine)
 

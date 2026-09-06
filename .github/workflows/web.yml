@@ -1,0 +1,56 @@
+name: CI (web)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint (oxlint)
+        run: pnpm lint
+
+      - name: Format check (oxfmt)
+        run: pnpm fmt:check
+
+      - name: Type check (tsc)
+        run: pnpm typecheck
+
+      - name: Tests (vitest)
+        run: pnpm vitest run
+
+  migrate:
+    # Migrations run here rather than in the Vercel build: a build that also migrates would take
+    # the site down when a migration fails, and Vercel builds run on every preview branch too.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations (drizzle-kit)
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

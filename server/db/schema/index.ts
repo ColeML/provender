@@ -1,0 +1,6 @@
+/**
+ * The schema barrel. Every table is re-exported here, because this is what `drizzle.config.ts`
+ * points at and what `drizzle-kit generate` diffs to produce a migration — a table not reachable
+ * from this file does not exist as far as migrations are concerned.
+ */
+export * from "./config";
