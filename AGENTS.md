@@ -14,19 +14,27 @@ ingredient parsing/merging, scaling); the CLI does the exact, repeatable work
 (scrape, unit math, weather, Sheets I/O). See `PLAN.md` for the full design and
 `APPSHEET.md` for the optional phone GUI.
 
+## Where the code lives
+
+The Python CLI is in `python/`. It is Provender v1 — the working meal planner,
+backed by Google Sheets — and it stays there and stays working while v2 (a
+TypeScript app on Vercel + Neon) is built at the repo root. Run v1 from the repo
+root with `--project python`, as every command below shows. The tag
+`v1-python-sheets` and the branch `legacy/python-cli` are fixed points to return to.
+
 ## Setup (once per machine)
 
 - Python 3.11+ and [uv](https://docs.astral.sh/uv/).
-- `uv sync` to install.
+- `uv sync --project python` to install.
 - Google service-account JSON key at
   `~/Library/Application Support/provender/credentials.json` (or point
   `PROVENDER_CREDENTIALS` at it). The Sheet must be shared with the service-account
   email.
-- Point at the Sheet: `uv run prov set-spreadsheet "<id or url>"` (saved to a
+- Point at the Sheet: `uv run --project python prov set-spreadsheet "<id or url>"` (saved to a
   local `config.json`), or set `PROVENDER_SPREADSHEET`. Resolution is **env var →
   saved config → error**. Nothing is hardcoded — each user points at their own
   Sheet + key.
-- **Run every CLI command from the repo root:** `uv run prov <cmd>`.
+- **Run every CLI command from the repo root:** `uv run --project python prov <cmd>`.
 
 ## The CLI (deterministic tools — no AI inside)
 
@@ -109,8 +117,8 @@ agents read them as instructions):
 ## Dev
 
 ```bash
-uv run ruff check .     # lint
-uv run ruff format .    # format (Google docstring convention)
-uv run ty check         # type check (Astral ty)
-uv run pytest           # tests
+uv run --project python ruff check python     # lint
+uv run --project python ruff format python    # format (Google docstring convention)
+uv run --project python ty check python       # type check (Astral ty)
+uv run --project python pytest python         # tests
 ```

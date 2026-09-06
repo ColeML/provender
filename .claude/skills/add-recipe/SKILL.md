@@ -10,7 +10,7 @@ Scrape, structure, and save a single recipe. Run from the project root.
 ## 1. Scrape
 
 ```bash
-uv run prov scrape "<url>"
+uv run --project python prov scrape "<url>"
 ```
 
 Returns JSON with `title`, `source_url`, `base_servings`, `instructions`,
@@ -44,7 +44,7 @@ Example: `"2 cloves garlic, minced"` →
 ## 4. Save
 
 ```bash
-echo '<recipe-json>' | uv run prov recipe-save -
+echo '<recipe-json>' | uv run --project python prov recipe-save -
 ```
 
 If you don't set `recipe_id`, `recipe-save` generates one from the title. Report

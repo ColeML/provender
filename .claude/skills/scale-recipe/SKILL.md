@@ -5,21 +5,21 @@ description: Scale a recipe up or down to a target number of servings, correctin
 
 # Scale a recipe intelligently
 
-`uv run prov scale` does the linear math; **you** correct the parts that don't
+`uv run --project python prov scale` does the linear math; **you** correct the parts that don't
 scale linearly. Run from the project root.
 
 ## 1. Get the recipe
 
-- If the user gives a URL: `uv run prov scrape "<url>"` (then parse the raw
+- If the user gives a URL: `uv run --project python prov scrape "<url>"` (then parse the raw
   ingredient lines into qty/unit/name as in the **add-recipe** skill).
-- If it's already saved: `uv run prov recipes` to find the id, then
-  `uv run prov ingredients --recipe-id "<id>"`.
+- If it's already saved: `uv run --project python prov recipes` to find the id, then
+  `uv run --project python prov ingredients --recipe-id "<id>"`.
 - If they paste a recipe: build the JSON yourself.
 
 ## 2. Linear baseline
 
 ```bash
-echo '<recipe-json>' | uv run prov scale - --to <target_servings>
+echo '<recipe-json>' | uv run --project python prov scale - --to <target_servings>
 ```
 
 This multiplies every numeric quantity by `target / base_servings` and preserves
@@ -51,7 +51,7 @@ Adjust the linear output:
 (e.g. converting to a non-volume unit, or a unit outside that ladder):
 
 ```bash
-uv run prov convert <qty> <from_unit> <to_unit>
+uv run --project python prov convert <qty> <from_unit> <to_unit>
 ```
 
 ## 5. Present
