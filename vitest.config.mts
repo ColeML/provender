@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 const dir = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -14,7 +14,9 @@ export default defineConfig({
       PROVENDER_API_TOKEN: "test-token",
     },
     unstubEnvs: true,
-    exclude: ["node_modules/**", "python/**", ".next/**"],
+    // Extends rather than replaces: assigning `exclude` outright drops vitest's own defaults,
+    // including **/dist/**.
+    exclude: [...configDefaults.exclude, "python/**", ".next/**"],
   },
   resolve: {
     // Mirrors tsconfig `paths`. Anchored regexes rather than bare string prefixes, so a plain "@"
