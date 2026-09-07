@@ -1,4 +1,4 @@
-import { requireBearerToken } from "@server/api/middleware/bearer";
+import { requireBearerToken, type ApiEnv } from "@server/api/middleware/bearer";
 import { recipesRoutes } from "@server/api/routes/recipes";
 import { getConfig } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
@@ -31,7 +31,7 @@ const getConfigRoute = createRoute({
  *
  * Handlers delegate to `server/services/*` and decide nothing themselves.
  */
-export const api = new OpenAPIHono({
+export const api = new OpenAPIHono<ApiEnv>({
   // Without this, a failed request validation returns Hono's own error shape and the API has two
   // error formats depending on where the failure happened.
   defaultHook: (result, c) => {
@@ -51,7 +51,7 @@ api.doc("/openapi.json", {
 
 api.use("/*", requireBearerToken);
 
-api.openapi(getConfigRoute, async (c) => c.json(await getConfig(), 200));
+api.openapi(getConfigRoute, async (c) => c.json(await getConfig(c.get("householdId")), 200));
 
 // Mounted after the bearer middleware, like every other route — see the test that walks the
 // generated document and asserts each one is gated.

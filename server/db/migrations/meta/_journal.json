@@ -15,6 +15,27 @@
       "when": 1788755203092,
       "tag": "0001_magical_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788757134471,
+      "tag": "0002_add_households",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788757143056,
+      "tag": "0003_seed_default_household",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788757162635,
+      "tag": "0004_scope_to_household",
+      "breakpoints": true
     }
   ]
 }

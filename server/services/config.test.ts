@@ -10,18 +10,18 @@ const rows = [
 ];
 
 function stubDb(result: typeof rows) {
-  return { select: () => ({ from: async () => result }) } as unknown as Database;
+  return { select: () => ({ from: () => ({ where: async () => result }) }) } as unknown as Database;
 }
 
 describe("getConfig", () => {
   it("flattens the key/value rows into one object", async () => {
-    await expect(getConfig(stubDb(rows))).resolves.toEqual({
+    await expect(getConfig("loewer", stubDb(rows))).resolves.toEqual({
       people: "4",
       default_budget: "120",
     });
   });
 
   it("returns an empty object when nothing is configured", async () => {
-    await expect(getConfig(stubDb([]))).resolves.toEqual({});
+    await expect(getConfig("loewer", stubDb([]))).resolves.toEqual({});
   });
 });

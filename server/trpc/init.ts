@@ -45,10 +45,11 @@ export const publicProcedure = t.procedure;
  * cookie-presence check is a redirect convenience and proves nothing, so this cannot lean on it.
  */
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
-  if (!ctx.session?.user) {
+  if (!ctx.session?.user || !ctx.householdId) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
   }
 
-  // Narrow `session` to non-null for everything downstream, so procedures cannot forget to check.
-  return next({ ctx: { ...ctx, session: ctx.session } });
+  // Narrow both to non-null for everything downstream, so a procedure cannot forget to check the
+  // session or reach a service without a household.
+  return next({ ctx: { ...ctx, session: ctx.session, householdId: ctx.householdId } });
 });

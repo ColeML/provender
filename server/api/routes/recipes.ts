@@ -1,4 +1,5 @@
 import { apiError } from "@server/api/errors";
+import type { ApiEnv } from "@server/api/middleware/bearer";
 import {
   IngredientInputSchema,
   IngredientSchema,
@@ -100,7 +101,7 @@ const RecipeIdParam = z.object({
     .openapi({ param: { name: "recipe", in: "path" }, example: "fajitas" }),
 });
 
-export const recipesRoutes = new OpenAPIHono();
+export const recipesRoutes = new OpenAPIHono<ApiEnv>();
 
 recipesRoutes.openapi(
   createRoute({
@@ -125,7 +126,10 @@ recipesRoutes.openapi(
     const { pageSize, pageToken } = c.req.valid("query");
 
     try {
-      const { recipes, nextPageToken } = await listRecipes({ pageSize, pageToken });
+      const { recipes, nextPageToken } = await listRecipes(c.get("householdId"), {
+        pageSize,
+        pageToken,
+      });
 
       return c.json(
         { recipes: recipes.map(toRecipeResource), ...(nextPageToken ? { nextPageToken } : {}) },
@@ -156,7 +160,7 @@ recipesRoutes.openapi(
     const { recipe } = c.req.valid("param");
 
     try {
-      return c.json(toRecipeResource(await getRecipe(recipe)), 200);
+      return c.json(toRecipeResource(await getRecipe(c.get("householdId"), recipe)), 200);
     } catch (error) {
       if (error instanceof RecipeNotFoundError) {
         return apiError(c, "NOT_FOUND", error.message);
@@ -197,6 +201,7 @@ recipesRoutes.openapi(
 
     try {
       const created = await createRecipe(
+        c.get("householdId"),
         recipeId,
         recipe,
         (ingredients ?? []).map(toIngredientInput),
@@ -263,6 +268,7 @@ recipesRoutes.openapi(
 
     try {
       const updated = await updateRecipe(
+        c.get("householdId"),
         recipe,
         fields,
         patch,
@@ -295,7 +301,7 @@ recipesRoutes.openapi(
     const { recipe } = c.req.valid("param");
 
     try {
-      await deleteRecipe(recipe);
+      await deleteRecipe(c.get("householdId"), recipe);
 
       return c.json({}, 200);
     } catch (error) {
@@ -330,10 +336,14 @@ recipesRoutes.openapi(
     try {
       // Resolve the recipe first: an unknown id would otherwise return an empty list, which reads
       // as "this recipe has no ingredients" rather than "there is no such recipe".
-      await getRecipe(recipe);
+      await getRecipe(c.get("householdId"), recipe);
 
       return c.json(
-        { ingredients: (await listIngredients(recipe)).map(toIngredientResource) },
+        {
+          ingredients: (await listIngredients(c.get("householdId"), recipe)).map(
+            toIngredientResource,
+          ),
+        },
         200,
       );
     } catch (error) {
@@ -368,7 +378,7 @@ recipesRoutes.openapi(
     const input = c.req.valid("json");
 
     try {
-      const created = await addIngredient(recipe, toIngredientInput(input));
+      const created = await addIngredient(c.get("householdId"), recipe, toIngredientInput(input));
 
       return c.json(toIngredientResource(created), 200);
     } catch (error) {
@@ -404,7 +414,7 @@ recipesRoutes.openapi(
   }),
   async (c) => {
     const { recipe, ingredient } = c.req.valid("param");
-    const found = await getIngredient(recipe, ingredient);
+    const found = await getIngredient(c.get("householdId"), recipe, ingredient);
 
     if (!found) {
       return apiError(c, "NOT_FOUND", `No ingredient named ${ingredient} on ${recipe}`);
@@ -435,7 +445,7 @@ recipesRoutes.openapi(
   async (c) => {
     const { recipe, ingredient } = c.req.valid("param");
 
-    if (!(await deleteIngredient(recipe, ingredient))) {
+    if (!(await deleteIngredient(c.get("householdId"), recipe, ingredient))) {
       return apiError(c, "NOT_FOUND", `No ingredient named ${ingredient} on ${recipe}`);
     }
 
