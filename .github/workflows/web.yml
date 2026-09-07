@@ -53,4 +53,7 @@ jobs:
       - name: Apply migrations (drizzle-kit)
         run: pnpm db:migrate
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # The direct connection, not the pooled one. Pooled connections do not support the
+          # session-level state DDL needs, so a migration through the pooler can fail in ways
+          # that look like a broken migration rather than a wrong connection string.
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
