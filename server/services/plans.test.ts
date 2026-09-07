@@ -211,7 +211,7 @@ describe("deletePlanDay", () => {
   });
 
   it("removes the row rather than blanking it", async () => {
-    await deletePlanDay(H, WEEK, MONDAY, "dinner", db);
+    await deletePlanDay(H, WEEK, MONDAY, "dinner", {}, db);
 
     const { days } = await getPlan(H, WEEK, db);
 
@@ -219,7 +219,7 @@ describe("deletePlanDay", () => {
   });
 
   it("takes the day's recipes with it", async () => {
-    await deletePlanDay(H, WEEK, MONDAY, "dinner", db);
+    await deletePlanDay(H, WEEK, MONDAY, "dinner", {}, db);
     await setPlanDay(H, WEEK, MONDAY, "dinner", { servings: 8 }, db);
 
     const day = await getPlanDay(H, WEEK, MONDAY, "dinner", db);
@@ -229,7 +229,7 @@ describe("deletePlanDay", () => {
   });
 
   it("reports a day that was not planned", async () => {
-    await expect(deletePlanDay(H, WEEK, "2026-09-01", "dinner", db)).rejects.toBeInstanceOf(
+    await expect(deletePlanDay(H, WEEK, "2026-09-01", "dinner", {}, db)).rejects.toBeInstanceOf(
       PlanDayNotFoundError,
     );
   });
@@ -259,7 +259,7 @@ describe("a recipe a plan still uses", () => {
   it("can be deleted once the day no longer references it", async () => {
     await createPlan(H, WEEK, undefined, db);
     await setPlanDay(H, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
-    await deletePlanDay(H, WEEK, MONDAY, "dinner", db);
+    await deletePlanDay(H, WEEK, MONDAY, "dinner", {}, db);
 
     await expect(deleteRecipe(H, "fajitas", db)).resolves.toBeUndefined();
   });
