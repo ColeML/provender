@@ -1,6 +1,9 @@
 import "server-only";
 
 import { getConfig } from "@server/services/config";
+import { getRecipe, listIngredients, listRecipes } from "@server/services/recipes";
+
+import { z } from "zod";
 
 import { protectedProcedure, router } from "../init";
 
@@ -14,6 +17,17 @@ import { protectedProcedure, router } from "../init";
 export const appRouter = router({
   config: router({
     get: protectedProcedure.query(({ ctx }) => getConfig(ctx.db)),
+  }),
+  recipes: router({
+    list: protectedProcedure
+      .input(z.object({ pageSize: z.number().int().positive().max(200).optional() }).optional())
+      .query(({ ctx, input }) => listRecipes({ pageSize: input?.pageSize }, ctx.db)),
+    get: protectedProcedure
+      .input(z.object({ recipeId: z.string().min(1) }))
+      .query(({ ctx, input }) => getRecipe(input.recipeId, ctx.db)),
+    ingredients: protectedProcedure
+      .input(z.object({ recipeId: z.string().min(1) }))
+      .query(({ ctx, input }) => listIngredients(input.recipeId, ctx.db)),
   }),
 });
 

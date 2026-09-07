@@ -8,6 +8,13 @@
       "when": 1788733365752,
       "tag": "0000_yielding_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788755203092,
+      "tag": "0001_magical_vargas",
+      "breakpoints": true
     }
   ]
 }
