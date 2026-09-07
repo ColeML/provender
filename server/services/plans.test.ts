@@ -8,6 +8,8 @@ import { createRecipe, deleteRecipe } from "@server/services/recipes";
 import {
   createPlan,
   DateOutsidePlanError,
+  DuplicateRecipeError,
+  InvalidDateError,
   deletePlan,
   deletePlanDay,
   getPlan,
@@ -140,6 +142,34 @@ describe("setPlanDay", () => {
       setPlanDay(H, WEEK, "2026-09-07", "dinner", { servings: 8, main: "fajitas" }, db),
     ).rejects.toBeInstanceOf(DateOutsidePlanError);
   });
+
+  it("refuses the same recipe in two roles, rather than failing on a key clash", async () => {
+    await expect(
+      setPlanDay(H, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas", side: "fajitas" }, db),
+    ).rejects.toBeInstanceOf(DuplicateRecipeError);
+  });
+
+  it("refuses a recipe repeated in extras", async () => {
+    await expect(
+      setPlanDay(
+        H,
+        WEEK,
+        MONDAY,
+        "dinner",
+        { servings: 8, main: "fajitas", extras: ["pico", "pico"] },
+        db,
+      ),
+    ).rejects.toBeInstanceOf(DuplicateRecipeError);
+  });
+
+  it.each(["2026-13-45", "2026-02-30"])(
+    "refuses %s, which is not a calendar date",
+    async (date) => {
+      await expect(
+        setPlanDay(H, WEEK, date, "dinner", { servings: 8, main: "fajitas" }, db),
+      ).rejects.toBeInstanceOf(InvalidDateError);
+    },
+  );
 
   it("refuses to write a day into a plan that does not exist", async () => {
     await expect(

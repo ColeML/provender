@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isoWeekFor, parseIsoWeek, weekDates, weeksInYear } from "./iso-week";
+import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates, weeksInYear } from "./iso-week";
 
 describe("weekDates", () => {
   it("matches the week v1 is currently planning", () => {
@@ -77,5 +77,21 @@ describe("weeksInYear", () => {
     [2021, 52],
   ])("says %i has %i weeks", (year, weeks) => {
     expect(weeksInYear(year)).toBe(weeks);
+  });
+});
+
+describe("isCalendarDate", () => {
+  it.each(["2026-08-31", "2026-02-28", "2024-02-29"])("accepts %s", (date) => {
+    expect(isCalendarDate(date)).toBe(true);
+  });
+
+  it.each([
+    ["2026-02-30", "February never has 30 days — Date rolls it to March 2nd"],
+    ["2026-13-45", "no such month or day"],
+    ["2026-02-29", "2026 is not a leap year"],
+    ["2026-8-31", "unpadded"],
+    ["not-a-date", "not a date at all"],
+  ])("rejects %s (%s)", (date) => {
+    expect(isCalendarDate(date)).toBe(false);
   });
 });

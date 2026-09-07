@@ -4,6 +4,8 @@ import { PlanDayInputSchema, PlanDaySchema, PlanSchema } from "@server/api/schem
 import {
   createPlan,
   DateOutsidePlanError,
+  DuplicateRecipeError,
+  InvalidDateError,
   deletePlan,
   deletePlanDay,
   getPlan,
@@ -51,7 +53,12 @@ function planError(c: Parameters<typeof apiError>[0], error: unknown) {
     return apiError(c, "NOT_FOUND", error.message);
   }
 
-  if (error instanceof InvalidPlanIdError || error instanceof DateOutsidePlanError) {
+  if (
+    error instanceof InvalidPlanIdError ||
+    error instanceof DateOutsidePlanError ||
+    error instanceof InvalidDateError ||
+    error instanceof DuplicateRecipeError
+  ) {
     return apiError(c, "INVALID_ARGUMENT", error.message);
   }
 

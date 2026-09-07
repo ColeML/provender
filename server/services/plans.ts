@@ -1,8 +1,8 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
-import { isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
-import { and, asc, eq } from "drizzle-orm";
+import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import { getConfig } from "./config";
 
@@ -62,6 +62,18 @@ export class DateOutsidePlanError extends Error {
   }
 }
 
+export class InvalidDateError extends Error {
+  constructor(readonly date: string) {
+    super(`${date} is not a calendar date`);
+  }
+}
+
+export class DuplicateRecipeError extends Error {
+  constructor(readonly recipeId: string) {
+    super(`${recipeId} appears more than once on this day; a recipe can hold one role`);
+  }
+}
+
 export class PlanDayNotFoundError extends Error {
   constructor(
     readonly date: string,
@@ -79,6 +91,12 @@ export class PlanDayNotFoundError extends Error {
  * anywhere to explain why.
  */
 function assertDateInPlan(planId: string, date: string) {
+  // Checked before the week lookup: an impossible date has no week, and reporting one would name
+  // a week the caller never mentioned.
+  if (!isCalendarDate(date)) {
+    throw new InvalidDateError(date);
+  }
+
   if (!weekDates(requireIsoWeek(planId)).includes(date)) {
     throw new DateOutsidePlanError(date, planId);
   }
@@ -116,13 +134,29 @@ function recipeRows(
     rows.push({ ...base, recipeId, role: "extra", position });
   });
 
+  // A recipe holds one role on a day. Two rows with the same recipe share a primary key, so
+  // without this the insert fails with a raw duplicate-key error and the caller gets a 500 that
+  // says nothing about what was wrong with the request.
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    if (seen.has(row.recipeId)) {
+      throw new DuplicateRecipeError(row.recipeId);
+    }
+
+    seen.add(row.recipeId);
+  }
+
   return rows;
 }
 
-function groupRecipes(rows: PlanDayRecipe[]) {
+/** Takes only the fields it reads, so both the inserted rows and the selected ones fit. */
+function groupRecipes(
+  rows: { recipeId: string; role: PlanRecipeRole; position?: number | null }[],
+) {
   const extras = rows
     .filter((row) => row.role === "extra")
-    .sort((a, b) => a.position - b.position)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     .map((row) => row.recipeId);
 
   return {
@@ -215,7 +249,7 @@ export async function updatePlan(
     .update(schema.plans)
     .set({
       budgetTarget: budgetTarget === null ? null : String(budgetTarget),
-      updateTime: new Date(),
+      updateTime: sql`now()`,
     })
     .where(and(eq(schema.plans.householdId, householdId), eq(schema.plans.id, planId)))
     .returning();
@@ -255,6 +289,10 @@ export async function setPlanDay(
 ) {
   assertDateInPlan(planId, date);
 
+  // Built before the transaction opens: this validates the input, and a rejected request should
+  // not have taken a write lock first.
+  const rows = recipeRows(householdId, planId, date, mealSlot, input);
+
   return db.transaction(async (tx) => {
     const [plan] = await tx
       .select({ id: schema.plans.id })
@@ -287,7 +325,10 @@ export async function setPlanDay(
           servings: input.servings,
           status: input.status ?? "planned",
           notes: input.notes ?? null,
-          updateTime: new Date(),
+          // The database's clock, matching the column defaults — see the same note in
+          // `recipes.ts`. Mixing in the Node process's clock lets skew produce an updateTime
+          // earlier than the row's own createTime.
+          updateTime: sql`now()`,
         },
       })
       .returning();
@@ -301,13 +342,11 @@ export async function setPlanDay(
 
     await tx.delete(schema.planDayRecipes).where(dayMatch);
 
-    const rows = recipeRows(householdId, planId, date, mealSlot, input);
-
     if (rows.length > 0) {
       await tx.insert(schema.planDayRecipes).values(rows);
     }
 
-    return { ...day, ...groupRecipes(rows as PlanDayRecipe[]) };
+    return { ...day, ...groupRecipes(rows) };
   });
 }
 
