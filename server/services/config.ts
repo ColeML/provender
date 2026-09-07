@@ -19,14 +19,3 @@ export async function getConfig(db: Database = defaultDb): Promise<Config> {
 
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
 }
-
-export async function setConfigValue(
-  key: string,
-  value: string,
-  db: Database = defaultDb,
-): Promise<void> {
-  await db
-    .insert(schema.config)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: schema.config.key, set: { value, updatedAt: new Date() } });
-}

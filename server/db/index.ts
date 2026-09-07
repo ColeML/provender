@@ -1,4 +1,5 @@
 import { Pool } from "@neondatabase/serverless";
+import { getEnv } from "@server/lib/env";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
 import * as schema from "./schema";
@@ -28,13 +29,11 @@ const globalForDb = globalThis as unknown as { db?: Db };
 let instance: Db | undefined;
 
 function connect(): Db {
-  const connectionString = process.env.DATABASE_URL;
+  // Through getEnv rather than reading process.env here, so there is one place that decides what
+  // a valid environment is and one error message when it is not.
+  const { DATABASE_URL } = getEnv();
 
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
-  }
-
-  return drizzle({ client: new Pool({ connectionString }), schema });
+  return drizzle({ client: new Pool({ connectionString: DATABASE_URL }), schema });
 }
 
 function resolve(): Db {

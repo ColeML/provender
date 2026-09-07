@@ -31,11 +31,7 @@ export interface ApiErrorBody {
   };
 }
 
-export function errorBody(
-  status: ApiStatus,
-  message: string,
-  details?: ErrorDetail[],
-): ApiErrorBody {
+function errorBody(status: ApiStatus, message: string, details?: ErrorDetail[]): ApiErrorBody {
   return {
     error: { code: STATUS_CODES[status], message, status, ...(details ? { details } : {}) },
   };

@@ -12,5 +12,3 @@ export const config = pgTable("config", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
-
-export type ConfigRow = typeof config.$inferSelect;
