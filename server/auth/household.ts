@@ -2,6 +2,8 @@ import "server-only";
 
 import { DEFAULT_HOUSEHOLD_ID } from "@server/db/schema/households";
 
+import type { Session } from "next-auth";
+
 /**
  * Which household a request belongs to.
  *
@@ -9,15 +11,16 @@ import { DEFAULT_HOUSEHOLD_ID } from "@server/db/schema/households";
  * would lengthen every resource name to express something that is never ambiguous. It is resolved
  * from identity instead.
  *
- * Today there is one household and both credentials map to it. When family accounts arrive, the
- * session carries which household its user belongs to and each household gets its own token; this
- * is the single place either has to change, and every service already refuses to run without the
- * answer.
+ * Both functions take the credential they resolve from even though neither reads it yet. There is
+ * one household today, so returning a constant is correct — but a resolver that accepted nothing
+ * would have to grow a parameter at every call site later, and the tempting shortcut of reading
+ * the session inside the function would silently return the wrong household on the bearer path,
+ * where there is no session at all.
  */
-export function householdForSession(): string {
+export function householdForSession(_session: Session): string {
   return DEFAULT_HOUSEHOLD_ID;
 }
 
-export function householdForApiToken(): string {
+export function householdForApiToken(_token: string): string {
   return DEFAULT_HOUSEHOLD_ID;
 }

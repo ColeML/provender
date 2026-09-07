@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 /**
  * Household settings.
@@ -40,6 +40,5 @@ export async function setConfigValue(
     .onConflictDoUpdate({
       target: [schema.config.householdId, schema.config.key],
       set: { value, updatedAt: new Date() },
-      where: and(eq(schema.config.householdId, householdId), eq(schema.config.key, key)),
     });
 }

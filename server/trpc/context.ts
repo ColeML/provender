@@ -19,7 +19,7 @@ export async function createContext() {
   return {
     db,
     session,
-    householdId: session?.user ? householdForSession() : null,
+    householdId: session?.user ? householdForSession(session) : null,
   };
 }
 

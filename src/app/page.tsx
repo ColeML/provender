@@ -26,7 +26,7 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const config = await getConfig(householdForSession());
+  const config = await getConfig(householdForSession(session));
   const entries = Object.entries(config);
 
   return (

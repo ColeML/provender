@@ -49,7 +49,7 @@ export const requireBearerToken = createMiddleware<ApiEnv>(async (c, next) => {
     return apiError(c, "UNAUTHENTICATED", "A valid bearer token is required");
   }
 
-  c.set("householdId", householdForApiToken());
+  c.set("householdId", householdForApiToken(provided));
 
   await next();
 });
