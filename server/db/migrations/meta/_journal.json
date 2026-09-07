@@ -36,6 +36,13 @@
       "when": 1788757162635,
       "tag": "0004_scope_to_household",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788758136788,
+      "tag": "0005_add_plans",
+      "breakpoints": true
     }
   ]
 }
