@@ -22,3 +22,11 @@ dist/
 .vscode/
 kroger_token.json
 kroger.json
+
+# Node / Next
+node_modules/
+.next/
+next-env.d.ts
+.vercel/
+.env.local
+*.tsbuildinfo

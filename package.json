@@ -1,0 +1,63 @@
+{
+  "name": "provender",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio --port 3738"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.7.0",
+    "@hono/zod-openapi": "1.6.3",
+    "@neondatabase/serverless": "1.1.0",
+    "@tanstack/react-query": "5.102.8",
+    "@trpc/client": "11.18.0",
+    "@trpc/server": "11.18.0",
+    "@trpc/tanstack-react-query": "11.18.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "dotenv": "17.4.2",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.13.7",
+    "lucide-react": "1.39.0",
+    "next": "16.3.3",
+    "next-themes": "0.4.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1",
+    "superjson": "2.2.6",
+    "tailwind-merge": "3.6.0",
+    "tw-animate-css": "1.4.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitest/coverage-v8": "4.1.11",
+    "babel-plugin-react-compiler": "1.0.0",
+    "drizzle-kit": "0.31.10",
+    "oxfmt": "0.65.0",
+    "oxlint": "1.80.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.24.0"
+}

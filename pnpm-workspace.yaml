@@ -1,0 +1,7 @@
+allowBuilds:
+  # esbuild arrives via tsx and drizzle-kit. Its install script only fetches the platform binary
+  # when the matching @esbuild/<platform> optional dependency is missing, and pnpm installs that
+  # from the lockfile — so the script has nothing to do. Declared rather than left implicit:
+  # pnpm treats an undeclared ignored build as a warning locally and a hard failure under
+  # --frozen-lockfile, which is the pair that passes review and breaks CI.
+  esbuild: false
