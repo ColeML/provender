@@ -6,6 +6,7 @@ import { setConfigValue } from "@server/services/config";
 import { createPlan, deletePlanDay, setPlanDay } from "@server/services/plans";
 import { createRecipe, deleteRecipe } from "@server/services/recipes";
 
+import { InvalidDateError, PlanDayNotFoundError } from "@server/services/plans";
 import {
   deleteHistoryEntry,
   getHistoryEntry,
@@ -55,6 +56,37 @@ describe("recordMeal", () => {
 
     expect(entries).toHaveLength(1);
     expect(entries[0].title).toBe("Chicken Fajitas");
+  });
+});
+
+describe("recordMeal validation", () => {
+  it.each(["2026-13-45", "2026-02-30"])(
+    "refuses %s rather than failing in the driver",
+    async (date) => {
+      await expect(
+        recordMeal(H, { date, recipeId: "fajitas", title: "Fajitas" }, db),
+      ).rejects.toBeInstanceOf(InvalidDateError);
+    },
+  );
+
+  it("refuses to link to a day that is not planned", async () => {
+    await expect(
+      recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", planId: WEEK }, db),
+    ).rejects.toBeInstanceOf(PlanDayNotFoundError);
+  });
+
+  it("keeps an existing rating when a re-plan does not mention one", async () => {
+    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", rating: 5 }, db);
+    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas" }, db);
+
+    expect((await getHistoryEntry(H, `${MONDAY}-fajitas`, db)).rating).toBe(5);
+  });
+
+  it("applies a rating the caller actually sent, rather than ignoring it", async () => {
+    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", rating: 5 }, db);
+    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", rating: 2 }, db);
+
+    expect((await getHistoryEntry(H, `${MONDAY}-fajitas`, db)).rating).toBe(2);
   });
 });
 

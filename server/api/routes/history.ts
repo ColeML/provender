@@ -1,5 +1,6 @@
 import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
+import { InvalidDateError, PlanDayNotFoundError } from "@server/services/plans";
 import {
   deleteHistoryEntry,
   getHistoryEntry,
@@ -50,9 +51,13 @@ const EntryParam = z.object({
     .openapi({ param: { name: "entry", in: "path" }, example: "2026-08-31-fajitas" }),
 });
 
-function notFound(c: Parameters<typeof apiError>[0], error: unknown) {
-  if (error instanceof MealHistoryNotFoundError) {
+function historyError(c: Parameters<typeof apiError>[0], error: unknown) {
+  if (error instanceof MealHistoryNotFoundError || error instanceof PlanDayNotFoundError) {
     return apiError(c, "NOT_FOUND", error.message);
+  }
+
+  if (error instanceof InvalidDateError) {
+    return apiError(c, "INVALID_ARGUMENT", error.message);
   }
 
   throw error;
@@ -117,9 +122,17 @@ historyRoutes.openapi(
     },
     responses: {
       200: { description: "The entry", content: { "application/json": { schema: EntrySchema } } },
+      400: { description: "The date is not a calendar date" },
+      404: { description: "The linked plan day does not exist" },
     },
   }),
-  async (c) => c.json(toResource(await recordMeal(c.get("householdId"), c.req.valid("json"))), 200),
+  async (c) => {
+    try {
+      return c.json(toResource(await recordMeal(c.get("householdId"), c.req.valid("json"))), 200);
+    } catch (error) {
+      return historyError(c, error);
+    }
+  },
 );
 
 historyRoutes.openapi(
@@ -139,7 +152,7 @@ historyRoutes.openapi(
     try {
       return c.json(toResource(await getHistoryEntry(c.get("householdId"), entry)), 200);
     } catch (error) {
-      return notFound(c, error);
+      return historyError(c, error);
     }
   },
 );
@@ -178,6 +191,12 @@ historyRoutes.openapi(
       .filter(Boolean);
     const unknown = fields.filter((field) => field !== "rating" && field !== "notes");
 
+    if (fields.length === 0) {
+      // An empty mask would update nothing and answer 200, so a client that built the mask from an
+      // empty array would read a lost write as a successful one.
+      return apiError(c, "INVALID_ARGUMENT", "updateMask names no fields");
+    }
+
     if (unknown.length > 0) {
       return apiError(
         c,
@@ -191,7 +210,7 @@ historyRoutes.openapi(
 
       return c.json(toResource(updated), 200);
     } catch (error) {
-      return notFound(c, error);
+      return historyError(c, error);
     }
   },
 );
@@ -218,7 +237,7 @@ historyRoutes.openapi(
 
       return c.json({}, 200);
     } catch (error) {
-      return notFound(c, error);
+      return historyError(c, error);
     }
   },
 );

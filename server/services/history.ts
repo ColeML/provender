@@ -3,8 +3,10 @@ import "server-only";
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 
+import { isCalendarDate } from "@server/lib/iso-week";
+
 import { getConfig } from "./config";
-import type { MealSlot } from "./plans";
+import { InvalidDateError, PlanDayNotFoundError, type MealSlot } from "./plans";
 
 /**
  * What was planned, and how it turned out.
@@ -45,7 +47,35 @@ export async function recordMeal(
   input: MealHistoryInput,
   db: Database = defaultDb,
 ) {
+  // Checked here rather than left to the date column, which fails inside the driver with a
+  // Postgres range error the handlers cannot map to a 400.
+  if (!isCalendarDate(input.date)) {
+    throw new InvalidDateError(input.date);
+  }
+
   const id = historyId(input.date, input.recipeId);
+  const mealSlot = input.mealSlot ?? "dinner";
+  const planId = input.planId ?? null;
+
+  if (planId) {
+    // The link is a foreign key to the day, so a day that is not there fails in the driver. Asking
+    // first turns that into a 404 that names the missing day.
+    const [day] = await db
+      .select({ date: schema.planDays.date })
+      .from(schema.planDays)
+      .where(
+        and(
+          eq(schema.planDays.householdId, householdId),
+          eq(schema.planDays.planId, planId),
+          eq(schema.planDays.date, input.date),
+          eq(schema.planDays.mealSlot, mealSlot),
+        ),
+      );
+
+    if (!day) {
+      throw new PlanDayNotFoundError(input.date, mealSlot);
+    }
+  }
 
   const [entry] = await db
     .insert(schema.mealHistory)
@@ -55,23 +85,29 @@ export async function recordMeal(
       date: input.date,
       recipeId: input.recipeId,
       title: input.title,
-      mealSlot: input.mealSlot ?? "dinner",
+      mealSlot,
       rating: input.rating ?? null,
       notes: input.notes ?? null,
-      planId: input.planId ?? null,
-      planDate: input.planId ? input.date : null,
-      planMealSlot: input.planId ? (input.mealSlot ?? "dinner") : null,
+      planId,
+      planDate: planId ? input.date : null,
+      planMealSlot: planId ? mealSlot : null,
     })
     .onConflictDoUpdate({
       target: [schema.mealHistory.householdId, schema.mealHistory.id],
       // Re-planning the same dish on the same day refreshes the entry rather than appending a
       // second one, which is what v1 did and what left the library full of near-duplicates.
+      //
+      // Rating and notes are carried over only when the caller actually sent them. Omitting them
+      // must not wipe a rating a re-plan knows nothing about, but sending one and having it
+      // silently ignored is worse — the field is advertised on create.
       set: {
         title: input.title,
-        mealSlot: input.mealSlot ?? "dinner",
-        planId: input.planId ?? null,
-        planDate: input.planId ? input.date : null,
-        planMealSlot: input.planId ? (input.mealSlot ?? "dinner") : null,
+        mealSlot,
+        planId,
+        planDate: planId ? input.date : null,
+        planMealSlot: planId ? mealSlot : null,
+        ...(input.rating === undefined ? {} : { rating: input.rating }),
+        ...(input.notes === undefined ? {} : { notes: input.notes }),
         updateTime: sql`now()`,
       },
     })
