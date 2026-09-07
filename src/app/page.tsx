@@ -25,7 +25,8 @@ export default async function Home() {
 
       {entries.length === 0 ? (
         <p className="mt-8 text-sm">
-          No settings yet. Run the migration and insert a row to see it here.
+          No settings yet. Your household settings still live in the v1 spreadsheet — importing them
+          is issue #37.
         </p>
       ) : (
         <dl className="mt-8 divide-border divide-y">
