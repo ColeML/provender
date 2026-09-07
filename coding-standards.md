@@ -134,8 +134,16 @@ Philosophy: **test the application the way a user uses it.**
 - **Always assert the outcome.** Every interaction is followed by an assertion that the DOM or
   system updated.
 - Use `queryBy*` for `.not.toBeInTheDocument()`; `findBy*` already asserts presence.
-- **Mock the network layer, not implementation details.** For services, pass a stub database
-  rather than mocking modules.
+- **Database tests run against PGlite**, a real Postgres in-process, via `createTestDb()` in
+  `server/db/testing.ts`. It applies the committed migrations, so a test also fails when a
+  migration and the schema disagree. Each test gets its own database, so there is no shared state
+  to reset.
+- **PGlite is single-connection**, so it cannot exercise two writers racing on a row. If a change
+  genuinely needs that, add a Docker-backed suite for those tests specifically rather than moving
+  everything off the fast path — `pnpm vitest` needs nothing installed today, locally or in CI,
+  and that is worth keeping.
+- **Mock the network layer, not implementation details.** For anything that is not the database,
+  prefer a stub passed as a parameter over mocking modules.
 - Co-locate tests as `*.test.ts(x)`. Name them by outcome (`it('applies sales tax')`).
 - **When a test contradicts the code, the code is wrong until proven otherwise.** Don't loosen an
   assertion to make a run go green.
