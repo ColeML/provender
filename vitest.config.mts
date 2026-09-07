@@ -14,6 +14,10 @@ export default defineConfig({
       PROVENDER_API_TOKEN: "test-token",
     },
     unstubEnvs: true,
+    // Node by default, because most of the suite is services and SQL. A component test opts into
+    // a DOM with `// @vitest-environment jsdom` at the top of the file — `environmentMatchGlobs`
+    // was removed in Vitest 4 — so a database test never pays for jsdom.
+    setupFiles: ["./vitest.setup.ts"],
     // Extends rather than replaces: assigning `exclude` outright drops vitest's own defaults,
     // including **/dist/**.
     exclude: [...configDefaults.exclude, "python/**", ".next/**"],

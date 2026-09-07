@@ -2,7 +2,7 @@ import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
 import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { getConfig } from "./config";
 import { detachHistoryFromDay } from "./history";
@@ -207,6 +207,37 @@ export async function getPlan(householdId: string, planId: string, db: Database 
       ),
     })) satisfies PlanDayWithRecipes[],
   };
+}
+
+/**
+ * The plan the shopper is shopping for: this week's if it exists, otherwise the most recent.
+ *
+ * A screen that resolved the current ISO week and stopped would be blank every Monday before the
+ * week is planned, and blank all of the following week too — which is exactly when someone opens
+ * it in a shop. Falling back to the latest plan means the screen always has something, and the
+ * caller shows which week it is so the fallback is never silent.
+ */
+export async function currentOrLatestPlan(householdId: string, db: Database = defaultDb) {
+  const thisWeek = isoWeekFor(new Date().toISOString().slice(0, 10));
+
+  const [current] = await db
+    .select()
+    .from(schema.plans)
+    .where(and(eq(schema.plans.householdId, householdId), eq(schema.plans.id, thisWeek)));
+
+  if (current) {
+    return current;
+  }
+
+  // Ids are ISO weeks, which sort chronologically as text.
+  const [latest] = await db
+    .select()
+    .from(schema.plans)
+    .where(eq(schema.plans.householdId, householdId))
+    .orderBy(desc(schema.plans.id))
+    .limit(1);
+
+  return latest;
 }
 
 export async function createPlan(
