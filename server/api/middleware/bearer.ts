@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { apiError } from "@server/api/errors";
+import { householdForApiToken } from "@server/auth/household";
 import { createMiddleware } from "hono/factory";
 
 /**
@@ -30,7 +31,10 @@ function tokensMatch(provided: string, expected: string) {
  * This is the agent's credential — Claude Code sends it, browsers never do. It is deliberately
  * unrelated to the session cookie: neither mechanism can admit the other's caller.
  */
-export const requireBearerToken = createMiddleware(async (c, next) => {
+/** Set once the token is accepted, so a handler cannot reach a service without a household. */
+export type ApiEnv = { Variables: { householdId: string } };
+
+export const requireBearerToken = createMiddleware<ApiEnv>(async (c, next) => {
   const expected = process.env.PROVENDER_API_TOKEN;
 
   if (!expected) {
@@ -44,6 +48,8 @@ export const requireBearerToken = createMiddleware(async (c, next) => {
   if (!provided || !tokensMatch(provided, expected)) {
     return apiError(c, "UNAUTHENTICATED", "A valid bearer token is required");
   }
+
+  c.set("householdId", householdForApiToken());
 
   await next();
 });

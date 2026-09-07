@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createTestDb } from "@server/db/testing";
+
+const HOUSEHOLD = "loewer";
 import type { Database } from "@server/db";
 
 import {
@@ -45,26 +47,28 @@ const ingredients = [
 
 describe("createRecipe", () => {
   it("stores the recipe and its ingredients in recipe order", async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
 
-    const stored = await listIngredients("fajitas", db);
+    const stored = await listIngredients(HOUSEHOLD, "fajitas", db);
 
     expect(stored.map((row) => row.name)).toEqual(["chili powder", "bell pepper", "salt"]);
     expect(stored.map((row) => row.position)).toEqual([0, 1, 2]);
   });
 
   it("lowercases units, so merging does not see Tbsp and tbsp as two products", async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
 
-    const [first] = await listIngredients("fajitas", db);
+    const [first] = await listIngredients(HOUSEHOLD, "fajitas", db);
 
     expect(first.unit).toBe("tbsp");
   });
 
   it("keeps a null quantity for a to-taste ingredient rather than inventing a zero", async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
 
-    const salt = (await listIngredients("fajitas", db)).find((row) => row.name === "salt");
+    const salt = (await listIngredients(HOUSEHOLD, "fajitas", db)).find(
+      (row) => row.name === "salt",
+    );
 
     expect(salt?.quantity).toBeNull();
     expect(salt?.notes).toBe("to taste");
@@ -72,6 +76,7 @@ describe("createRecipe", () => {
 
   it("suffixes the id when a recipe uses the same ingredient twice", async () => {
     await createRecipe(
+      HOUSEHOLD,
       "stew",
       fajitas,
       [
@@ -81,23 +86,24 @@ describe("createRecipe", () => {
       db,
     );
 
-    expect((await listIngredients("stew", db)).map((row) => row.id)).toEqual([
+    expect((await listIngredients(HOUSEHOLD, "stew", db)).map((row) => row.id)).toEqual([
       "stew_onion",
       "stew_onion-2",
     ]);
   });
 
   it("refuses an id that already exists instead of creating a second copy", async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
 
-    await expect(createRecipe("fajitas", fajitas, ingredients, db)).rejects.toBeInstanceOf(
-      RecipeExistsError,
-    );
+    await expect(
+      createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db),
+    ).rejects.toBeInstanceOf(RecipeExistsError);
   });
 
   it("writes nothing when an ingredient is invalid, rather than leaving a half-saved recipe", async () => {
     await expect(
       createRecipe(
+        HOUSEHOLD,
         "broken",
         fajitas,
         [{ name: "mystery", quantity: 1, unit: "ea", category: "not-an-aisle" as never }],
@@ -105,14 +111,14 @@ describe("createRecipe", () => {
       ),
     ).rejects.toThrow();
 
-    await expect(getRecipe("broken", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
+    await expect(getRecipe(HOUSEHOLD, "broken", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
   });
 });
 
 describe("listRecipes", () => {
   beforeEach(async () => {
     for (const id of ["a", "b", "c", "d", "e"]) {
-      await createRecipe(id, { ...fajitas, title: id.toUpperCase() }, [], db);
+      await createRecipe(HOUSEHOLD, id, { ...fajitas, title: id.toUpperCase() }, [], db);
     }
   });
 
@@ -121,7 +127,7 @@ describe("listRecipes", () => {
     let pageToken: string | undefined;
 
     do {
-      const page = await listRecipes({ pageSize: 2, pageToken }, db);
+      const page = await listRecipes(HOUSEHOLD, { pageSize: 2, pageToken }, db);
 
       seen.push(...page.recipes.map((row) => row.id));
       pageToken = page.nextPageToken;
@@ -131,24 +137,28 @@ describe("listRecipes", () => {
   });
 
   it("rejects a token this API did not issue rather than returning a wrong page", async () => {
-    await expect(listRecipes({ pageToken: "not-a-real-token" }, db)).rejects.toBeInstanceOf(
-      InvalidPageTokenError,
-    );
+    await expect(
+      listRecipes(HOUSEHOLD, { pageToken: "not-a-real-token" }, db),
+    ).rejects.toBeInstanceOf(InvalidPageTokenError);
   });
 
   it("omits nextPageToken on the last page", async () => {
-    const page = await listRecipes({ pageSize: 50 }, db);
+    const page = await listRecipes(HOUSEHOLD, { pageSize: 50 }, db);
 
     expect(page.nextPageToken).toBeUndefined();
   });
 
   it("does not skip a recipe when an earlier one is deleted between pages", async () => {
-    const first = await listRecipes({ pageSize: 2 }, db);
+    const first = await listRecipes(HOUSEHOLD, { pageSize: 2 }, db);
 
     // Keyset pagination is the reason this holds; an offset token would skip "d" here.
-    await deleteRecipe("a", db);
+    await deleteRecipe(HOUSEHOLD, "a", db);
 
-    const second = await listRecipes({ pageSize: 2, pageToken: first.nextPageToken }, db);
+    const second = await listRecipes(
+      HOUSEHOLD,
+      { pageSize: 2, pageToken: first.nextPageToken },
+      db,
+    );
 
     expect(second.recipes.map((row) => row.id)).toEqual(["c", "d"]);
   });
@@ -156,17 +166,18 @@ describe("listRecipes", () => {
 
 describe("addIngredient", () => {
   beforeEach(async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
   });
 
   it("appends after the existing ingredients rather than renumbering them", async () => {
     await addIngredient(
+      HOUSEHOLD,
       "fajitas",
       { name: "lime", quantity: 1, unit: "ea", category: "produce" },
       db,
     );
 
-    const stored = await listIngredients("fajitas", db);
+    const stored = await listIngredients(HOUSEHOLD, "fajitas", db);
 
     expect(stored.map((row) => row.name)).toEqual(["chili powder", "bell pepper", "salt", "lime"]);
     expect(stored.at(-1)?.position).toBe(3);
@@ -174,6 +185,7 @@ describe("addIngredient", () => {
 
   it("suffixes the id when the ingredient is already on the recipe", async () => {
     const added = await addIngredient(
+      HOUSEHOLD,
       "fajitas",
       { name: "salt", quantity: 1, unit: "tsp", category: "pantry" },
       db,
@@ -184,28 +196,34 @@ describe("addIngredient", () => {
 
   it("reports a missing recipe rather than orphaning the ingredient", async () => {
     await expect(
-      addIngredient("nope", { name: "lime", quantity: 1, unit: "ea", category: "produce" }, db),
+      addIngredient(
+        HOUSEHOLD,
+        "nope",
+        { name: "lime", quantity: 1, unit: "ea", category: "produce" },
+        db,
+      ),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
   });
 });
 
 describe("getIngredient", () => {
   it("will not return one belonging to a different recipe", async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
-    await createRecipe("other", fajitas, [], db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "other", fajitas, [], db);
 
-    await expect(getIngredient("fajitas", "fajitas_salt", db)).resolves.toBeDefined();
-    await expect(getIngredient("other", "fajitas_salt", db)).resolves.toBeUndefined();
+    await expect(getIngredient(HOUSEHOLD, "fajitas", "fajitas_salt", db)).resolves.toBeDefined();
+    await expect(getIngredient(HOUSEHOLD, "other", "fajitas_salt", db)).resolves.toBeUndefined();
   });
 });
 
 describe("updateRecipe", () => {
   beforeEach(async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
   });
 
   it("changes only the fields named in the mask", async () => {
     await updateRecipe(
+      HOUSEHOLD,
       "fajitas",
       ["title"],
       { title: "Beef Fajitas", baseServings: 2 },
@@ -213,7 +231,7 @@ describe("updateRecipe", () => {
       db,
     );
 
-    const recipe = await getRecipe("fajitas", db);
+    const recipe = await getRecipe(HOUSEHOLD, "fajitas", db);
 
     expect(recipe.title).toBe("Beef Fajitas");
     expect(recipe.baseServings).toBe(8);
@@ -221,6 +239,7 @@ describe("updateRecipe", () => {
 
   it("replaces the whole ingredient list when the mask names it", async () => {
     await updateRecipe(
+      HOUSEHOLD,
       "fajitas",
       ["ingredients"],
       {},
@@ -228,66 +247,68 @@ describe("updateRecipe", () => {
       db,
     );
 
-    expect((await listIngredients("fajitas", db)).map((row) => row.name)).toEqual(["steak"]);
+    expect((await listIngredients(HOUSEHOLD, "fajitas", db)).map((row) => row.name)).toEqual([
+      "steak",
+    ]);
   });
 
   it("clears the ingredients when the mask names them and the body omits them", async () => {
-    await updateRecipe("fajitas", ["ingredients"], {}, undefined, db);
+    await updateRecipe(HOUSEHOLD, "fajitas", ["ingredients"], {}, undefined, db);
 
-    expect(await listIngredients("fajitas", db)).toEqual([]);
+    expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toEqual([]);
   });
 
   it("leaves ingredients alone when the mask does not name them", async () => {
-    await updateRecipe("fajitas", ["title"], { title: "Beef Fajitas" }, undefined, db);
+    await updateRecipe(HOUSEHOLD, "fajitas", ["title"], { title: "Beef Fajitas" }, undefined, db);
 
-    expect(await listIngredients("fajitas", db)).toHaveLength(3);
+    expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toHaveLength(3);
   });
 
   it("moves updateTime forward", async () => {
-    const before = await getRecipe("fajitas", db);
+    const before = await getRecipe(HOUSEHOLD, "fajitas", db);
 
-    await updateRecipe("fajitas", ["title"], { title: "Beef Fajitas" }, undefined, db);
+    await updateRecipe(HOUSEHOLD, "fajitas", ["title"], { title: "Beef Fajitas" }, undefined, db);
 
-    const after = await getRecipe("fajitas", db);
+    const after = await getRecipe(HOUSEHOLD, "fajitas", db);
 
     expect(after.updateTime.getTime()).toBeGreaterThanOrEqual(before.updateTime.getTime());
   });
 
   it("reports a missing recipe rather than creating one", async () => {
     await expect(
-      updateRecipe("nope", ["title"], { title: "x" }, undefined, db),
+      updateRecipe(HOUSEHOLD, "nope", ["title"], { title: "x" }, undefined, db),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
   });
 });
 
 describe("deleteRecipe", () => {
   it("takes the ingredients with it", async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
 
-    await deleteRecipe("fajitas", db);
+    await deleteRecipe(HOUSEHOLD, "fajitas", db);
 
-    expect(await listIngredients("fajitas", db)).toEqual([]);
+    expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toEqual([]);
   });
 
   it("reports a missing recipe instead of succeeding silently", async () => {
-    await expect(deleteRecipe("nope", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
+    await expect(deleteRecipe(HOUSEHOLD, "nope", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
   });
 });
 
 describe("deleteIngredient", () => {
   beforeEach(async () => {
-    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
   });
 
   it("removes one ingredient and reports it did", async () => {
-    await expect(deleteIngredient("fajitas", "fajitas_salt", db)).resolves.toBe(true);
-    expect(await listIngredients("fajitas", db)).toHaveLength(2);
+    await expect(deleteIngredient(HOUSEHOLD, "fajitas", "fajitas_salt", db)).resolves.toBe(true);
+    expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toHaveLength(2);
   });
 
   it("will not delete an ingredient belonging to a different recipe", async () => {
-    await createRecipe("other", fajitas, [], db);
+    await createRecipe(HOUSEHOLD, "other", fajitas, [], db);
 
-    await expect(deleteIngredient("other", "fajitas_salt", db)).resolves.toBe(false);
-    expect(await listIngredients("fajitas", db)).toHaveLength(3);
+    await expect(deleteIngredient(HOUSEHOLD, "other", "fajitas_salt", db)).resolves.toBe(false);
+    expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toHaveLength(3);
   });
 });

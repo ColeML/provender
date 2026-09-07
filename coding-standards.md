@@ -31,6 +31,18 @@ from both.
 Services take their database handle as a parameter defaulting to the shared client, so a test can
 pass a stub without mocking the module graph.
 
+**Every exported service function takes `householdId` as its first parameter.** All data is scoped
+to a household, and the failure that matters is not a wrong query but a forgotten one — a query
+missing `where household_id = ?` returns every household's rows and looks entirely normal in
+review. Requiring the parameter moves that mistake to compile time, and
+`server/services/isolation.test.ts` proves it from the outside by asking one household what it can
+see of another's. Extend that file when a service is added; it is the only thing standing between a
+forgotten filter and a data leak.
+
+A household is never named in a URL. It is resolved from the caller — `server/auth/household.ts` —
+because the caller does not choose it, and putting it in the path would lengthen every resource
+name to express something that is never ambiguous.
+
 ## TypeScript
 
 - Use `interface` for component props (named `Props`); `type` for everything else.
@@ -116,8 +128,15 @@ agent needs to discover the surface before it authenticates. Everything else und
 
 ## Database
 
-- Migrations are generated (`pnpm db:generate`), never hand-written, and are committed with the
-  schema change that produced them.
+- Migrations are generated (`pnpm db:generate`) and committed with the schema change that produced
+  them. Edit a generated file only where the change depends on existing data — adding a NOT NULL
+  column, backfilling, reordering statements drizzle-kit emitted wrongly — and say why in a comment
+  at the top. `0004_scope_to_household.sql` is the worked example: drizzle-kit put the primary key
+  before the column it needs, left the old key drops as placeholders it could not name, and added a
+  NOT NULL column with no default.
+- **A migration that touches existing rows gets a test.** `server/db/migrations.test.ts` applies the
+  migrations up to the one under test, inserts rows, then applies it — which is how a claim like
+  "the table was empty anyway" stops being an assumption.
 - A table unreachable from `server/db/schema/index.ts` does not exist as far as migrations are
   concerned.
 - Multi-statement writes go in a transaction. This is why the client is the Neon WebSocket driver

@@ -1,3 +1,4 @@
+import { householdForSession } from "@server/auth/household";
 import { getConfig } from "@server/services/config";
 import { redirect } from "next/navigation";
 
@@ -25,7 +26,7 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const config = await getConfig();
+  const config = await getConfig(householdForSession());
   const entries = Object.entries(config);
 
   return (

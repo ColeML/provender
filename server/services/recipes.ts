@@ -7,8 +7,12 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
  * The recipe library.
  *
  * As with every service here, the tRPC procedures and the REST handlers are thin callers of these
- * functions — see `coding-standards.md`. `db` is a parameter with a default so a test can pass a
- * stub without mocking the module graph.
+ * functions — see `coding-standards.md`.
+ *
+ * `householdId` is the required first parameter on every exported function. The failure that
+ * matters is not a wrong query but a forgotten one: a function that omits the household filter
+ * returns every household's rows and looks entirely normal in review. Requiring it moves that
+ * mistake to compile time.
  */
 
 export type Recipe = typeof schema.recipes.$inferSelect;
@@ -90,12 +94,14 @@ function ingredientId(recipeId: string, name: string, taken: Set<string>) {
 }
 
 function ingredientRows(
+  householdId: string,
   recipeId: string,
   inputs: IngredientInput[],
   taken = new Set<string>(),
   startPosition = 0,
 ) {
   return inputs.map((input, index) => ({
+    householdId,
     id: ingredientId(recipeId, input.name, taken),
     recipeId,
     name: input.name,
@@ -144,7 +150,11 @@ function decodeToken(token: string | undefined) {
   return decoded;
 }
 
-export async function listRecipes(options: ListOptions = {}, db: Database = defaultDb) {
+export async function listRecipes(
+  householdId: string,
+  options: ListOptions = {},
+  db: Database = defaultDb,
+) {
   const pageSize = Math.min(Math.max(options.pageSize ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
   const after = decodeToken(options.pageToken);
 
@@ -152,7 +162,11 @@ export async function listRecipes(options: ListOptions = {}, db: Database = defa
   const rows = await db
     .select()
     .from(schema.recipes)
-    .where(after ? gt(schema.recipes.id, after) : undefined)
+    .where(
+      after
+        ? and(eq(schema.recipes.householdId, householdId), gt(schema.recipes.id, after))
+        : eq(schema.recipes.householdId, householdId),
+    )
     .orderBy(asc(schema.recipes.id))
     .limit(pageSize + 1);
 
@@ -165,8 +179,11 @@ export async function listRecipes(options: ListOptions = {}, db: Database = defa
   };
 }
 
-export async function getRecipe(recipeId: string, db: Database = defaultDb) {
-  const [recipe] = await db.select().from(schema.recipes).where(eq(schema.recipes.id, recipeId));
+export async function getRecipe(householdId: string, recipeId: string, db: Database = defaultDb) {
+  const [recipe] = await db
+    .select()
+    .from(schema.recipes)
+    .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)));
 
   if (!recipe) {
     throw new RecipeNotFoundError(recipeId);
@@ -175,11 +192,20 @@ export async function getRecipe(recipeId: string, db: Database = defaultDb) {
   return recipe;
 }
 
-export async function listIngredients(recipeId: string, db: Database = defaultDb) {
+export async function listIngredients(
+  householdId: string,
+  recipeId: string,
+  db: Database = defaultDb,
+) {
   return db
     .select()
     .from(schema.ingredients)
-    .where(eq(schema.ingredients.recipeId, recipeId))
+    .where(
+      and(
+        eq(schema.ingredients.householdId, householdId),
+        eq(schema.ingredients.recipeId, recipeId),
+      ),
+    )
     .orderBy(asc(schema.ingredients.position));
 }
 
@@ -191,6 +217,7 @@ export async function listIngredients(recipeId: string, db: Database = defaultDb
  * ingredients. The sub-collection still exists for editing one later.
  */
 export async function createRecipe(
+  householdId: string,
   recipeId: string,
   input: RecipeInput,
   ingredients: IngredientInput[] = [],
@@ -203,6 +230,7 @@ export async function createRecipe(
     const [recipe] = await tx
       .insert(schema.recipes)
       .values({
+        householdId,
         id: recipeId,
         title: input.title,
         sourceUrl: input.sourceUrl ?? null,
@@ -218,7 +246,7 @@ export async function createRecipe(
         tags: input.tags ?? [],
         instructions: input.instructions ?? [],
       })
-      .onConflictDoNothing({ target: schema.recipes.id })
+      .onConflictDoNothing({ target: [schema.recipes.householdId, schema.recipes.id] })
       .returning();
 
     if (!recipe) {
@@ -226,7 +254,9 @@ export async function createRecipe(
     }
 
     if (ingredients.length > 0) {
-      await tx.insert(schema.ingredients).values(ingredientRows(recipeId, ingredients));
+      await tx
+        .insert(schema.ingredients)
+        .values(ingredientRows(householdId, recipeId, ingredients));
     }
 
     return recipe;
@@ -240,6 +270,7 @@ export async function createRecipe(
  * — reconciling individual rows against a client's copy is how duplicates appear.
  */
 export async function updateRecipe(
+  householdId: string,
   recipeId: string,
   updateMask: string[],
   input: Partial<RecipeInput>,
@@ -252,7 +283,7 @@ export async function updateRecipe(
     const [existing] = await tx
       .select()
       .from(schema.recipes)
-      .where(eq(schema.recipes.id, recipeId));
+      .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)));
 
     if (!existing) {
       throw new RecipeNotFoundError(recipeId);
@@ -281,7 +312,7 @@ export async function updateRecipe(
     const [recipe] = await tx
       .update(schema.recipes)
       .set(patch)
-      .where(eq(schema.recipes.id, recipeId))
+      .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)))
       .returning();
 
     if (fields.has("ingredients")) {
@@ -290,10 +321,19 @@ export async function updateRecipe(
       // field where naming it in the mask does nothing.
       const replacement = ingredients ?? [];
 
-      await tx.delete(schema.ingredients).where(eq(schema.ingredients.recipeId, recipeId));
+      await tx
+        .delete(schema.ingredients)
+        .where(
+          and(
+            eq(schema.ingredients.householdId, householdId),
+            eq(schema.ingredients.recipeId, recipeId),
+          ),
+        );
 
       if (replacement.length > 0) {
-        await tx.insert(schema.ingredients).values(ingredientRows(recipeId, replacement));
+        await tx
+          .insert(schema.ingredients)
+          .values(ingredientRows(householdId, recipeId, replacement));
       }
     }
 
@@ -301,10 +341,14 @@ export async function updateRecipe(
   });
 }
 
-export async function deleteRecipe(recipeId: string, db: Database = defaultDb) {
+export async function deleteRecipe(
+  householdId: string,
+  recipeId: string,
+  db: Database = defaultDb,
+) {
   const deleted = await db
     .delete(schema.recipes)
-    .where(eq(schema.recipes.id, recipeId))
+    .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)))
     .returning({ id: schema.recipes.id });
 
   if (deleted.length === 0) {
@@ -312,11 +356,22 @@ export async function deleteRecipe(recipeId: string, db: Database = defaultDb) {
   }
 }
 
-export async function getIngredient(recipeId: string, id: string, db: Database = defaultDb) {
+export async function getIngredient(
+  householdId: string,
+  recipeId: string,
+  id: string,
+  db: Database = defaultDb,
+) {
   const [ingredient] = await db
     .select()
     .from(schema.ingredients)
-    .where(and(eq(schema.ingredients.recipeId, recipeId), eq(schema.ingredients.id, id)));
+    .where(
+      and(
+        eq(schema.ingredients.householdId, householdId),
+        eq(schema.ingredients.recipeId, recipeId),
+        eq(schema.ingredients.id, id),
+      ),
+    );
 
   return ingredient;
 }
@@ -328,6 +383,7 @@ export async function getIngredient(recipeId: string, id: string, db: Database =
  * anything added concurrently in between. The position continues from the current last one.
  */
 export async function addIngredient(
+  householdId: string,
   recipeId: string,
   input: IngredientInput,
   db: Database = defaultDb,
@@ -336,20 +392,25 @@ export async function addIngredient(
     const existing = await tx
       .select()
       .from(schema.ingredients)
-      .where(eq(schema.ingredients.recipeId, recipeId))
+      .where(
+        and(
+          eq(schema.ingredients.householdId, householdId),
+          eq(schema.ingredients.recipeId, recipeId),
+        ),
+      )
       .orderBy(asc(schema.ingredients.position));
 
     const [recipe] = await tx
       .select({ id: schema.recipes.id })
       .from(schema.recipes)
-      .where(eq(schema.recipes.id, recipeId));
+      .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)));
 
     if (!recipe) {
       throw new RecipeNotFoundError(recipeId);
     }
 
     const taken = new Set(existing.map((row) => row.id));
-    const [row] = ingredientRows(recipeId, [input], taken, existing.length);
+    const [row] = ingredientRows(householdId, recipeId, [input], taken, existing.length);
 
     const [created] = await tx.insert(schema.ingredients).values(row).returning();
 
@@ -358,6 +419,7 @@ export async function addIngredient(
 }
 
 export async function deleteIngredient(
+  householdId: string,
   recipeId: string,
   ingredientId: string,
   db: Database = defaultDb,

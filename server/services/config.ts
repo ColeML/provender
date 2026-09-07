@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
+import { and, eq } from "drizzle-orm";
 
 /**
  * Household settings.
@@ -9,13 +10,36 @@ import { db as defaultDb, schema, type Database } from "@server/db";
  * REST handler that expose it are both delegations to functions here. That is what keeps the two
  * transports from disagreeing — they cannot drift if neither of them decides anything.
  *
- * `db` is a parameter with a default rather than a module import so tests can pass a stub without
- * mocking the module graph.
+ * `householdId` is the required first parameter on every exported function, deliberately. The
+ * failure that matters is not a wrong query but a forgotten one: a function that omits the
+ * household filter returns every household's rows and looks entirely normal in review. Making it
+ * impossible to call without one moves that mistake to compile time.
+ *
+ * `db` is a parameter with a default rather than a module import so tests can pass a stub.
  */
 export type Config = Record<string, string>;
 
-export async function getConfig(db: Database = defaultDb): Promise<Config> {
-  const rows = await db.select().from(schema.config);
+export async function getConfig(householdId: string, db: Database = defaultDb): Promise<Config> {
+  const rows = await db
+    .select()
+    .from(schema.config)
+    .where(eq(schema.config.householdId, householdId));
 
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
+
+export async function setConfigValue(
+  householdId: string,
+  key: string,
+  value: string,
+  db: Database = defaultDb,
+): Promise<void> {
+  await db
+    .insert(schema.config)
+    .values({ householdId, key, value })
+    .onConflictDoUpdate({
+      target: [schema.config.householdId, schema.config.key],
+      set: { value, updatedAt: new Date() },
+      where: and(eq(schema.config.householdId, householdId), eq(schema.config.key, key)),
+    });
 }

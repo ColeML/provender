@@ -1,32 +1,45 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const rows = [
-  { key: "people", value: "4", updatedAt: new Date("2026-01-01") },
-  { key: "default_budget", value: "120", updatedAt: new Date("2026-01-01") },
-];
+import { createTestDb } from "@server/db/testing";
+import type { Database } from "@server/db";
+
+let testDb: Database;
 
 vi.mock("@server/db", async () => {
   const actual = await vi.importActual<typeof import("@server/db")>("@server/db");
 
-  return { ...actual, db: { select: () => ({ from: async () => rows }) } };
+  return {
+    ...actual,
+    get db() {
+      return testDb;
+    },
+  };
 });
 
 const { db } = await import("@server/db");
 const { api } = await import("./app");
 const { appRouter } = await import("@server/trpc/routers");
 const { createCallerFactory } = await import("@server/trpc/init");
+const { setConfigValue } = await import("@server/services/config");
 
 /** The token vitest.config.mts puts in the environment. */
 const authed = { headers: { Authorization: "Bearer test-token" } };
+
+const householdId = "loewer";
 
 /**
  * A signed-in context, as `createContext` builds one after `auth()` resolves.
  *
  * No `user.id`: `authorize()` returns one, but Auth.js's default session callback copies only
- * name/email/image off the token, so a real session never carries it. Nothing reads it today —
- * adding it to this fixture would assert a guarantee the code does not make.
+ * name/email/image off the token, so a real session never carries it.
  */
 const session = { user: { name: "Household" }, expires: "2099-01-01" };
+
+beforeEach(async () => {
+  ({ db: testDb } = await createTestDb());
+  await setConfigValue(householdId, "people", "4", testDb);
+  await setConfigValue(householdId, "default_budget", "120", testDb);
+});
 
 describe("GET /v1/config", () => {
   it("returns the settings as a flat object", async () => {
@@ -41,10 +54,9 @@ describe("the two transports", () => {
   /**
    * The drift guard. REST and tRPC exist side by side because each suits a different caller, and
    * that is only safe while neither of them decides anything — both delegate to the same service.
-   * This asserts they still agree; extend it as each resource lands.
    */
   it("return the same thing for the same resource", async () => {
-    const caller = createCallerFactory(appRouter)({ db, session });
+    const caller = createCallerFactory(appRouter)({ db, session, householdId });
 
     const [restResponse, viaTrpc] = await Promise.all([
       api.request("/v1/config", authed),
@@ -56,7 +68,7 @@ describe("the two transports", () => {
   });
 
   it("both refuse an unauthenticated caller", async () => {
-    const caller = createCallerFactory(appRouter)({ db, session: null });
+    const caller = createCallerFactory(appRouter)({ db, session: null, householdId: null });
 
     const response = await api.request("/v1/config");
 

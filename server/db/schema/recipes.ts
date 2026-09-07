@@ -1,10 +1,14 @@
 import { relations } from "drizzle-orm";
+
+import { households } from "./households";
 import {
+  foreignKey,
   index,
   integer,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -29,8 +33,11 @@ export const ingredientCategory = pgEnum("ingredient_category", [
 export const recipes = pgTable(
   "recipes",
   {
-    /** Client-assigned slug (AIP-133), e.g. `chicken-fajitas`. Stable across edits. */
-    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    /** Client-assigned slug (AIP-133), e.g. `chicken-fajitas`. Unique per household, not globally. */
+    id: text("id").notNull(),
     title: text("title").notNull(),
     sourceUrl: text("source_url"),
     imageUrl: text("image_url"),
@@ -46,19 +53,19 @@ export const recipes = pgTable(
     createTime: timestamp("create_time", { withTimezone: true }).notNull().defaultNow(),
     updateTime: timestamp("update_time", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("recipes_title_idx").on(table.title)],
+  (table) => [
+    primaryKey({ columns: [table.householdId, table.id] }),
+    index("recipes_title_idx").on(table.householdId, table.title),
+  ],
 );
 
 export const ingredients = pgTable(
   "ingredients",
   {
     /** `<recipe_id>_<name-slug>`, suffixed on collision — a recipe may use an ingredient twice. */
-    id: text("id").primaryKey(),
-    recipeId: text("recipe_id")
-      .notNull()
-      // A recipe's ingredients have no meaning without it, and leaving orphans would silently
-      // inflate every shopping list built afterwards.
-      .references(() => recipes.id, { onDelete: "cascade" }),
+    householdId: text("household_id").notNull(),
+    id: text("id").notNull(),
+    recipeId: text("recipe_id").notNull(),
     name: text("name").notNull(),
     /** Null for "to taste" and garnishes — 12 of v1's 916 rows. The meaning lives in `notes`. */
     quantity: numeric("quantity"),
@@ -70,8 +77,20 @@ export const ingredients = pgTable(
     position: integer("position").notNull(),
   },
   (table) => [
-    index("ingredients_recipe_id_idx").on(table.recipeId),
-    uniqueIndex("ingredients_recipe_position_idx").on(table.recipeId, table.position),
+    primaryKey({ columns: [table.householdId, table.id] }),
+    // Composite, because a recipe is only unique within its household. Cascading here is what
+    // keeps a deleted recipe from leaving ingredients that silently inflate a shopping list.
+    foreignKey({
+      columns: [table.householdId, table.recipeId],
+      foreignColumns: [recipes.householdId, recipes.id],
+      name: "ingredients_recipe_fk",
+    }).onDelete("cascade"),
+    index("ingredients_recipe_id_idx").on(table.householdId, table.recipeId),
+    uniqueIndex("ingredients_recipe_position_idx").on(
+      table.householdId,
+      table.recipeId,
+      table.position,
+    ),
   ],
 );
 
@@ -80,5 +99,8 @@ export const recipesRelations = relations(recipes, ({ many }) => ({
 }));
 
 export const ingredientsRelations = relations(ingredients, ({ one }) => ({
-  recipe: one(recipes, { fields: [ingredients.recipeId], references: [recipes.id] }),
+  recipe: one(recipes, {
+    fields: [ingredients.householdId, ingredients.recipeId],
+    references: [recipes.householdId, recipes.id],
+  }),
 }));

@@ -4,4 +4,5 @@
  * from this file does not exist as far as migrations are concerned.
  */
 export * from "./config";
+export * from "./households";
 export * from "./recipes";

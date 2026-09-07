@@ -16,18 +16,20 @@ import { protectedProcedure, router } from "../init";
  */
 export const appRouter = router({
   config: router({
-    get: protectedProcedure.query(({ ctx }) => getConfig(ctx.db)),
+    get: protectedProcedure.query(({ ctx }) => getConfig(ctx.householdId, ctx.db)),
   }),
   recipes: router({
     list: protectedProcedure
       .input(z.object({ pageSize: z.number().int().positive().max(200).optional() }).optional())
-      .query(({ ctx, input }) => listRecipes({ pageSize: input?.pageSize }, ctx.db)),
+      .query(({ ctx, input }) =>
+        listRecipes(ctx.householdId, { pageSize: input?.pageSize }, ctx.db),
+      ),
     get: protectedProcedure
       .input(z.object({ recipeId: z.string().min(1) }))
-      .query(({ ctx, input }) => getRecipe(input.recipeId, ctx.db)),
+      .query(({ ctx, input }) => getRecipe(ctx.householdId, input.recipeId, ctx.db)),
     ingredients: protectedProcedure
       .input(z.object({ recipeId: z.string().min(1) }))
-      .query(({ ctx, input }) => listIngredients(input.recipeId, ctx.db)),
+      .query(({ ctx, input }) => listIngredients(ctx.householdId, input.recipeId, ctx.db)),
   }),
 });
 
