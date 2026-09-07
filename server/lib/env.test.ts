@@ -2,28 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import { getEnv } from "./env";
 
-const valid: Record<string, string> = {
-  DATABASE_URL: "postgresql://localhost/x",
-  AUTH_SECRET: "secret",
-  AUTH_PASSWORD_HASH: "salt:key",
-  PROVENDER_API_TOKEN: "token",
-};
-
 describe("getEnv", () => {
   it("returns the parsed environment", () => {
-    expect(getEnv(valid)).toEqual(valid);
+    expect(getEnv({ DATABASE_URL: "postgresql://localhost/x" })).toEqual({
+      DATABASE_URL: "postgresql://localhost/x",
+    });
   });
 
-  it.each(Object.keys(valid))("names %s in the error when it is missing", (key) => {
-    const { [key]: _removed, ...rest } = valid;
-
-    expect(() => getEnv(rest)).toThrowError(new RegExp(`${key} is required`));
+  it("names the missing variable in the error", () => {
+    expect(() => getEnv({})).toThrowError(/DATABASE_URL is required/);
   });
 
-  it.each(Object.keys(valid))(
-    "rejects %s when it is empty rather than passing it through",
-    (key) => {
-      expect(() => getEnv({ ...valid, [key]: "" })).toThrowError(new RegExp(`${key} is required`));
-    },
-  );
+  it("rejects an empty connection string rather than passing it through", () => {
+    expect(() => getEnv({ DATABASE_URL: "" })).toThrowError(/DATABASE_URL is required/);
+  });
+
+  it("ignores auth variables, which their own consumers validate at the point of use", () => {
+    expect(getEnv({ DATABASE_URL: "postgresql://localhost/x" })).not.toHaveProperty("AUTH_SECRET");
+  });
 });

@@ -25,7 +25,10 @@ const BEARER_PATHS = ["/v1"];
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if ([...PUBLIC_PATHS, ...BEARER_PATHS].some((path) => pathname.startsWith(path))) {
+  // Segment-wise, not a raw prefix: `startsWith("/login")` would also admit `/loginish`.
+  const ungated = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+
+  if ([...PUBLIC_PATHS, ...BEARER_PATHS].some(ungated)) {
     return NextResponse.next();
   }
 

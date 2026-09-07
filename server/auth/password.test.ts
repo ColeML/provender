@@ -30,6 +30,9 @@ describe("verifyPassword", () => {
       ["missing the separator", "deadbeef"],
       ["missing the key", "deadbeef:"],
       ["the wrong key length", "deadbeef:abcd"],
+      // Invalid hex decodes to an empty buffer rather than throwing, so this reaches the
+      // salt-length guard rather than the missing-field one.
+      ["a salt that is not hex", `zz:${"a".repeat(128)}`],
     ])("when the stored hash is %s", async (_name, stored) => {
       await expect(verifyPassword("anything", stored)).resolves.toBe(false);
     });

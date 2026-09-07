@@ -3,11 +3,12 @@ import { apiError } from "@server/api/errors";
 import { createMiddleware } from "hono/factory";
 
 /**
- * Compare in constant time, without leaking length.
+ * Compare in constant time.
  *
  * `timingSafeEqual` throws when the two buffers differ in length, which would both crash the
- * request and confirm the token's length to whoever probed it. Hashing to a fixed width first
- * avoids that; the values are compared, not stored, so a fast digest is the right tool.
+ * request and confirm the token's length to whoever probed it. The length is checked first, and
+ * the mismatch branch still does a comparison sized to the supplied token so a wrong-length guess
+ * is not measurably faster to reject than a wrong-value one.
  */
 function tokensMatch(provided: string, expected: string) {
   const a = Buffer.from(provided);

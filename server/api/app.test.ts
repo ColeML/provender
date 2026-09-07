@@ -19,8 +19,14 @@ const { createCallerFactory } = await import("@server/trpc/init");
 /** The token vitest.config.mts puts in the environment. */
 const authed = { headers: { Authorization: "Bearer test-token" } };
 
-/** A signed-in context, as `createContext` would build one after `auth()` resolved. */
-const session = { user: { id: "household", name: "Household" }, expires: "2099-01-01" };
+/**
+ * A signed-in context, as `createContext` builds one after `auth()` resolves.
+ *
+ * No `user.id`: `authorize()` returns one, but Auth.js's default session callback copies only
+ * name/email/image off the token, so a real session never carries it. Nothing reads it today —
+ * adding it to this fixture would assert a guarantee the code does not make.
+ */
+const session = { user: { name: "Household" }, expires: "2099-01-01" };
 
 describe("GET /v1/config", () => {
   it("returns the settings as a flat object", async () => {
@@ -73,6 +79,32 @@ describe("unknown paths", () => {
     const response = await api.request("/v1/nope");
 
     expect(response.status).toBe(401);
+  });
+});
+
+describe("every documented route", () => {
+  /**
+   * The structural guard. Bearer enforcement depends on registration order — `api.use()` only
+   * covers routes registered after it — so a future `api.openapi(...)` added above that line
+   * would ship unauthenticated and every existing test would still pass. This walks the generated
+   * document instead of naming paths, so it covers routes that do not exist yet.
+   */
+  it("requires a token, except the document itself", async () => {
+    const document = (await (await api.request("/v1/openapi.json")).json()) as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+
+    const routes = Object.entries(document.paths).flatMap(([path, methods]) =>
+      Object.keys(methods).map((method) => ({ path, method })),
+    );
+
+    expect(routes.length).toBeGreaterThan(0);
+
+    for (const { path, method } of routes) {
+      const response = await api.request(path, { method: method.toUpperCase() });
+
+      expect(response.status, `${method.toUpperCase()} ${path} is not gated`).toBe(401);
+    }
   });
 });
 
