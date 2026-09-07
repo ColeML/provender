@@ -5,6 +5,7 @@ import { PlanNotFoundError } from "@server/services/plans";
 import {
   addItem,
   deleteItem,
+  DuplicateItemError,
   estimatedTotal,
   getItem,
   listItems,
@@ -104,6 +105,10 @@ function shoppingError(c: Parameters<typeof apiError>[0], error: unknown) {
     return apiError(c, "FAILED_PRECONDITION", error.message);
   }
 
+  if (error instanceof DuplicateItemError) {
+    return apiError(c, "INVALID_ARGUMENT", error.message);
+  }
+
   throw error;
 }
 
@@ -156,6 +161,7 @@ shoppingRoutes.openapi(
     },
     responses: {
       200: { description: "The list", content: { "application/json": { schema: ListSchema } } },
+      400: { description: "Two items resolve to the same name and unit" },
       ...ERRORS,
     },
   }),

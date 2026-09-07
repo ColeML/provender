@@ -1,6 +1,6 @@
 import "server-only";
 
-import { db as defaultDb, schema, type Database } from "@server/db";
+import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { and, asc, eq, notInArray, sql } from "drizzle-orm";
 
 import { PlanNotFoundError } from "./plans";
@@ -29,6 +29,14 @@ export interface ShoppingItemInput {
 export class ShoppingItemNotFoundError extends Error {
   constructor(readonly id: string) {
     super(`No item named ${id} on this list`);
+  }
+}
+
+export class DuplicateItemError extends Error {
+  constructor(readonly itemId: string) {
+    super(
+      `Two items resolve to ${itemId}; merge them before writing the list — same name, same unit`,
+    );
   }
 }
 
@@ -96,7 +104,7 @@ async function requirePlan(householdId: string, planId: string, db: Database) {
   }
 }
 
-export async function listItems(householdId: string, planId: string, db: Database = defaultDb) {
+export async function listItems(householdId: string, planId: string, db: Queryable = defaultDb) {
   return db
     .select()
     .from(schema.shoppingListItems)
@@ -130,6 +138,20 @@ export async function replaceItems(
   await requirePlan(householdId, planId, db);
 
   const rows = inputs.map((input, index) => toRow(householdId, planId, input, index));
+
+  // Postgres refuses an ON CONFLICT DO UPDATE that would touch one row twice, so two inputs with
+  // the same name and unit fail the whole write with an error that names nothing. Deciding how to
+  // combine them is the caller's judgment — PLAN.md leaves ingredient merging to the agent — so
+  // this reports the collision rather than guessing at a sum.
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      throw new DuplicateItemError(row.id);
+    }
+
+    seen.add(row.id);
+  }
 
   return db.transaction(async (tx) => {
     const planScope = and(
@@ -176,7 +198,7 @@ export async function replaceItems(
         });
     }
 
-    return listItems(householdId, planId, tx as unknown as Database);
+    return listItems(householdId, planId, tx);
   });
 }
 
@@ -203,12 +225,16 @@ export async function addItem(
       ],
       // Adding something already on the list adjusts it rather than failing — a shopper asking
       // twice means "make sure this is on there", not "error".
+      //
+      // `source` becomes manual even if the plan put it there first: the shopper has taken
+      // ownership, and without this they could not delete an item they had just added.
       set: {
         name: row.name,
         quantity: row.quantity,
         unit: row.unit,
         category: row.category,
         estCost: row.estCost,
+        source: "manual",
         updateTime: sql`now()`,
       },
     })

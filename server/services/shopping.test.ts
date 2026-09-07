@@ -8,6 +8,7 @@ import { createPlan, PlanNotFoundError } from "@server/services/plans";
 import {
   addItem,
   deleteItem,
+  DuplicateItemError,
   estimatedTotal,
   getItem,
   listItems,
@@ -116,6 +117,20 @@ describe("replaceItems", () => {
     expect(await listItems(H, WEEK, db)).toEqual([]);
   });
 
+  it("reports two items that resolve to the same row, rather than failing the whole write", async () => {
+    await expect(
+      replaceItems(
+        H,
+        WEEK,
+        [
+          { name: "chicken breast", quantity: 2, unit: "lb", category: "meat" },
+          { name: "chicken breast", quantity: 1, unit: "LB", category: "meat" },
+        ],
+        db,
+      ),
+    ).rejects.toBeInstanceOf(DuplicateItemError);
+  });
+
   it("reports a plan that does not exist", async () => {
     await expect(replaceItems(H, "2026-W37", [chicken], db)).rejects.toBeInstanceOf(
       PlanNotFoundError,
@@ -178,6 +193,19 @@ describe("an item added by hand", () => {
 
     expect(items.filter((item) => item.name === "brown sugar")).toHaveLength(1);
     expect((await getItem(H, WEEK, "brown-sugar_bag", db)).quantity).toBe("2");
+  });
+});
+
+describe("adding something the plan already covers", () => {
+  it("becomes yours to delete, since you asked for it", async () => {
+    await replaceItems(H, WEEK, [chicken], db);
+    await addItem(H, WEEK, { ...chicken, quantity: 5 }, db);
+
+    const item = await getItem(H, WEEK, "chicken-breast_lb", db);
+
+    expect(item.source).toBe("manual");
+    expect(item.quantity).toBe("5");
+    await expect(deleteItem(H, WEEK, item.id, db)).resolves.toBeUndefined();
   });
 });
 
