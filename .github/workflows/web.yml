@@ -32,7 +32,25 @@ jobs:
       - name: Tests (vitest)
         run: pnpm vitest run
 
+      # coding-standards.md requires this, and it is the only step that catches a prerender-time
+      # failure — a page reading live data without force-dynamic passes lint, typecheck and tests
+      # and fails here. Vercel builds PRs too, but that makes a required check depend on an
+      # external integration staying connected.
+      - name: Build (next)
+        run: pnpm build
+        env:
+          DATABASE_URL: postgresql://build-does-not-connect/provender
+          AUTH_SECRET: build-only
+          AUTH_PASSWORD_HASH: build-only
+          PROVENDER_API_TOKEN: build-only
+
   migrate:
+    # One at a time. Two merges landing within a minute of each other would otherwise run two
+    # migrators against the same database, both reading __drizzle_migrations before either writes,
+    # and both trying to apply the same pending migration.
+    concurrency:
+      group: migrate-main
+      cancel-in-progress: false
     # Migrations run here rather than in the Vercel build: a build that also migrates would take
     # the site down when a migration fails, and Vercel builds run on every preview branch too.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
