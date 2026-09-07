@@ -14,6 +14,7 @@ import {
   RecipeNotFoundError,
   updateRecipe,
 } from "@server/services/recipes";
+import { listItems, replaceItems } from "@server/services/shopping";
 import { schema } from "@server/db";
 
 /**
@@ -124,5 +125,23 @@ describe("plans", () => {
       plan: { budgetTarget: "200.00" },
       days: [],
     });
+  });
+});
+
+describe("shopping lists", () => {
+  beforeEach(async () => {
+    await createPlan(A, "2026-W36", 120, db);
+    await createPlan(B, "2026-W36", 200, db);
+    await replaceItems(
+      A,
+      "2026-W36",
+      [{ name: "chicken breast", quantity: 3, unit: "lb", category: "meat" }],
+      db,
+    );
+  });
+
+  it("hides another household's list", async () => {
+    await expect(listItems(A, "2026-W36", db)).resolves.toHaveLength(1);
+    await expect(listItems(B, "2026-W36", db)).resolves.toEqual([]);
   });
 });
