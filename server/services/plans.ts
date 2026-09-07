@@ -5,6 +5,7 @@ import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates } from "@server/lib
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import { getConfig } from "./config";
+import { detachHistoryFromDay } from "./history";
 
 /**
  * The week calendar.
@@ -390,27 +391,41 @@ export async function getPlanDay(
  *
  * The row goes away rather than being blanked. An unplanned day is the absence of a row, so
  * readers never have to skip a phantom entry with empty columns.
+ *
+ * The day's history entry goes with it by default, because History records what was *planned* and
+ * a meal that was never cooked should not block itself from being planned again. `keepHistory` is
+ * for the case where the day happened anyway.
  */
 export async function deletePlanDay(
   householdId: string,
   planId: string,
   date: string,
   mealSlot: MealSlot,
+  options: { keepHistory?: boolean } = {},
   db: Database = defaultDb,
 ) {
-  const deleted = await db
-    .delete(schema.planDays)
-    .where(
-      and(
-        eq(schema.planDays.householdId, householdId),
-        eq(schema.planDays.planId, planId),
-        eq(schema.planDays.date, date),
-        eq(schema.planDays.mealSlot, mealSlot),
-      ),
-    )
-    .returning({ date: schema.planDays.date });
+  return db.transaction(async (tx) => {
+    if (options.keepHistory) {
+      // Detaching first is the whole mechanism: the history row cascades off this day, so breaking
+      // the link is what makes it survive. In the same transaction as the delete, because a
+      // failure between them would leave an entry detached from a day that still exists.
+      await detachHistoryFromDay(householdId, planId, date, mealSlot, tx);
+    }
 
-  if (deleted.length === 0) {
-    throw new PlanDayNotFoundError(date, mealSlot);
-  }
+    const deleted = await tx
+      .delete(schema.planDays)
+      .where(
+        and(
+          eq(schema.planDays.householdId, householdId),
+          eq(schema.planDays.planId, planId),
+          eq(schema.planDays.date, date),
+          eq(schema.planDays.mealSlot, mealSlot),
+        ),
+      )
+      .returning({ date: schema.planDays.date });
+
+    if (deleted.length === 0) {
+      throw new PlanDayNotFoundError(date, mealSlot);
+    }
+  });
 }

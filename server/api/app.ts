@@ -1,4 +1,5 @@
 import { requireBearerToken, type ApiEnv } from "@server/api/middleware/bearer";
+import { historyRoutes } from "@server/api/routes/history";
 import { plansRoutes } from "@server/api/routes/plans";
 import { recipesRoutes } from "@server/api/routes/recipes";
 import { getConfig } from "@server/services/config";
@@ -58,6 +59,7 @@ api.openapi(getConfigRoute, async (c) => c.json(await getConfig(c.get("household
 // generated document and asserts each one is gated.
 api.route("/", recipesRoutes);
 api.route("/", plansRoutes);
+api.route("/", historyRoutes);
 
 // Hono's default 404 is plain text, which would make an unknown path the one response that does
 // not follow AIP-193.

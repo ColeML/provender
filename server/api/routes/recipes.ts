@@ -256,6 +256,12 @@ recipesRoutes.openapi(
       .filter(Boolean);
     const unknown = fields.filter((field) => !UPDATABLE_FIELDS.has(field));
 
+    if (fields.length === 0) {
+      // An empty mask would update nothing and answer 200, so a client that built the mask from an
+      // empty array would read a lost write as a successful one.
+      return apiError(c, "INVALID_ARGUMENT", "updateMask names no fields");
+    }
+
     if (unknown.length > 0) {
       // Silently ignoring an unknown field means a typo'd mask reports success while changing
       // nothing — the caller has no way to tell that from a no-op update.

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getConfig } from "@server/services/config";
+import { listHistory } from "@server/services/history";
 import { getPlan } from "@server/services/plans";
 import { getRecipe, listIngredients, listRecipes } from "@server/services/recipes";
 
@@ -18,6 +19,13 @@ import { protectedProcedure, router } from "../init";
 export const appRouter = router({
   config: router({
     get: protectedProcedure.query(({ ctx }) => getConfig(ctx.householdId, ctx.db)),
+  }),
+  mealHistory: router({
+    list: protectedProcedure
+      .input(z.object({ withinDays: z.number().int().positive().optional() }).optional())
+      .query(({ ctx, input }) =>
+        listHistory(ctx.householdId, { withinDays: input?.withinDays }, ctx.db),
+      ),
   }),
   plans: router({
     get: protectedProcedure

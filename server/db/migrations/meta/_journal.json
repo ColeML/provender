@@ -43,6 +43,13 @@
       "when": 1788758136788,
       "tag": "0005_add_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788759721104,
+      "tag": "0006_add_meal_history",
+      "breakpoints": true
     }
   ]
 }

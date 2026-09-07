@@ -279,7 +279,14 @@ plansRoutes.openapi(
     description:
       "Replaces v1's `plan-clear`. The row is removed rather than blanked, so an unplanned day is " +
       "the absence of a row and readers never skip a phantom entry.",
-    request: { params: DayParam, query: MealSlotQuery },
+    request: {
+      params: DayParam,
+      query: MealSlotQuery.extend({
+        // The day's history entry goes with it by default: History records what was planned, and
+        // a meal that never happened should not block itself from being planned again.
+        keepHistory: z.stringbool().optional(),
+      }),
+    },
     responses: {
       200: { description: "Cleared", content: { "application/json": { schema: z.object({}) } } },
       ...ERRORS,
@@ -287,10 +294,10 @@ plansRoutes.openapi(
   }),
   async (c) => {
     const { plan, day } = c.req.valid("param");
-    const { mealSlot } = c.req.valid("query");
+    const { mealSlot, keepHistory } = c.req.valid("query");
 
     try {
-      await deletePlanDay(c.get("householdId"), plan, day, mealSlot as MealSlot);
+      await deletePlanDay(c.get("householdId"), plan, day, mealSlot as MealSlot, { keepHistory });
 
       return c.json({}, 200);
     } catch (error) {

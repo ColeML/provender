@@ -58,3 +58,12 @@ export const db = new Proxy({} as Db, {
 
 export { schema };
 export type Database = typeof db;
+
+/**
+ * The client or a transaction.
+ *
+ * Drizzle's transaction object is not assignable to the client type — it has no `$client` — but it
+ * exposes the same query builders. A service that may be called inside a caller's transaction
+ * takes this instead, so composing two services in one transaction does not need a cast.
+ */
+export type Queryable = Database | Parameters<Parameters<Database["transaction"]>[0]>[0];
