@@ -1,8 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Check } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -69,10 +68,50 @@ function formatQuantity(quantity: number | null, unit: string | null) {
   return unit ? `${amount} ${unit}` : amount;
 }
 
-export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
+/** Why the item is on the list, or that its last tick did not save. */
+function ItemSubtitle({ item, failed }: { item: ShopItem; failed: boolean }) {
+  if (failed) {
+    return (
+      <span id={`${item.id}-failed`} className="block text-xs text-red-600">
+        Not saved — tap again
+      </span>
+    );
+  }
+
+  if (item.feedsRecipes.length === 0) {
+    return null;
+  }
+
+  return (
+    <span className="text-muted-foreground block truncate text-xs">
+      {item.feedsRecipes.join(", ")}
+    </span>
+  );
+}
+
+export function ShoppingList(props: Props) {
+  // Narrowed before the interactive component, so the tap handler has a plan id without a guard
+  // for a state that cannot happen.
+  if (!props.planId) {
+    return (
+      <main className="mx-auto max-w-2xl p-6">
+        <h1 className="text-2xl font-semibold">Shopping list</h1>
+        <p className="text-muted-foreground mt-2 text-sm">
+          No week has been planned yet, so there is nothing to buy.
+        </p>
+      </main>
+    );
+  }
+
+  return <List {...props} planId={props.planId} />;
+}
+
+function List({ planId, budgetTarget, initialItems }: Props & { planId: string }) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
-  const [failed, setFailed] = useState<string | null>(null);
+  // Per item, not one value: a successful tick must not clear a warning that belongs to a
+  // different item which is still unsaved.
+  const [failed, setFailed] = useState<Set<string>>(new Set());
 
   const toggle = useMutation(
     trpc.shoppingList.setPurchased.mutationOptions({
@@ -84,9 +123,16 @@ export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
             item.id === variables.itemId ? { ...item, purchased: !variables.purchased } : item,
           ),
         );
-        setFailed(variables.itemId);
+        setFailed((current) => new Set(current).add(variables.itemId));
       },
-      onSuccess: () => setFailed(null),
+      onSuccess: (_data, variables) =>
+        setFailed((current) => {
+          const next = new Set(current);
+
+          next.delete(variables.itemId);
+
+          return next;
+        }),
     }),
   );
 
@@ -96,34 +142,16 @@ export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
     // Applied before the request, so the row responds to the tap rather than to the network.
     setItems((current) => current.map((row) => (row.id === item.id ? { ...row, purchased } : row)));
 
-    if (planId) {
-      toggle.mutate({ planId, itemId: item.id, purchased });
-    }
+    toggle.mutate({ planId, itemId: item.id, purchased });
   }
 
-  const { toBuy, alreadyHave, remaining, left } = useMemo(() => {
-    const buying = items.filter((item) => !item.haveAlready);
-
-    return {
-      toBuy: buying,
-      alreadyHave: items.filter((item) => item.haveAlready),
-      remaining: buying
-        .filter((item) => !item.purchased)
-        .reduce((total, item) => total + (item.estCost ?? 0), 0),
-      left: buying.filter((item) => !item.purchased).length,
-    };
-  }, [items]);
-
-  if (!planId) {
-    return (
-      <main className="mx-auto max-w-2xl p-6">
-        <h1 className="text-2xl font-semibold">Shopping list</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          No week has been planned yet, so there is nothing to buy.
-        </p>
-      </main>
-    );
-  }
+  // Derived during render rather than memoised: the React Compiler handles this, and
+  // coding-standards.md says not to hand-roll it without a measurement saying otherwise.
+  const toBuy = items.filter((item) => !item.haveAlready);
+  const alreadyHave = items.filter((item) => item.haveAlready);
+  const outstanding = toBuy.filter((item) => !item.purchased);
+  const remaining = outstanding.reduce((total, item) => total + (item.estCost ?? 0), 0);
+  const left = outstanding.length;
 
   return (
     // Padded at the bottom so the sticky total never covers the last row.
@@ -135,12 +163,13 @@ export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
         </p>
       </header>
 
-      {failed ? (
+      {failed.size > 0 ? (
         <p
           role="alert"
           className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
-          That did not save — check your signal and tap it again.
+          {failed.size === 1 ? "One item did not save" : `${failed.size} items did not save`} —
+          check your signal and tap {failed.size === 1 ? "it" : "them"} again.
         </p>
       ) : null}
 
@@ -163,23 +192,32 @@ export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
                     The whole row is the target, not a checkbox inside it: this is used one-handed
                     while pushing a trolley. Minimum 56px tall, well over the 44px floor.
                   */}
-                  <button
-                    type="button"
-                    onClick={() => onToggle(item)}
-                    aria-pressed={item.purchased}
-                    className="border-border focus-visible:ring-ring flex min-h-14 w-full items-center gap-3 border-b px-4 py-3 text-left focus-visible:ring-3 focus-visible:outline-none active:bg-muted"
+                  {/*
+                    A real checkbox in a label, not a button with role="checkbox": the input
+                    carries the semantics for free, and the label makes the whole row the target
+                    rather than a small box inside it. Used one-handed while pushing a trolley, so
+                    it is 56px tall — well over the 44px floor.
+                  */}
+                  <label
+                    className={cn(
+                      "border-border flex min-h-14 w-full items-center gap-3 border-b px-4 py-3",
+                      "has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-3",
+                      "active:bg-muted",
+                    )}
                   >
-                    <span
-                      aria-hidden
+                    <input
+                      type="checkbox"
+                      checked={item.purchased}
+                      onChange={() => onToggle(item)}
+                      aria-describedby={failed.has(item.id) ? `${item.id}-failed` : undefined}
                       className={cn(
-                        "flex size-6 shrink-0 items-center justify-center rounded-md border-2",
-                        item.purchased
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/40",
+                        "size-6 shrink-0 appearance-none rounded-md border-2 bg-no-repeat",
+                        "border-muted-foreground/40",
+                        "checked:border-primary checked:bg-primary",
+                        "checked:bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2220 6 9 17 4 12%22/></svg>')] checked:bg-center",
+                        "focus-visible:outline-none",
                       )}
-                    >
-                      {item.purchased ? <Check className="size-4" strokeWidth={3} /> : null}
-                    </span>
+                    />
 
                     <span className="min-w-0 flex-1">
                       <span
@@ -190,11 +228,7 @@ export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
                       >
                         {item.name}
                       </span>
-                      {item.feedsRecipes.length > 0 ? (
-                        <span className="text-muted-foreground block truncate text-xs">
-                          {item.feedsRecipes.join(", ")}
-                        </span>
-                      ) : null}
+                      <ItemSubtitle item={item} failed={failed.has(item.id)} />
                     </span>
 
                     <span
@@ -212,7 +246,7 @@ export function ShoppingList({ planId, budgetTarget, initialItems }: Props) {
                         </span>
                       )}
                     </span>
-                  </button>
+                  </label>
                 </li>
               ))}
             </ul>

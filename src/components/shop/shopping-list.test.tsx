@@ -14,9 +14,10 @@ import { ShoppingList, type ShopItem } from "./shopping-list";
  * is covered by the service and route tests.
  */
 const mutate = vi.fn();
-let onErrorHandler:
-  | ((error: unknown, variables: { itemId: string; purchased: boolean }) => void)
-  | undefined;
+type Variables = { itemId: string; purchased: boolean };
+
+let onErrorHandler: ((error: unknown, variables: Variables) => void) | undefined;
+let onSuccessHandler: ((data: unknown, variables: Variables) => void) | undefined;
 
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
@@ -24,8 +25,10 @@ vi.mock("@/lib/trpc/client", () => ({
       setPurchased: {
         mutationOptions: (options: {
           onError?: (error: unknown, variables: { itemId: string; purchased: boolean }) => void;
+          onSuccess?: (data: unknown, variables: { itemId: string; purchased: boolean }) => void;
         }) => {
           onErrorHandler = options.onError;
+          onSuccessHandler = options.onSuccess;
 
           return { mutationFn: mutate };
         },
@@ -94,13 +97,13 @@ describe("the shopping list", () => {
 
   it("ticks an item off on tap, before the request finishes", async () => {
     const user = renderList([item({ id: "onion", name: "onion" })]);
-    const row = screen.getByRole("button", { name: /onion/ });
+    const row = screen.getByRole("checkbox", { name: /onion/ });
 
-    expect(row).toHaveAttribute("aria-pressed", "false");
+    expect(row).not.toBeChecked();
 
     await user.click(row);
 
-    expect(row).toHaveAttribute("aria-pressed", "true");
+    expect(row).toBeChecked();
     expect(mutate).toHaveBeenCalled();
   });
 
@@ -112,25 +115,44 @@ describe("the shopping list", () => {
 
     expect(screen.getByLabelText("Still to buy: $10.00")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /onion/ }));
+    await user.click(screen.getByRole("checkbox", { name: /onion/ }));
 
     expect(screen.getByLabelText("Still to buy: $6.00")).toBeInTheDocument();
   });
 
   it("puts the tick back and says so when the write fails", async () => {
     const user = renderList([item({ id: "onion", name: "onion" })]);
-    const row = screen.getByRole("button", { name: /onion/ });
+    const row = screen.getByRole("checkbox", { name: /onion/ });
 
     await user.click(row);
-    expect(row).toHaveAttribute("aria-pressed", "true");
+    expect(row).toBeChecked();
 
     // What the mutation's onError does when the request is rejected.
     onErrorHandler?.(new Error("offline"), { itemId: "onion", purchased: true });
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(/did not save/i);
+      expect(screen.getByRole("alert")).toHaveTextContent(/One item did not save/i);
     });
-    expect(screen.getByRole("button", { name: /onion/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("checkbox", { name: /onion/ })).not.toBeChecked();
+  });
+
+  it("keeps one item's failure warning when another tick succeeds", async () => {
+    const user = renderList([
+      item({ id: "milk", name: "milk", category: "dairy" }),
+      item({ id: "bread", name: "bread", category: "bakery" }),
+    ]);
+
+    await user.click(screen.getByRole("checkbox", { name: /milk/ }));
+    onErrorHandler?.(new Error("offline"), { itemId: "milk", purchased: true });
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+
+    // bread saves fine; milk is still unsaved and must still say so.
+    await user.click(screen.getByRole("checkbox", { name: /bread/ }));
+    onSuccessHandler?.(undefined, { itemId: "bread", purchased: true });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/One item did not save/i);
+    expect(screen.getByRole("checkbox", { name: /milk/ })).not.toBeChecked();
   });
 
   it("renders quantities as fractions, the way a recipe reads", () => {
