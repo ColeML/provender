@@ -3,6 +3,7 @@ import "server-only";
 import { getConfig } from "@server/services/config";
 import { listHistory } from "@server/services/history";
 import { getPlan } from "@server/services/plans";
+import { listPrices } from "@server/services/prices";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes } from "@server/services/recipes";
 
@@ -27,6 +28,9 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         listHistory(ctx.householdId, { withinDays: input?.withinDays }, ctx.db),
       ),
+  }),
+  prices: router({
+    list: protectedProcedure.query(({ ctx }) => listPrices(ctx.householdId, ctx.db)),
   }),
   shoppingList: router({
     get: protectedProcedure
