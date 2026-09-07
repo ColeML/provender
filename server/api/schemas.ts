@@ -75,3 +75,42 @@ export const ListRecipesResponseSchema = z
     nextPageToken: z.string().optional(),
   })
   .openapi("ListRecipesResponse");
+
+export const MealSlotSchema = z.enum(["dinner", "lunch"]);
+
+export const PlanDaySchema = z
+  .object({
+    name: z.string().openapi({ example: "plans/2026-W36/days/2026-08-31" }),
+    date: z.string().openapi({ example: "2026-08-31" }),
+    mealSlot: MealSlotSchema,
+    servings: z.number().int().openapi({ example: 8 }),
+    // Free text on purpose: v1 grew `potluck` alongside `planned` without a schema change.
+    status: z.string().openapi({ example: "planned" }),
+    notes: z.string().nullable(),
+    main: z.string().nullable().openapi({ example: "chicken-fajitas" }),
+    side: z.string().nullable(),
+    extras: z.array(z.string()),
+  })
+  .openapi("PlanDay");
+
+export const PlanDayInputSchema = z
+  .object({
+    servings: z.number().int().positive(),
+    status: z.string().optional(),
+    notes: z.string().nullish(),
+    main: z.string().nullish(),
+    side: z.string().nullish(),
+    extras: z.array(z.string()).optional(),
+  })
+  .openapi("PlanDayInput");
+
+export const PlanSchema = z
+  .object({
+    name: z.string().openapi({ example: "plans/2026-W36" }),
+    planId: z.string().openapi({ example: "2026-W36" }),
+    budgetTarget: z.number().nullable().openapi({ example: 120 }),
+    days: z.array(PlanDaySchema),
+    createTime: z.string(),
+    updateTime: z.string(),
+  })
+  .openapi("Plan");

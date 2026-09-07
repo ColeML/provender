@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 import { getConfig, setConfigValue } from "@server/services/config";
+import { createPlan, getPlan, PlanNotFoundError, setPlanDay } from "@server/services/plans";
 import {
   createRecipe,
   deleteRecipe,
@@ -100,5 +101,28 @@ describe("ingredients", () => {
   it("hides another household's ingredient from get", async () => {
     await expect(getIngredient(A, "fajitas", "fajitas_salt", db)).resolves.toBeDefined();
     await expect(getIngredient(B, "fajitas", "fajitas_salt", db)).resolves.toBeUndefined();
+  });
+});
+
+describe("plans", () => {
+  beforeEach(async () => {
+    await createPlan(A, "2026-W36", 120, db);
+    await setPlanDay(A, "2026-W36", "2026-08-31", "dinner", { servings: 8, main: "fajitas" }, db);
+  });
+
+  it("hides another household's week", async () => {
+    await expect(getPlan(B, "2026-W36", db)).rejects.toBeInstanceOf(PlanNotFoundError);
+  });
+
+  it("lets both households plan the same week independently", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+
+    await expect(getPlan(A, "2026-W36", db)).resolves.toMatchObject({
+      plan: { budgetTarget: "120.00" },
+    });
+    await expect(getPlan(B, "2026-W36", db)).resolves.toMatchObject({
+      plan: { budgetTarget: "200.00" },
+      days: [],
+    });
   });
 });

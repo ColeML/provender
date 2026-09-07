@@ -5,4 +5,5 @@
  */
 export * from "./config";
 export * from "./households";
+export * from "./plans";
 export * from "./recipes";
