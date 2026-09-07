@@ -153,6 +153,12 @@ Philosophy: **test the application the way a user uses it.**
 - **Always assert the outcome.** Every interaction is followed by an assertion that the DOM or
   system updated.
 - Use `queryBy*` for `.not.toBeInTheDocument()`; `findBy*` already asserts presence.
+- **Component tests opt into a DOM** with `// @vitest-environment jsdom` at the top of the file.
+  `environmentMatchGlobs` was removed in Vitest 4, and setting jsdom globally would make every
+  service and SQL test pay for a DOM it never touches.
+- **A value a screen reader would read as meaningless gets a label.** The shopping list's total is
+  `aria-label="Still to buy: $6.00"` rather than a bare `$6.00` — which also makes it
+  unambiguous to query, since the same figure can appear on a row.
 - **Database tests run against PGlite**, a real Postgres in-process, via `createTestDb()` in
   `server/db/testing.ts`. It applies the committed migrations, so a test also fails when a
   migration and the schema disagree. Each test gets its own database, so there is no shared state

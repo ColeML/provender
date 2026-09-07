@@ -2,7 +2,7 @@ import "server-only";
 
 import { getConfig } from "@server/services/config";
 import { listHistory } from "@server/services/history";
-import { getPlan } from "@server/services/plans";
+import { currentOrLatestPlan, getPlan } from "@server/services/plans";
 import { listPrices } from "@server/services/prices";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes } from "@server/services/recipes";
@@ -40,6 +40,23 @@ export const appRouter = router({
 
         return { items, estimatedTotal: estimatedTotal(items) };
       }),
+    /** What the /shop screen loads: the week to shop for, and its list. */
+    current: protectedProcedure.query(async ({ ctx }) => {
+      const plan = await currentOrLatestPlan(ctx.householdId, ctx.db);
+
+      if (!plan) {
+        return { planId: null, budgetTarget: null, items: [], estimatedTotal: 0 };
+      }
+
+      const items = await listItems(ctx.householdId, plan.id, ctx.db);
+
+      return {
+        planId: plan.id,
+        budgetTarget: plan.budgetTarget === null ? null : Number(plan.budgetTarget),
+        items,
+        estimatedTotal: estimatedTotal(items),
+      };
+    }),
     // The optimistic toggle the /shop screen fires on every tap.
     setPurchased: protectedProcedure
       .input(
