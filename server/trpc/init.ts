@@ -1,6 +1,6 @@
 import "server-only";
 
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { flattenError, ZodError } from "zod";
 
@@ -34,6 +34,21 @@ export const router = t.router;
  *
  * Deliberately named for what it is. There is no bare `procedure` export, because the difference
  * between "I meant this to be public" and "I forgot the middleware" should be visible in the
- * diff, not inferred from its absence. `protectedProcedure` arrives with auth.
+ * diff, not inferred from its absence.
  */
 export const publicProcedure = t.procedure;
+
+/**
+ * Requires a signed-in household session.
+ *
+ * The verification itself happened in the context, against the real cookie — the proxy's
+ * cookie-presence check is a redirect convenience and proves nothing, so this cannot lean on it.
+ */
+export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.session?.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not signed in" });
+  }
+
+  // Narrow `session` to non-null for everything downstream, so procedures cannot forget to check.
+  return next({ ctx: { ...ctx, session: ctx.session } });
+});

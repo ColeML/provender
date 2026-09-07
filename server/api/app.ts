@@ -1,3 +1,4 @@
+import { requireBearerToken } from "@server/api/middleware/bearer";
 import { getConfig } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
@@ -39,12 +40,17 @@ export const api = new OpenAPIHono({
   },
 }).basePath("/v1");
 
-api.openapi(getConfigRoute, async (c) => c.json(await getConfig(), 200));
-
+// The document stays public so an agent can discover the surface before it has a token, and
+// because it describes the API rather than exposing any of its data. Registered before the
+// bearer middleware so the middleware does not cover it.
 api.doc("/openapi.json", {
   openapi: "3.0.0",
   info: { version: "1.0.0", title: "Provender" },
 });
+
+api.use("/*", requireBearerToken);
+
+api.openapi(getConfigRoute, async (c) => c.json(await getConfig(), 200));
 
 // Hono's default 404 is plain text, which would make an unknown path the one response that does
 // not follow AIP-193.

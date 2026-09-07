@@ -16,4 +16,8 @@ describe("getEnv", () => {
   it("rejects an empty connection string rather than passing it through", () => {
     expect(() => getEnv({ DATABASE_URL: "" })).toThrowError(/DATABASE_URL is required/);
   });
+
+  it("ignores auth variables, which their own consumers validate at the point of use", () => {
+    expect(getEnv({ DATABASE_URL: "postgresql://localhost/x" })).not.toHaveProperty("AUTH_SECRET");
+  });
 });
