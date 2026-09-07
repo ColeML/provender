@@ -50,6 +50,13 @@
       "when": 1788759721104,
       "tag": "0006_add_meal_history",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788760506757,
+      "tag": "0007_add_shopping_list",
+      "breakpoints": true
     }
   ]
 }

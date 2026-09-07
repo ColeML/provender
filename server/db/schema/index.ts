@@ -8,3 +8,4 @@ export * from "./households";
 export * from "./history";
 export * from "./plans";
 export * from "./recipes";
+export * from "./shopping";
