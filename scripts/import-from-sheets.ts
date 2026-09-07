@@ -38,6 +38,19 @@ function valueOf(flag: string) {
   return index === -1 ? undefined : args[index + 1];
 }
 
+/** Reads a JSON body from the API. */
+async function apiGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${baseUrl}/v1${path}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, `GET ${path} → ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
 /** Reads one v1 command's JSON. The CLI writes JSON to stdout for every command. */
 async function v1<T>(...command: string[]): Promise<T> {
   const { stdout } = await run("uv", ["run", "--project", "python", "prov", ...command], {
@@ -47,9 +60,19 @@ async function v1<T>(...command: string[]): Promise<T> {
   return JSON.parse(stdout) as T;
 }
 
+/** Thrown for any non-2xx, carrying the status so callers compare a number, not a message. */
+class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function api(method: string, path: string, body?: unknown) {
   if (dryRun) {
-    return { ok: true, status: 200, dryRun: true } as const;
+    return { status: 200 } as const;
   }
 
   const response = await fetch(`${baseUrl}/v1${path}`, {
@@ -64,10 +87,13 @@ async function api(method: string, path: string, body?: unknown) {
   if (!response.ok) {
     const detail = await response.text();
 
-    throw new Error(`${method} ${path} → ${response.status}: ${detail.slice(0, 400)}`);
+    throw new ApiError(
+      response.status,
+      `${method} ${path} → ${response.status}: ${detail.slice(0, 400)}`,
+    );
   }
 
-  return { ok: true, status: response.status } as const;
+  return { status: response.status } as const;
 }
 
 interface V1Recipe {
@@ -183,7 +209,9 @@ async function main() {
     try {
       await api("POST", `/recipes?recipeId=${encodeURIComponent(recipe.recipe_id)}`, body);
     } catch (error) {
-      if (!String(error).includes("409")) {
+      // Numerically, not by searching the message: the message embeds the response body, so a
+      // validation failure mentioning 409 anywhere would be mistaken for a conflict.
+      if (!(error instanceof ApiError) || error.status !== 409) {
         throw error;
       }
 
@@ -231,7 +259,7 @@ async function main() {
     try {
       await api("POST", `/plans?planId=${week}`, {});
     } catch (error) {
-      if (!String(error).includes("409")) {
+      if (!(error instanceof ApiError) || error.status !== 409) {
         throw error;
       }
     }
@@ -279,7 +307,85 @@ async function main() {
   }
 
   console.log(`prices: ${prices.length}`);
-  console.log("\nDone.");
+
+  if (dryRun) {
+    console.log("\nDry run: nothing written, nothing to verify.");
+
+    return;
+  }
+
+  // Reading back, because everything above only proves what was *sent*. An endpoint that accepts
+  // a request and stores less than it was given would otherwise pass silently, and the gap would
+  // surface weeks later as a missing ingredient in a shopping list.
+  console.log("\nVerifying against the API...");
+
+  const problems: string[] = [];
+
+  async function expect(label: string, actual: number, wanted: number) {
+    console.log(`  ${actual === wanted ? "ok" : "MISMATCH"}  ${label}: ${actual}/${wanted}`);
+
+    if (actual !== wanted) {
+      problems.push(`${label}: API has ${actual}, the Sheet has ${wanted}`);
+    }
+  }
+
+  const storedConfig = await apiGet<Record<string, string>>("/config");
+
+  await expect("settings", Object.keys(storedConfig).length, Object.keys(values).length);
+
+  // Paged, because the list caps at 200 and there are 97 today with room to grow.
+  const storedRecipes: { recipeId: string }[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const page = await apiGet<{ recipes: { recipeId: string }[]; nextPageToken?: string }>(
+      `/recipes?pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`,
+    );
+
+    storedRecipes.push(...page.recipes);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+
+  await expect("recipes", storedRecipes.length, recipes.length);
+
+  // Every recipe's ingredients, so a silently truncated list cannot hide inside a matching total.
+  let storedIngredients = 0;
+
+  for (const recipe of storedRecipes) {
+    const { ingredients: rows } = await apiGet<{ ingredients: unknown[] }>(
+      `/recipes/${encodeURIComponent(recipe.recipeId)}/ingredients`,
+    );
+
+    storedIngredients += rows.length;
+  }
+
+  await expect("ingredients", storedIngredients, ingredients.length);
+
+  const storedHistory = await apiGet<{ entries: unknown[] }>("/mealHistory?withinDays=3650");
+
+  await expect("history entries", storedHistory.entries.length, history.length);
+
+  const storedPrices = await apiGet<{ prices: unknown[] }>("/prices");
+
+  await expect("prices", storedPrices.prices.length, prices.length);
+
+  for (const [week, days] of weeks) {
+    const stored = await apiGet<{ days: unknown[] }>(`/plans/${week}`);
+
+    await expect(`plan ${week} days`, stored.days.length, days.length);
+  }
+
+  if (problems.length > 0) {
+    console.error(`\n${problems.length} mismatch(es):`);
+
+    for (const problem of problems) {
+      console.error(`  ${problem}`);
+    }
+
+    process.exit(1);
+  }
+
+  console.log("\nDone. Everything the Sheet has, the API has.");
 }
 
 main().catch((error) => {
