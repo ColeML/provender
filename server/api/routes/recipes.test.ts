@@ -117,6 +117,17 @@ describe("GET /v1/recipes", () => {
   });
 });
 
+describe("GET /v1/recipes with a bad token", () => {
+  it("returns INVALID_ARGUMENT rather than a silently wrong page", async () => {
+    const response = await api.request("/v1/recipes?pageToken=garbage!!", { headers: authed });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+});
+
 describe("GET /v1/recipes/{recipe}", () => {
   it("returns NOT_FOUND for an unknown recipe", async () => {
     const response = await api.request("/v1/recipes/nope", { headers: authed });
@@ -148,6 +159,69 @@ describe("GET /v1/recipes/{recipe}/ingredients", () => {
     expect(missing.status).toBe(404);
     expect(empty.status).toBe(200);
     await expect(empty.json()).resolves.toEqual({ ingredients: [] });
+  });
+});
+
+describe("POST /v1/recipes/{recipe}/ingredients", () => {
+  it("appends one without rewriting the list", async () => {
+    await post("/v1/recipes?recipeId=fajitas", fajitas);
+
+    const response = await post("/v1/recipes/fajitas/ingredients", {
+      ingredientName: "lime",
+      quantity: 1,
+      unit: "EA",
+      category: "produce",
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      name: "recipes/fajitas/ingredients/fajitas_lime",
+      ingredientName: "lime",
+      unit: "ea",
+    });
+
+    const body = (await (
+      await api.request("/v1/recipes/fajitas/ingredients", { headers: authed })
+    ).json()) as { ingredients: { ingredientName: string }[] };
+
+    expect(body.ingredients.map((i) => i.ingredientName)).toEqual(["chili powder", "salt", "lime"]);
+  });
+
+  it("returns NOT_FOUND for an unknown recipe", async () => {
+    const response = await post("/v1/recipes/nope/ingredients", {
+      ingredientName: "lime",
+      category: "produce",
+    });
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("GET /v1/recipes/{recipe}/ingredients/{ingredient}", () => {
+  it("returns one ingredient", async () => {
+    await post("/v1/recipes?recipeId=fajitas", fajitas);
+
+    const response = await api.request("/v1/recipes/fajitas/ingredients/fajitas_salt", {
+      headers: authed,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ingredientName: "salt",
+      quantity: null,
+      notes: "to taste",
+    });
+  });
+
+  it("returns NOT_FOUND for an ingredient on another recipe", async () => {
+    await post("/v1/recipes?recipeId=fajitas", fajitas);
+    await post("/v1/recipes?recipeId=other", { ...fajitas, ingredients: [] });
+
+    const response = await api.request("/v1/recipes/other/ingredients/fajitas_salt", {
+      headers: authed,
+    });
+
+    expect(response.status).toBe(404);
   });
 });
 

@@ -4,7 +4,10 @@ import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 
 import {
+  addIngredient,
   createRecipe,
+  getIngredient,
+  InvalidPageTokenError,
   deleteIngredient,
   deleteRecipe,
   getRecipe,
@@ -127,6 +130,12 @@ describe("listRecipes", () => {
     expect(seen).toEqual(["a", "b", "c", "d", "e"]);
   });
 
+  it("rejects a token this API did not issue rather than returning a wrong page", async () => {
+    await expect(listRecipes({ pageToken: "not-a-real-token" }, db)).rejects.toBeInstanceOf(
+      InvalidPageTokenError,
+    );
+  });
+
   it("omits nextPageToken on the last page", async () => {
     const page = await listRecipes({ pageSize: 50 }, db);
 
@@ -142,6 +151,51 @@ describe("listRecipes", () => {
     const second = await listRecipes({ pageSize: 2, pageToken: first.nextPageToken }, db);
 
     expect(second.recipes.map((row) => row.id)).toEqual(["c", "d"]);
+  });
+});
+
+describe("addIngredient", () => {
+  beforeEach(async () => {
+    await createRecipe("fajitas", fajitas, ingredients, db);
+  });
+
+  it("appends after the existing ingredients rather than renumbering them", async () => {
+    await addIngredient(
+      "fajitas",
+      { name: "lime", quantity: 1, unit: "ea", category: "produce" },
+      db,
+    );
+
+    const stored = await listIngredients("fajitas", db);
+
+    expect(stored.map((row) => row.name)).toEqual(["chili powder", "bell pepper", "salt", "lime"]);
+    expect(stored.at(-1)?.position).toBe(3);
+  });
+
+  it("suffixes the id when the ingredient is already on the recipe", async () => {
+    const added = await addIngredient(
+      "fajitas",
+      { name: "salt", quantity: 1, unit: "tsp", category: "pantry" },
+      db,
+    );
+
+    expect(added.id).toBe("fajitas_salt-2");
+  });
+
+  it("reports a missing recipe rather than orphaning the ingredient", async () => {
+    await expect(
+      addIngredient("nope", { name: "lime", quantity: 1, unit: "ea", category: "produce" }, db),
+    ).rejects.toBeInstanceOf(RecipeNotFoundError);
+  });
+});
+
+describe("getIngredient", () => {
+  it("will not return one belonging to a different recipe", async () => {
+    await createRecipe("fajitas", fajitas, ingredients, db);
+    await createRecipe("other", fajitas, [], db);
+
+    await expect(getIngredient("fajitas", "fajitas_salt", db)).resolves.toBeDefined();
+    await expect(getIngredient("other", "fajitas_salt", db)).resolves.toBeUndefined();
   });
 });
 
@@ -175,6 +229,12 @@ describe("updateRecipe", () => {
     );
 
     expect((await listIngredients("fajitas", db)).map((row) => row.name)).toEqual(["steak"]);
+  });
+
+  it("clears the ingredients when the mask names them and the body omits them", async () => {
+    await updateRecipe("fajitas", ["ingredients"], {}, undefined, db);
+
+    expect(await listIngredients("fajitas", db)).toEqual([]);
   });
 
   it("leaves ingredients alone when the mask does not name them", async () => {

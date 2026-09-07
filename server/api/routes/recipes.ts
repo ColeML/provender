@@ -1,5 +1,6 @@
 import { apiError } from "@server/api/errors";
 import {
+  IngredientInputSchema,
   IngredientSchema,
   ListRecipesResponseSchema,
   RecipeInputSchema,
@@ -13,6 +14,9 @@ import {
   listIngredients,
   listRecipes,
   updateRecipe,
+  addIngredient,
+  getIngredient,
+  InvalidPageTokenError,
   RecipeExistsError,
   RecipeNotFoundError,
   type Ingredient,
@@ -114,16 +118,26 @@ recipesRoutes.openapi(
         description: "A page of recipes",
         content: { "application/json": { schema: ListRecipesResponseSchema } },
       },
+      400: { description: "The pageToken is not one this API issued" },
     },
   }),
   async (c) => {
     const { pageSize, pageToken } = c.req.valid("query");
-    const { recipes, nextPageToken } = await listRecipes({ pageSize, pageToken });
 
-    return c.json(
-      { recipes: recipes.map(toRecipeResource), ...(nextPageToken ? { nextPageToken } : {}) },
-      200,
-    );
+    try {
+      const { recipes, nextPageToken } = await listRecipes({ pageSize, pageToken });
+
+      return c.json(
+        { recipes: recipes.map(toRecipeResource), ...(nextPageToken ? { nextPageToken } : {}) },
+        200,
+      );
+    } catch (error) {
+      if (error instanceof InvalidPageTokenError) {
+        return apiError(c, "INVALID_ARGUMENT", error.message);
+      }
+
+      throw error;
+    }
   },
 );
 
@@ -329,6 +343,74 @@ recipesRoutes.openapi(
 
       throw error;
     }
+  },
+);
+
+recipesRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/recipes/{recipe}/ingredients",
+    summary: "Add one ingredient to a recipe",
+    request: {
+      params: RecipeIdParam,
+      body: { content: { "application/json": { schema: IngredientInputSchema } } },
+    },
+    responses: {
+      200: {
+        description: "The added ingredient",
+        content: { "application/json": { schema: IngredientSchema } },
+      },
+      404: { description: "No such recipe" },
+    },
+  }),
+  async (c) => {
+    const { recipe } = c.req.valid("param");
+    const input = c.req.valid("json");
+
+    try {
+      const created = await addIngredient(recipe, toIngredientInput(input));
+
+      return c.json(toIngredientResource(created), 200);
+    } catch (error) {
+      if (error instanceof RecipeNotFoundError) {
+        return apiError(c, "NOT_FOUND", error.message);
+      }
+
+      throw error;
+    }
+  },
+);
+
+recipesRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/recipes/{recipe}/ingredients/{ingredient}",
+    summary: "Get one ingredient",
+    request: {
+      params: RecipeIdParam.extend({
+        ingredient: z
+          .string()
+          .min(1)
+          .openapi({ param: { name: "ingredient", in: "path" }, example: "fajitas_paprika" }),
+      }),
+    },
+    responses: {
+      200: {
+        description: "The ingredient",
+        content: { "application/json": { schema: IngredientSchema } },
+      },
+      404: { description: "No such ingredient" },
+    },
+  }),
+  async (c) => {
+    const { recipe, ingredient } = c.req.valid("param");
+    const found = await getIngredient(recipe, ingredient);
+
+    if (!found) {
+      return apiError(c, "NOT_FOUND", `No ingredient named ${ingredient} on ${recipe}`);
+    }
+
+    return c.json(toIngredientResource(found), 200);
   },
 );
 

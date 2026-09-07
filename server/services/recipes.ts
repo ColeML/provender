@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 /**
  * The recipe library.
@@ -39,6 +39,13 @@ export interface RecipeInput {
 export class RecipeExistsError extends Error {
   constructor(readonly recipeId: string) {
     super(`A recipe named ${recipeId} already exists`);
+  }
+}
+
+/** Raised when a page token is not one this API issued (→ INVALID_ARGUMENT). */
+export class InvalidPageTokenError extends Error {
+  constructor() {
+    super("The pageToken is not valid");
   }
 }
 
@@ -82,10 +89,13 @@ function ingredientId(recipeId: string, name: string, taken: Set<string>) {
   return candidate;
 }
 
-function ingredientRows(recipeId: string, inputs: IngredientInput[]) {
-  const taken = new Set<string>();
-
-  return inputs.map((input, position) => ({
+function ingredientRows(
+  recipeId: string,
+  inputs: IngredientInput[],
+  taken = new Set<string>(),
+  startPosition = 0,
+) {
+  return inputs.map((input, index) => ({
     id: ingredientId(recipeId, input.name, taken),
     recipeId,
     name: input.name,
@@ -94,7 +104,7 @@ function ingredientRows(recipeId: string, inputs: IngredientInput[]) {
     unit: normalizeUnit(input.unit),
     category: input.category,
     notes: input.notes?.trim() || null,
-    position,
+    position: startPosition + index,
   }));
 }
 
@@ -122,9 +132,16 @@ function decodeToken(token: string | undefined) {
     return undefined;
   }
 
+  // `Buffer.from` never throws on malformed base64 — it returns whatever it could decode. Without
+  // this check a corrupted token becomes an arbitrary cursor and the caller gets a silently wrong
+  // page rather than an error.
   const decoded = Buffer.from(token, "base64url").toString("utf8");
 
-  return decoded || undefined;
+  if (!decoded || encodeToken(decoded) !== token) {
+    throw new InvalidPageTokenError();
+  }
+
+  return decoded;
 }
 
 export async function listRecipes(options: ListOptions = {}, db: Database = defaultDb) {
@@ -180,15 +197,9 @@ export async function createRecipe(
   db: Database = defaultDb,
 ) {
   return db.transaction(async (tx) => {
-    const existing = await tx
-      .select({ id: schema.recipes.id })
-      .from(schema.recipes)
-      .where(eq(schema.recipes.id, recipeId));
-
-    if (existing.length > 0) {
-      throw new RecipeExistsError(recipeId);
-    }
-
+    // Insert-then-check rather than check-then-insert: a SELECT followed by an INSERT lets two
+    // concurrent callers both find nothing and both insert, so the loser fails on the primary key
+    // with an error this function does not recognise and the caller sees 500 instead of 409.
     const [recipe] = await tx
       .insert(schema.recipes)
       .values({
@@ -207,7 +218,12 @@ export async function createRecipe(
         tags: input.tags ?? [],
         instructions: input.instructions ?? [],
       })
+      .onConflictDoNothing({ target: schema.recipes.id })
       .returning();
+
+    if (!recipe) {
+      throw new RecipeExistsError(recipeId);
+    }
 
     if (ingredients.length > 0) {
       await tx.insert(schema.ingredients).values(ingredientRows(recipeId, ingredients));
@@ -242,7 +258,9 @@ export async function updateRecipe(
       throw new RecipeNotFoundError(recipeId);
     }
 
-    const patch: Record<string, unknown> = { updateTime: new Date() };
+    // The database's clock, matching the column defaults. Mixing in the Node process's clock
+    // lets skew produce an updateTime earlier than the row's own createTime.
+    const patch: Record<string, unknown> = { updateTime: sql`now()` };
 
     if (fields.has("title") && input.title !== undefined) patch.title = input.title;
     if (fields.has("sourceUrl")) patch.sourceUrl = input.sourceUrl ?? null;
@@ -266,11 +284,16 @@ export async function updateRecipe(
       .where(eq(schema.recipes.id, recipeId))
       .returning();
 
-    if (fields.has("ingredients") && ingredients) {
+    if (fields.has("ingredients")) {
+      // An omitted body field under a mask that names it means "clear it", the same as every
+      // other field here. Skipping the delete when `ingredients` is absent would make this the one
+      // field where naming it in the mask does nothing.
+      const replacement = ingredients ?? [];
+
       await tx.delete(schema.ingredients).where(eq(schema.ingredients.recipeId, recipeId));
 
-      if (ingredients.length > 0) {
-        await tx.insert(schema.ingredients).values(ingredientRows(recipeId, ingredients));
+      if (replacement.length > 0) {
+        await tx.insert(schema.ingredients).values(ingredientRows(recipeId, replacement));
       }
     }
 
@@ -287,6 +310,51 @@ export async function deleteRecipe(recipeId: string, db: Database = defaultDb) {
   if (deleted.length === 0) {
     throw new RecipeNotFoundError(recipeId);
   }
+}
+
+export async function getIngredient(recipeId: string, id: string, db: Database = defaultDb) {
+  const [ingredient] = await db
+    .select()
+    .from(schema.ingredients)
+    .where(and(eq(schema.ingredients.recipeId, recipeId), eq(schema.ingredients.id, id)));
+
+  return ingredient;
+}
+
+/**
+ * Append one ingredient to an existing recipe.
+ *
+ * Exists so adding an ingredient is not a read-modify-write of the whole list, which would drop
+ * anything added concurrently in between. The position continues from the current last one.
+ */
+export async function addIngredient(
+  recipeId: string,
+  input: IngredientInput,
+  db: Database = defaultDb,
+) {
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select()
+      .from(schema.ingredients)
+      .where(eq(schema.ingredients.recipeId, recipeId))
+      .orderBy(asc(schema.ingredients.position));
+
+    const [recipe] = await tx
+      .select({ id: schema.recipes.id })
+      .from(schema.recipes)
+      .where(eq(schema.recipes.id, recipeId));
+
+    if (!recipe) {
+      throw new RecipeNotFoundError(recipeId);
+    }
+
+    const taken = new Set(existing.map((row) => row.id));
+    const [row] = ingredientRows(recipeId, [input], taken, existing.length);
+
+    const [created] = await tx.insert(schema.ingredients).values(row).returning();
+
+    return created;
+  });
 }
 
 export async function deleteIngredient(
