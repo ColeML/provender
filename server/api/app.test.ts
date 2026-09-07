@@ -16,9 +16,15 @@ const { api } = await import("./app");
 const { appRouter } = await import("@server/trpc/routers");
 const { createCallerFactory } = await import("@server/trpc/init");
 
+/** The token vitest.config.mts puts in the environment. */
+const authed = { headers: { Authorization: "Bearer test-token" } };
+
+/** A signed-in context, as `createContext` would build one after `auth()` resolved. */
+const session = { user: { id: "household", name: "Household" }, expires: "2099-01-01" };
+
 describe("GET /v1/config", () => {
   it("returns the settings as a flat object", async () => {
-    const response = await api.request("/v1/config");
+    const response = await api.request("/v1/config", authed);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ people: "4", default_budget: "120" });
@@ -32,35 +38,46 @@ describe("the two transports", () => {
    * This asserts they still agree; extend it as each resource lands.
    */
   it("return the same thing for the same resource", async () => {
-    const caller = createCallerFactory(appRouter)({ db });
+    const caller = createCallerFactory(appRouter)({ db, session });
 
     const [restResponse, viaTrpc] = await Promise.all([
-      api.request("/v1/config"),
+      api.request("/v1/config", authed),
       caller.config.get(),
     ]);
     const viaRest = await restResponse.json();
 
     expect(viaRest).toEqual(viaTrpc);
   });
+
+  it("both refuse an unauthenticated caller", async () => {
+    const caller = createCallerFactory(appRouter)({ db, session: null });
+
+    const response = await api.request("/v1/config");
+
+    expect(response.status).toBe(401);
+    await expect(caller.config.get()).rejects.toThrow("Not signed in");
+  });
 });
 
 describe("unknown paths", () => {
   it("use the AIP-193 error shape rather than Hono's plain-text 404", async () => {
-    const response = await api.request("/v1/nope");
+    const response = await api.request("/v1/nope", authed);
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({
-      error: {
-        code: 404,
-        message: "Unknown path: /v1/nope",
-        status: "NOT_FOUND",
-      },
+      error: { code: 404, message: "Unknown path: /v1/nope", status: "NOT_FOUND" },
     });
+  });
+
+  it("answer 401 before 404 when unauthenticated, so the surface cannot be mapped", async () => {
+    const response = await api.request("/v1/nope");
+
+    expect(response.status).toBe(401);
   });
 });
 
 describe("the OpenAPI document", () => {
-  it("is served and describes the config route", async () => {
+  it("is served without a token, so an agent can discover the surface first", async () => {
     const response = await api.request("/v1/openapi.json");
     const document = (await response.json()) as { paths: Record<string, unknown> };
 

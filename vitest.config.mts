@@ -9,6 +9,9 @@ export default defineConfig({
     // Baseline for tests that exercise getEnv(); override individual values with vi.stubEnv.
     env: {
       DATABASE_URL: "postgresql://provender:provender_dev@localhost:5432/provender",
+      AUTH_SECRET: "test-secret",
+      AUTH_PASSWORD_HASH: "test-hash",
+      PROVENDER_API_TOKEN: "test-token",
     },
     unstubEnvs: true,
     exclude: ["node_modules/**", "python/**", ".next/**"],

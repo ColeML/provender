@@ -1,4 +1,7 @@
 import { getConfig } from "@server/services/config";
+import { redirect } from "next/navigation";
+
+import { auth } from "../../auth";
 
 /**
  * Read at request time, not build time.
@@ -15,6 +18,13 @@ export const dynamic = "force-dynamic";
  * procedure.
  */
 export default async function Home() {
+  // The real check. The proxy only saw that a cookie existed; this verifies it.
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
   const config = await getConfig();
   const entries = Object.entries(config);
 

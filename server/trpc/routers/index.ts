@@ -2,7 +2,7 @@ import "server-only";
 
 import { getConfig } from "@server/services/config";
 
-import { publicProcedure, router } from "../init";
+import { protectedProcedure, router } from "../init";
 
 /**
  * The application router. Every procedure the client can call is reachable from here, and its
@@ -13,7 +13,7 @@ import { publicProcedure, router } from "../init";
  */
 export const appRouter = router({
   config: router({
-    get: publicProcedure.query(({ ctx }) => getConfig(ctx.db)),
+    get: protectedProcedure.query(({ ctx }) => getConfig(ctx.db)),
   }),
 });
 

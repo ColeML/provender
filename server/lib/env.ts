@@ -6,6 +6,13 @@ const EnvSchema = z.object({
   // The `error` argument covers the missing-key case too. Without it a missing variable reports
   // zod's "expected string, received undefined", which names the type and not the fix.
   DATABASE_URL: z.string({ error: "DATABASE_URL is required" }).min(1, "DATABASE_URL is required"),
+  AUTH_SECRET: z.string({ error: "AUTH_SECRET is required" }).min(1, "AUTH_SECRET is required"),
+  AUTH_PASSWORD_HASH: z
+    .string({ error: "AUTH_PASSWORD_HASH is required" })
+    .min(1, "AUTH_PASSWORD_HASH is required"),
+  PROVENDER_API_TOKEN: z
+    .string({ error: "PROVENDER_API_TOKEN is required" })
+    .min(1, "PROVENDER_API_TOKEN is required"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

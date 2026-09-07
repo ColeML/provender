@@ -92,6 +92,28 @@ the Overview note; the rules a handler has to honor:
 - The OpenAPI document at `/v1/openapi.json` is generated from the zod schemas. It is what the
   Claude Code skills read, so a route without a schema is a route they cannot discover.
 
+## Auth
+
+Two credentials, deliberately unrelated:
+
+- **Browsers** sign in with one shared household password (Auth.js Credentials provider, JWT
+  session, no adapter and no users table) and carry a session cookie.
+- **Claude Code** sends `Authorization: Bearer $PROVENDER_API_TOKEN` to `/v1`. It never gets a
+  cookie, and the cookie never authenticates `/v1`.
+
+Enforcement is layered, and `src/proxy.ts` is *not* the security boundary — Next's own guidance is
+that Proxy should not be used for session management or authorization. It checks only that a
+cookie exists, so an unauthenticated browser lands on the login page instead of an error. The real
+checks are `auth()` in Server Components, `protectedProcedure` in tRPC, and the bearer middleware
+on `/v1`. **A new page or procedure must do its own check; do not rely on the proxy.**
+
+New procedures use `protectedProcedure`. There is no bare `procedure` export, and `publicProcedure`
+is named for what it is, so "I meant this to be public" and "I forgot" look different in a diff.
+
+`/v1/openapi.json` is deliberately public — it describes the API without exposing data, and an
+agent needs to discover the surface before it authenticates. Everything else under `/v1` answers
+401 before 404, so an unauthenticated caller cannot map which endpoints exist.
+
 ## Database
 
 - Migrations are generated (`pnpm db:generate`), never hand-written, and are committed with the
