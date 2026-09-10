@@ -6,6 +6,7 @@ import { shoppingRoutes } from "@server/api/routes/shopping";
 import { unitsRoutes } from "@server/api/routes/units";
 import { weatherRoutes } from "@server/api/routes/weather";
 import { recipesRoutes } from "@server/api/routes/recipes";
+import { logError } from "@server/lib/log";
 import { getConfig, setConfigValue } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { PatternRouter } from "hono/router/pattern-router";
@@ -157,7 +158,12 @@ api.onError((error, c) => {
     return apiError(c, HTTP_EXCEPTION_STATUSES[error.status] ?? "INVALID_ARGUMENT", error.message);
   }
 
-  console.error(error);
+  logError("api.unhandled_error", {
+    method: c.req.method,
+    path: c.req.path,
+    message: error.message,
+    stack: error.stack ?? "",
+  });
 
   return apiError(c, "INTERNAL", "Something went wrong");
 });

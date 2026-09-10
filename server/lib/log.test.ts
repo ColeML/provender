@@ -21,6 +21,19 @@ describe("logWarn", () => {
   });
 });
 
+describe("logWarn's reserved fields", () => {
+  it("keeps level and event when a caller passes fields of the same name", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logWarn("auth.bearer_rejected", { level: "info", event: "something.else" });
+
+    expect(JSON.parse(String(warn.mock.calls[0]?.[0]))).toEqual({
+      level: "warn",
+      event: "auth.bearer_rejected",
+    });
+  });
+});
+
 describe("logError", () => {
   it("writes to console.error, so the level survives into Vercel's log view", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});

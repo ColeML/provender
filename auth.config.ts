@@ -57,4 +57,21 @@ export const authConfig = {
   ],
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
+  logger: {
+    /**
+     * Auth.js writes its own `console.error` for anything thrown inside it, and a rejected
+     * password reaches it as a `CredentialsSignin`. Left alone that makes a mistyped password two
+     * log lines, the louder of them at error level, which is the deployment's level and not the
+     * caller's. `authorizeHousehold` has already recorded it.
+     */
+    error(error) {
+      // Matched by name rather than `instanceof`: importing the error class from `next-auth`
+      // pulls its Next server entry into every module that reads this config.
+      if (error.name === "CredentialsSignin") {
+        return;
+      }
+
+      logError("auth.internal_error", { name: error.name, message: error.message });
+    },
+  },
 } satisfies NextAuthConfig;

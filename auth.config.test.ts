@@ -1,9 +1,18 @@
 import { hashPassword } from "@server/auth/password";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
-import { authorizeHousehold } from "./auth.config";
+import { authConfig, authorizeHousehold } from "./auth.config";
 
 const PASSWORD = "correct horse battery staple";
+
+/**
+ * What Auth.js hands its logger when `authorize` returns null. The real class comes from
+ * `next-auth`, whose root entry drags Next's server runtime into a plain Node test; it sets
+ * `name` from the constructor, which is what the config matches on.
+ */
+class CredentialsSignin extends Error {
+  override name = "CredentialsSignin";
+}
 
 let warn: MockInstance<typeof console.warn>;
 let error: MockInstance<typeof console.error>;
@@ -81,5 +90,27 @@ describe("the credentials provider", () => {
     expect(loggedText()).not.toContain("hunter2");
     expect(loggedText()).not.toContain(stored);
     expect(loggedText()).not.toContain(PASSWORD);
+  });
+});
+
+describe("the Auth.js logger", () => {
+  it("drops the rejected-credential error Auth.js raises, which authorize already logged", () => {
+    authConfig.logger.error(new CredentialsSignin("no"));
+
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("records anything else Auth.js throws, without its own console formatting", () => {
+    authConfig.logger.error(new Error("the database is unreachable"));
+
+    expect(loggedJson(error)).toEqual([
+      {
+        level: "error",
+        event: "auth.internal_error",
+        name: "Error",
+        message: "the database is unreachable",
+      },
+    ]);
   });
 });

@@ -11,7 +11,9 @@ type LogFields = Record<string, string | number | boolean>;
  * Never pass a secret. A log line is readable by anyone who can see the deployment.
  */
 function emit(level: "warn" | "error", event: string, fields: LogFields) {
-  const line = JSON.stringify({ level, event, ...fields });
+  // Fields first: `level` and `event` are what a log search is built on, so a caller's field of
+  // the same name must not be able to replace them.
+  const line = JSON.stringify({ ...fields, level, event });
 
   if (level === "error") {
     console.error(line);
