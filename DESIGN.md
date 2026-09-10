@@ -44,7 +44,7 @@ which is the same job a status color does here.
 | `foreground` | iron gall `#2B2118` | parchment `#EDE3CC` | body text |
 | `primary` | iron gall `#2B2118` | pale gold `#E8D9A8` | buttons, a ticked box |
 | `muted-foreground` | faded ink `#6E5F49` | `#AB9A7D` | secondary text, quantities |
-| `destructive` | vermilion `#8B2E1F` | `#D2604A` | over budget, a failed write |
+| `destructive` | vermilion `#8B2E1F` | `#DA6C55` | over budget, a failed write |
 | `accent` | verdigris `#1F4E5F` | `#5FA0AF` | a second status, sparingly |
 | `ring` | old gold `#9C7B15` | leaf gold `#C9A227` | focus |
 
