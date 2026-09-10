@@ -225,6 +225,21 @@ describe("the shopping list", () => {
     expect(screen.getByRole("checkbox", { name: /milk/ })).not.toBeChecked();
   });
 
+  it("paints the tick in the color that sits on primary, not a fixed white", async () => {
+    window.localStorage.clear();
+
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+    const box = screen.getByRole("checkbox", { name: /onion/ });
+
+    await user.click(box);
+
+    const tick = box.parentElement?.querySelector("svg");
+
+    expect(tick).toBeInTheDocument();
+    expect(tick).toHaveClass("text-primary-foreground");
+    expect(tick?.getAttribute("stroke")).toBe("currentColor");
+  });
+
   it("renders quantities as fractions, the way a recipe reads", () => {
     renderList([
       item({ id: "salt", name: "salt", quantity: 0.5, unit: "tsp", category: "pantry" }),

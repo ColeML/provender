@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import { useState } from "react";
 
 import { useStoredFlag } from "@/hooks/use-stored-flag";
@@ -154,12 +155,19 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
 
         {bought.length > 0 ? (
           <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={hideBought}
-              onChange={(event) => onHideBoughtChange(event.target.checked)}
-              className="border-muted-foreground checked:border-primary checked:bg-primary size-5 appearance-none rounded border-2"
-            />
+            <span className="relative flex size-5 shrink-0 items-center justify-center">
+              <input
+                type="checkbox"
+                checked={hideBought}
+                onChange={(event) => onHideBoughtChange(event.target.checked)}
+                className="border-muted-foreground checked:border-primary checked:bg-primary peer size-5 appearance-none rounded border-2"
+              />
+              <Check
+                aria-hidden
+                strokeWidth={3}
+                className="text-primary-foreground pointer-events-none absolute size-3.5 opacity-0 peer-checked:opacity-100"
+              />
+            </span>
             Hide the {bought.length} already in the trolley
           </label>
         ) : null}
@@ -191,10 +199,6 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
               {rows.map((item) => (
                 <li key={item.id}>
                   {/*
-                    The whole row is the target, not a checkbox inside it: this is used one-handed
-                    while pushing a trolley. Minimum 56px tall, well over the 44px floor.
-                  */}
-                  {/*
                     A real checkbox in a label, not a button with role="checkbox": the input
                     carries the semantics for free, and the label makes the whole row the target
                     rather than a small box inside it. Used one-handed while pushing a trolley, so
@@ -207,19 +211,31 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                       "active:bg-muted",
                     )}
                   >
-                    <input
-                      type="checkbox"
-                      checked={item.purchased}
-                      onChange={() => onToggle(item)}
-                      aria-describedby={failed.has(item.id) ? `${item.id}-failed` : undefined}
-                      className={cn(
-                        "size-6 shrink-0 appearance-none rounded-md border-2 bg-no-repeat",
-                        "border-muted-foreground",
-                        "checked:border-primary checked:bg-primary",
-                        "checked:bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2220 6 9 17 4 12%22/></svg>')] checked:bg-center",
-                        "focus-visible:outline-none",
-                      )}
-                    />
+                    {/*
+                      The box fills with `primary` and the tick is a sibling drawn on top in
+                      `primary-foreground`, because one element cannot paint both. Painting the
+                      glyph into the background image would fix its color, and dark mode's
+                      `primary` is a pale gold that a white tick disappears against.
+                    */}
+                    <span className="relative flex size-6 shrink-0 items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={item.purchased}
+                        onChange={() => onToggle(item)}
+                        aria-describedby={failed.has(item.id) ? `${item.id}-failed` : undefined}
+                        className={cn(
+                          "peer size-6 appearance-none rounded-md border-2",
+                          "border-muted-foreground",
+                          "checked:border-primary checked:bg-primary",
+                          "focus-visible:outline-none",
+                        )}
+                      />
+                      <Check
+                        aria-hidden
+                        strokeWidth={3}
+                        className="text-primary-foreground pointer-events-none absolute size-4 opacity-0 peer-checked:opacity-100"
+                      />
+                    </span>
 
                     <span className="min-w-0 flex-1">
                       <span
@@ -273,12 +289,19 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                 <li key={item.id}>
                   {/* Still a checkbox, so a mis-tap can be undone without turning hiding off. */}
                   <label className="flex min-h-11 items-center gap-3 py-1.5 text-sm">
-                    <input
-                      type="checkbox"
-                      checked
-                      onChange={() => onToggle(item)}
-                      className="border-primary bg-primary size-5 shrink-0 appearance-none rounded border-2"
-                    />
+                    <span className="relative flex size-5 shrink-0 items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked
+                        onChange={() => onToggle(item)}
+                        className="border-primary bg-primary peer size-5 appearance-none rounded border-2"
+                      />
+                      <Check
+                        aria-hidden
+                        strokeWidth={3}
+                        className="text-primary-foreground pointer-events-none absolute size-3.5"
+                      />
+                    </span>
                     <span className="text-muted-foreground line-through">{item.name}</span>
                   </label>
                 </li>
