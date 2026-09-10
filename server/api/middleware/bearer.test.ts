@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import { requireBearerToken } from "./bearer";
 
@@ -11,9 +11,27 @@ function appWith() {
   return app;
 }
 
+let warn: MockInstance<typeof console.warn>;
+let error: MockInstance<typeof console.error>;
+
+beforeEach(() => {
+  warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  error = vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
+
+/** Every line either logger wrote, as one string to search for a leaked secret. */
+function loggedText() {
+  return [...warn.mock.calls, ...error.mock.calls].flat().join("\n");
+}
+
+function loggedJson(spy: MockInstance<typeof console.warn>) {
+  return spy.mock.calls.map((call) => JSON.parse(String(call[0])));
+}
 
 describe("requireBearerToken", () => {
   it("allows a request carrying the right token", async () => {
@@ -24,6 +42,15 @@ describe("requireBearerToken", () => {
     });
 
     expect(response.status).toBe(200);
+  });
+
+  it("logs nothing when the token is accepted", async () => {
+    vi.stubEnv("PROVENDER_API_TOKEN", "s3cret");
+
+    await appWith().request("/thing", { headers: { Authorization: "Bearer s3cret" } });
+
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -55,5 +82,58 @@ describe("requireBearerToken", () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  describe("logging", () => {
+    it("records a wrong token once, as the caller's fault", async () => {
+      vi.stubEnv("PROVENDER_API_TOKEN", "s3cret");
+
+      await appWith().request("/thing", { headers: { Authorization: "Bearer nope" } });
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(error).not.toHaveBeenCalled();
+      expect(loggedJson(warn)[0]).toEqual({
+        level: "warn",
+        event: "auth.bearer_rejected",
+        method: "GET",
+        path: "/thing",
+        reason: "wrong_token",
+      });
+    });
+
+    it("distinguishes a missing token from a wrong one", async () => {
+      vi.stubEnv("PROVENDER_API_TOKEN", "s3cret");
+
+      await appWith().request("/thing");
+
+      expect(loggedJson(warn)[0]).toMatchObject({
+        event: "auth.bearer_rejected",
+        reason: "no_token",
+      });
+    });
+
+    it("records an unset PROVENDER_API_TOKEN distinctly, as a deploy fault", async () => {
+      vi.stubEnv("PROVENDER_API_TOKEN", "");
+
+      await appWith().request("/thing", { headers: { Authorization: "Bearer s3cret" } });
+
+      expect(warn).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(loggedJson(error)[0]).toEqual({
+        level: "error",
+        event: "auth.api_token_unset",
+        method: "GET",
+        path: "/thing",
+      });
+    });
+
+    it("never writes a token value, configured or supplied", async () => {
+      vi.stubEnv("PROVENDER_API_TOKEN", "s3cret");
+
+      await appWith().request("/thing", { headers: { Authorization: "Bearer wrong-guess" } });
+
+      expect(loggedText()).not.toContain("s3cret");
+      expect(loggedText()).not.toContain("wrong-guess");
+    });
   });
 });

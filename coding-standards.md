@@ -132,6 +132,27 @@ is named for what it is, so "I meant this to be public" and "I forgot" look diff
 agent needs to discover the surface before it authenticates. Everything else under `/v1` answers
 401 before 404, so an unauthenticated caller cannot map which endpoints exist.
 
+## Logging
+
+`server/lib/log.ts` is the whole logging layer: `logWarn` and `logError` each write one JSON line
+with `console`. Vercel collects what a serverless function writes to the console and expands a
+JSON line into searchable fields, so a logging library would be a dependency for something the
+platform already does.
+
+- **Two levels, and they mean different things.** `warn` is the caller's fault — a wrong token, a
+  wrong password. `error` is the deployment's fault — a missing environment variable, a request
+  that threw. A misconfiguration and a bad caller get separate events, because the person reading
+  the log has to do something different about each. Nothing quieter than `warn` exists, because
+  Vercel's default log view hides it.
+- **Never log a secret or anything derived from one:** no password, token, hash, or session
+  cookie. Log a `reason` instead — `reason: "wrong_token"` says what happened without repeating
+  what was sent.
+- **Event names are dotted and stable:** `auth.bearer_rejected`, `auth.api_token_unset`. The name
+  is what someone greps for, so the same failure uses the same name every time and any detail that
+  varies goes in a field.
+- **One line per failure.** A rejection logged in both a middleware and the handler it guards
+  doubles every count read off the log.
+
 ## Database
 
 - Migrations are generated (`pnpm db:generate`) and committed with the schema change that produced
