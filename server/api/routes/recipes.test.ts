@@ -356,3 +356,78 @@ describe("POST /v1/units:convert", () => {
     );
   });
 });
+
+describe("POST /v1/recipes:scrape", () => {
+  it("returns a draft without saving it", async () => {
+    const jsonLd = {
+      "@type": "Recipe",
+      name: "Scraped Fajitas",
+      recipeYield: ["4", "4 (2 fajitas each)"],
+      totalTime: "PT40M",
+      recipeIngredient: ["2 lb chicken", "3 peppers"],
+      recipeInstructions: [{ "@type": "HowToStep", text: "Cook." }],
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: async () =>
+          `<html><head><script type="application/ld+json">${JSON.stringify(
+            jsonLd,
+          )}</script></head></html>`,
+      }),
+    );
+
+    const response = await post("/v1/recipes:scrape", { url: "https://example.test/fajitas" });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      title: "Scraped Fajitas",
+      baseServings: 4,
+      yieldText: "4 (2 fajitas each)",
+      totalMin: 40,
+      ingredients: [{ text: "2 lb chicken" }, { text: "3 peppers" }],
+    });
+
+    // Nothing was created.
+    const list = (await (await api.request("/v1/recipes", { headers: authed })).json()) as {
+      recipes: unknown[];
+    };
+
+    expect(list.recipes).toEqual([]);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("returns INVALID_ARGUMENT for a page with no recipe", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, text: async () => "<html><body>blog</body></html>" }),
+    );
+
+    const response = await post("/v1/recipes:scrape", { url: "https://example.test/blog" });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("returns UNAVAILABLE when the page refuses to load", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+
+    const response = await post("/v1/recipes:scrape", { url: "https://example.test/blocked" });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ error: { status: "UNAVAILABLE" } });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects something that is not a URL", async () => {
+    expect((await post("/v1/recipes:scrape", { url: "not a url" })).status).toBe(400);
+  });
+});
