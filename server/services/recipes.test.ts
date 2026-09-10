@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { schema } from "@server/db";
 import { createTestDb } from "@server/db/testing";
 
 const HOUSEHOLD = "loewer";
@@ -310,6 +311,18 @@ describe("deleteIngredient", () => {
     await createRecipe(HOUSEHOLD, "other", fajitas, [], db);
 
     await expect(deleteIngredient(HOUSEHOLD, "other", "fajitas_salt", db)).resolves.toBe(false);
+    expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toHaveLength(3);
+  });
+
+  it("will not delete another household's ingredient", async () => {
+    // Recipe slugs are unique per household, so two households both having `fajitas` gives their
+    // ingredients identical ids. Without the household in the filter, either can delete the other's.
+    await db.insert(schema.households).values({ id: "someone-else", name: "Someone Else" });
+    await createRecipe("someone-else", "fajitas", fajitas, ingredients, db);
+
+    await expect(deleteIngredient("someone-else", "fajitas", "fajitas_salt", db)).resolves.toBe(
+      true,
+    );
     expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toHaveLength(3);
   });
 });
