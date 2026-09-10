@@ -10,7 +10,9 @@ import { getConfig, setConfigValue } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { PatternRouter } from "hono/router/pattern-router";
 
-import { apiError, validationError } from "./errors";
+import { HTTPException } from "hono/http-exception";
+
+import { apiError, type ApiStatus, validationError } from "./errors";
 
 const ConfigSchema = z
   .record(z.string(), z.string())
@@ -133,7 +135,28 @@ api.route("/", unitsRoutes);
 // not follow AIP-193.
 api.notFound((c) => apiError(c, "NOT_FOUND", `Unknown path: ${new URL(c.req.url).pathname}`));
 
+/**
+ * Which AIP-193 status a Hono `HTTPException` carries.
+ *
+ * Hono raises one for failures that never reach a handler: a body that is not JSON is a 400 from
+ * the validator, a wrong `content-type` a 415 from the media-type gate. Any 4xx not listed here
+ * becomes INVALID_ARGUMENT, which is what Google's own JSON APIs return for a malformed request.
+ */
+const HTTP_EXCEPTION_STATUSES: Record<number, ApiStatus> = {
+  401: "UNAUTHENTICATED",
+  403: "PERMISSION_DENIED",
+  404: "NOT_FOUND",
+  409: "ALREADY_EXISTS",
+  503: "UNAVAILABLE",
+};
+
 api.onError((error, c) => {
+  // A 4xx is the caller's to fix, so it is neither INTERNAL nor worth a stack trace in the log.
+  // Reporting one as INTERNAL tells the caller to retry a request that will never succeed.
+  if (error instanceof HTTPException && error.status < 500) {
+    return apiError(c, HTTP_EXCEPTION_STATUSES[error.status] ?? "INVALID_ARGUMENT", error.message);
+  }
+
   console.error(error);
 
   return apiError(c, "INTERNAL", "Something went wrong");

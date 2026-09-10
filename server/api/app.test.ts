@@ -162,3 +162,35 @@ describe("the OpenAPI document", () => {
     expect(document.paths).toHaveProperty("/v1/config");
   });
 });
+
+describe("a body that is not JSON", () => {
+  it("is the caller's error, not the server's", async () => {
+    const response = await api.request("/v1/units:convert", {
+      method: "POST",
+      headers: { ...authed.headers, "content-type": "application/json" },
+      body: '{"quantity":24,"from":"tbsp","to":',
+    });
+
+    // 500 would tell the agent the server is broken and the request is worth retrying. It isn't.
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+});
+
+describe("a content-type the endpoint does not accept", () => {
+  it("is the caller's error too", async () => {
+    const response = await api.request("/v1/units:convert", {
+      method: "POST",
+      headers: { ...authed.headers, "content-type": "text/plain" },
+      body: "24 tbsp in cups",
+    });
+
+    // Hono's media-type gate raises a 415, which has no AIP-193 code of its own.
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+});

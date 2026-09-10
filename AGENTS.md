@@ -7,12 +7,13 @@ so any agent can follow them.
 
 ## What this project is
 
-A weekly meal planner where **the AI agent is the brain** and a small Python CLI
-(`prov`) is the deterministic engine. **Google Sheets is the data store and the
-phone-facing UI.** The agent supplies judgment (menu selection, cost estimates,
-ingredient parsing/merging, scaling); the CLI does the exact, repeatable work
-(scrape, unit math, weather, Sheets I/O). See `PLAN.md` for the full design and
-`APPSHEET.md` for the optional phone GUI.
+A weekly meal planner where **the AI agent is the brain** and an HTTP API is the deterministic
+engine. The agent supplies judgment (menu selection, cost estimates, ingredient parsing and
+merging, non-linear scaling); the API does the exact, repeatable work (scrape, unit math, weather,
+storage). The phone-facing UI is the app itself — `/shop` is live.
+
+v1 is the same design over a Python CLI and Google Sheets, and still runs until #42 retires it.
+See `PLAN.md` for the original design and `APPSHEET.md` for v1's optional phone GUI.
 
 ## Where the code lives
 
@@ -54,30 +55,32 @@ and the branch `legacy/python-cli` are fixed points to return to.
   Sheet + key.
 - **Run every CLI command from the repo root:** `uv run --project python prov <cmd>`.
 
-## The CLI (deterministic tools — no AI inside)
+## The API (deterministic tools — no AI inside)
 
-Every command emits JSON to stdout; parse it. Commands read JSON from a file arg or
-stdin (`-`).
+`./scripts/prov METHOD PATH [json|@file]` calls it and prints JSON, reading the token and base URL
+from `.env`. It exits non-zero on a 4xx or 5xx, so a failed call stops a script instead of passing
+for success. With no `PROVENDER_BASE_URL` it talks to the production app — a workflow run is real
+data by default. Set it to `http://localhost:3000` to work against a dev server.
 
-| Command | Purpose |
-|---|---|
-| `init` | Create/verify the tabs (Config, WeekPlan, Recipes, Ingredients, ShoppingList, History, Prices) |
-| `config` / `config-set KEY VALUE` | Read / upsert household settings |
-| `prices` / `price-set ITEM PRICE [--unit] [--store]` | Read / record learned grocery prices |
-| `kroger-locations <zip>` / `kroger-price "<item>"` | Optional real store prices (Kroger API, opt-in) |
-| `weather [--location] [--days]` | Open-Meteo forecast for the configured location |
-| `scrape <url>` | Scrape a recipe to JSON (title, image, ingredients, steps) |
-| `recipe-save [file]` | Save (append) a recipe + ingredients (auto-formats display/instructions; auto-renders its page) |
-| `recipe-update [file]` | Upsert a recipe by `recipe_id`: replace its row + ingredients in place (no duplicate); send the full recipe |
-| `recipe-render <id>` / `--all` | (Re)render a shareable HTML recipe page to `render_dir` (Config; default `docs/recipes`), record `doc_url` |
-| `recipes` / `ingredients [--recipe-id]` | Read the library |
-| `scale [file] --to N` / `convert QTY FROM TO` | Scaling + unit conversion (pint) |
-| `plan-read` / `plan-write [file]` | Read / replace the week calendar |
-| `plan-clear DAY [--keep-history]` | Blank one day-slot when a planned day gets missed (also drops its History row) |
-| `history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains only) |
-| `history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
-| `shopping-write [file]` / `shopping-clear` | Rebuild / clear the shopping list (tappable checkboxes; keeps ticks on surviving items) |
-| `shopping-add [file]` | Merge one more day's items into the existing list without disturbing ticked rows |
+```bash
+./scripts/prov GET  /config
+./scripts/prov POST /recipes:scrape '{"url":"https://..."}'
+./scripts/prov PUT  /plans/2026-W37/days/2026-09-08 @day.json
+```
+
+**The endpoint reference is the API's own spec, not a table here:**
+
+```bash
+./scripts/prov GET /openapi.json
+```
+
+It is generated from the zod schemas that validate every request, so it cannot drift from the code.
+A table in this file would.
+
+The split from `PLAN.md` still holds: fuzzy judgment — menu selection, cost estimates, ingredient
+parsing and merging, non-linear scaling — stays in the conversation, and anything that must be
+exact and repeatable is an endpoint.
+
 
 ## Workflows (the "skills")
 
@@ -94,43 +97,35 @@ agents read them as instructions):
 
 ## Invariants (don't break these)
 
-- **Recipes are stored at the servings you'll cook** (not the original yield); the
-  shopping step does not re-scale. Single-batch items (pizza, a roast) use their
-  natural yield.
-- **Display columns are formatted in the data**, not in the GUI: `Ingredients.display`
-  and `ShoppingList.display` use fractions (½, ⅔, …); `Recipes.instructions` is
-  numbered with blank lines; `Recipes.ingredients_text` is a bulleted block (AppSheet
-  caps inline lists, so the full list lives on the recipe row).
-- **Repeat-avoidance applies to mains only** (sides may repeat); only mains go to
-  `History`.
-- **Equipment honesty**: only cite a device in a day's note if the recipe uses it.
-- `WeekPlan` is always **7 stable day-slots** (Mon-Sun), keyed by `day`. `plan-write`
-  overwrites them in place (unplanned days blanked) rather than churning row keys —
-  this is what keeps AppSheet's sync reliable. `shopping-write` rebuilds its tab
-  but carries `bought`/`have_already` across for items still on the list — to add
-  a single late-planned day, use `shopping-add` rather than rebuilding;
-  `recipe-save`/`history-add` append (History is keyed by a unique `id`).
-  `recipe-update` upserts a recipe by `recipe_id` (replaces its row + ingredients
-  in place) — use it to edit an existing recipe instead of re-running `recipe-save`,
-  which would append a duplicate.
-- **A missed day is cleared with `plan-clear DAY`, not by rewriting the week.** It
-  blanks that one slot and removes the day's `History` row, because History records
-  what was *planned* — leaving a meal you never cooked in there blocks that dish for
-  the whole repeat-avoidance window. Pass `--keep-history` if you did eat it.
-- Readers of `WeekPlan` (e.g. build-shopping-list) must **skip rows with a blank
-  `recipe_id`** (unplanned days).
-- **Every side and dessert is a saved recipe, linked from its day** — the side in
-  `WeekPlan.side_recipe_id` (one, an AppSheet Ref) and any extras (a dessert, a
-  second side) in `WeekPlan.extras_recipe_ids` (comma-separated recipe ids). Never
-  leave a side/dessert as free text only: build-shopping-list reads `recipe_id` +
-  `side_recipe_id` + `extras_recipe_ids`, so an unlinked dish is dropped from the list.
-- **Every `Ingredients` row has a unique `id`** (`<recipe_id>_<name-slug>`, suffixed
-  on repeat) — so a recipe can use an ingredient twice without a key clash. It's the
-  AppSheet key for that tab.
-- **Recipe pages are a derived view, not a source.** `recipe-render` regenerates
-  `docs/recipes/<slug>.html` from the `Recipes` row and overwrites it; never hand-edit
-  the HTML or treat it as canonical. The Sheet is the source of truth; `doc_url` just
-  points at the rendered page.
+These hold for v2. Where v1 differs it is noted, because v1 still runs until #42 retires it.
+
+- **Recipes are stored at the servings you'll cook**, not the source's yield. The shopping step
+  reads quantities as-is and never re-scales. Single-batch dishes (a sheet-pan pizza, a whole
+  roast) keep their natural yield.
+- **Repeat-avoidance applies to mains only.** Sides may repeat freely, and only mains go to
+  `mealHistory`.
+- **History records what was planned, not what was eaten.** A dish there may never have been
+  cooked, so present a repeat-avoidance skip as a list the user can pull from rather than a hard
+  exclusion. Clearing a day removes its history entry for that reason; pass `keepHistory=true` when
+  the meal happened anyway.
+- **Equipment honesty:** cite a device in a day's note only if that recipe uses it.
+- **An unplanned day is the absence of a row.** No blank slots to skip. (v1 kept seven fixed
+  day-slots and blanked the unused ones, because AppSheet's sync needed stable keys.)
+- **Every side and dessert is a saved recipe, linked by id** in the day's `side` or `extras`. A
+  dish named only in prose is invisible to the shopping list.
+- **A shopping list `PUT` replaces what the plan calls for and preserves the rest** — the shopper's
+  ticks, their `haveAlready` flags, and anything they added by hand. Rebuilding after a
+  late-planned day is safe, and needs no separate merge call. (v1 needed `shopping-add` for this.)
+- **Deleting a shopping item is for manual items only.** A plan item comes back on the next
+  rebuild, so set `haveAlready` instead.
+- **Ids are unique per household, not globally.** Two households can each have a
+  `chicken-fajitas`. Every service function takes a `householdId` and filters on it — a query
+  missing that filter returns everyone's rows and looks entirely normal in review.
+- **Recipe pages are a derived view.** `/recipes/[slug]` renders from the database. (v1 generated
+  HTML into a separate repo via `recipe-render`; never hand-edit those files.)
+- **Formatting is the UI's job.** Quantities are stored as a number and a unit, and rendered as
+  fractions where they are shown. (v1 stored pre-formatted `display` columns because AppSheet could
+  not format.)
 
 ## Dev
 

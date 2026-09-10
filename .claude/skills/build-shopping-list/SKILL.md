@@ -1,106 +1,61 @@
 ---
 name: build-shopping-list
-description: Turn the current week's meal plan into a combined, aisle-categorized shopping list in Google Sheets, merging duplicate ingredients across recipes and excluding pantry staples already on hand. Use when the user says "build my shopping list", "make the grocery list", "what do I need to buy", or after planning a week.
+description: Use when the user says "build my shopping list", "make the grocery list", or "what do I need to buy", or just after a week is planned.
 ---
 
 # Build the shopping list
 
-Combine every ingredient across the planned week into one deduplicated,
-store-organized list and write it to the ShoppingList tab. The `prov` CLI
-provides the data; you do the merging and categorizing. Run from the project root.
+The API stores the list. You do the merging, the aisles, and the prices.
 
-## 1. Read the plan and pantry
+## 1. Read the week
 
 ```bash
-uv run --project python prov plan-read     # WeekPlan rows: recipe_id, servings, side_recipe_id, extras_recipe_ids
-uv run --project python prov config        # for pantry_staples (things already on hand)
+./scripts/prov GET /plans/<plan>          # e.g. 2026-W37
+./scripts/prov GET /config                # pantry_staples
 ```
 
-Collect every recipe the plan references — the `recipe_id` (main), the
-`side_recipe_id` (side), AND every id in `extras_recipe_ids` (a comma-separated
-list of any dessert or second side) — along with each row's `servings`. `WeekPlan`
-always has 7 day-slots (Mon-Sun); **skip rows whose `recipe_id` is blank** — those
-are unplanned days. A row can have extras with no side, so read `extras_recipe_ids`
-even when `side_recipe_id` is empty.
-
-## 2. Pull each recipe's ingredients
-
-For every recipe id in the plan:
+Each day carries `main`, `side` and `extras` — all recipe ids. Collect every one; a side left out
+of the plan never reaches the list.
 
 ```bash
-uv run --project python prov ingredients --recipe-id "<recipe_id>"
+./scripts/prov GET '/recipes/<recipe>/ingredients'
 ```
 
-(Or `uv run --project python prov ingredients` once for all, then filter.)
+Quantities are already at the servings that will be cooked. Do not re-scale them.
 
-## 3. Scale to planned servings (usually a no-op now)
+## 2. Merge across recipes
 
-Recipes are stored **at the cooked servings** (plan-week saves them scaled), so
-`base_servings` normally already equals the plan's `servings` and no scaling is
-needed. Only scale if a row's `servings` differs from the recipe's
-`base_servings`:
+- **Same ingredient, compatible units** → sum. Convert with
+  `./scripts/prov POST /units:convert` when needed.
+- **Same ingredient, incompatible units** → separate lines. "2 cloves garlic" and "1 tsp garlic
+  powder" are different products.
+- **Same name, different form** → separate. Fresh and canned tomatoes are not interchangeable.
+- **Round up to what a shop sells.** 1.3 onions is 2. 0.6 lb of beef is 1 lb.
+- **Convert to how it is bought.** 37 tbsp of butter is 5 sticks; 19 eggs is 2 dozen.
+
+Two lines that resolve to the same name and unit are rejected as a duplicate — merge them before
+writing.
+
+## 3. Price each line
+
+In order: a match from `./scripts/prov GET /prices`, then your own estimate. Say which lines were estimated.
+
+## 4. Mark what the household already has
+
+Set `haveAlready: true` for anything in `pantry_staples`, and for long-life goods a household that
+cooks weekly already owns — flour, sugar, vinegars, dried spices, extracts. These stay on the list
+and drop out of the total, so the number reflects the actual shop.
+
+## 5. Write it
 
 ```bash
-uv run --project python prov scale "<recipe-json>" --to <servings>
+./scripts/prov PUT '/plans/<plan>/shoppingList' @items.json
 ```
 
-If you do scale, apply judgment (see the **scale-recipe** skill): spices/salt
-don't scale linearly, round discrete items (eggs, cans) to whole.
+A `PUT` replaces what the plan calls for and leaves alone both the shopper's ticks and anything
+they added by hand, so rebuilding after a late-planned day is safe.
 
-## 4. Merge (your judgment)
+## 6. Report
 
-Combine the scaled ingredients across all recipes into a single list:
-
-- **Same ingredient + compatible units** → sum quantities (convert units with
-  `uv run --project python prov convert <qty> <from> <to>` when needed, e.g. tbsp → cup).
-- **Same ingredient, incompatible units** (e.g. "2 cloves garlic" + "1 tsp garlic
-  powder") → keep as separate line items; they're different products.
-- **Round up to purchasable amounts** (you can't buy 1.3 onions → 2; 0.5 lb beef →
-  round to a sensible package size) and note the rounding.
-- **Exclude `pantry_staples`** the user already keeps on hand; set `have_already`
-  to TRUE for anything you keep on the list but assume they own.
-- **Assign `category`** by store aisle: produce, meat, dairy, pantry, frozen,
-  bakery, other.
-- **Estimate `est_cost`** per line, in tier order: (1) learned price from
-  `uv run --project python prov prices` (`price × qty`); (2) if Kroger is configured,
-  `uv run --project python prov kroger-price "<item>"` — pick the right `candidates` entry (raw,
-  store-brand, non-organic), don't blindly trust `best`; (3) otherwise estimate.
-  After shopping, record real costs with
-  `uv run --project python prov price-set "<ingredient>" <price> --unit <u>` to sharpen future runs.
-- Fill `feeds_recipes` with the recipe titles/ids that need the item.
-
-## 5. Write the list
-
-```bash
-# Rows: {item, qty, unit, category, bought, feeds_recipes, est_cost, have_already}
-# `id` and `display` are auto-generated by shopping-write — `id` is a slug key for
-# AppSheet; `display` is the fraction-formatted line (e.g. "3½ lb chicken breast").
-# Leave `bought` and `have_already` empty — shopping-write turns those two columns
-# into tappable checkboxes (unchecked) for marking off on the phone at the store.
-echo '<shopping-rows-json>' | uv run --project python prov shopping-write -
-```
-
-`shopping-write` replaces the whole tab, so it also clears any previous list (use
-`uv run --project python prov shopping-clear` to wipe it manually). It does carry over `bought` and
-`have_already` for any item still on the rebuilt list, so a regeneration no longer
-sends the user back around the store — but only items whose name *and* unit still
-match are recognized, so keep names stable between runs. Sort rows by `category`
-so the list reads aisle-by-aisle. Report the total estimated cost and the item
-count, and tell the user the list is in the ShoppingList tab with checkboxes they
-tick from the Google Sheets phone app while shopping.
-
-## 6. Adding a day planned later
-
-When a day was unknown at first pass (a potluck, an undecided night) and gets
-planned afterwards, **do not rebuild the whole list** — price just that day's
-recipes and merge them in:
-
-```bash
-echo '<rows-for-that-day-json>' | uv run --project python prov shopping-add -
-```
-
-`shopping-add` sums quantities, costs, and `feeds_recipes` for lines already on
-the list, appends genuinely new ones unticked, and never clears a ticked row. It
-matches on item name + unit, so "3 lb chicken breast" and "1 ea rotisserie
-chicken" stay separate lines. Report what was added versus merged into an existing
-line.
+Item count, estimated total against the plan's `budgetTarget`, and — when it is over — which lines
+are driving it. Say the list is at `/shop`.

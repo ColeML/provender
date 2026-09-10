@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Call the Provender API.
+#
+#   prov GET  /recipes
+#   prov POST /recipes:scrape '{"url":"https://..."}'
+#   prov PUT  /plans/2026-W37/days/2026-09-08 @day.json
+#
+# Reads PROVENDER_API_TOKEN and PROVENDER_BASE_URL from the environment, falling back to .env.
+# Prints the response body. Exits non-zero on any 4xx or 5xx, with the body on stderr, so a
+# failing call stops a script instead of being mistaken for success.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Read before sourcing .env, applied after: sourcing assigns unconditionally, so an empty
+# `PROVENDER_BASE_URL=` line in .env would otherwise clobber one passed on the command line and
+# send a call meant for a dev server to production.
+from_env_base="${PROVENDER_BASE_URL:-}"
+from_env_token="${PROVENDER_API_TOKEN:-}"
+
+if [ -f "$root/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$root/.env"
+  set +a
+fi
+
+base="${from_env_base:-${PROVENDER_BASE_URL:-https://provender-mu.vercel.app}}"
+token="${from_env_token:-${PROVENDER_API_TOKEN:-}}"
+
+if [ -z "$token" ]; then
+  echo "prov: PROVENDER_API_TOKEN is not set (put it in .env)" >&2
+  exit 1
+fi
+
+method="${1:?usage: prov METHOD PATH [json|@file]}"
+path="${2:?usage: prov METHOD PATH [json|@file]}"
+body="${3:-}"
+
+# tr, not ${method^^}: macOS ships bash 3.2, where that expansion is a syntax error.
+verb="$(printf '%s' "$method" | tr '[:lower:]' '[:upper:]')"
+
+args=(--silent --show-error --write-out '\n%{http_code}' --request "$verb"
+  --header "authorization: Bearer $token")
+
+if [ -n "$body" ]; then
+  args+=(--header "content-type: application/json" --data "$body")
+fi
+
+response="$(curl "${args[@]}" "$base/v1${path}")"
+status="${response##*$'\n'}"
+payload="${response%$'\n'*}"
+
+if [ "$status" -ge 400 ]; then
+  echo "prov: $verb $path -> $status" >&2
+  echo "$payload" >&2
+  exit 1
+fi
+
+echo "$payload"
