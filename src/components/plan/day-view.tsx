@@ -32,7 +32,7 @@ interface Dish {
   recipe: RecipeSummary;
 }
 
-function dishesOf(day: WeekPlanDay, potluck: boolean): Dish[] {
+function dishesOf(day: WeekPlanDay): Dish[] {
   const dishes: Dish[] = [];
 
   if (day.main !== null) {
@@ -47,9 +47,7 @@ function dishesOf(day: WeekPlanDay, potluck: boolean): Dish[] {
     dishes.push({ role: "Extra", recipe: extra });
   }
 
-  // On a potluck nothing is a main, a side or an afterthought — every dish is what you carry to
-  // someone else's table, so labeling one of them "Side" contradicts the heading above it.
-  return potluck ? dishes.map((dish) => ({ ...dish, role: "Bringing" })) : dishes;
+  return dishes;
 }
 
 function summarizeWeather({ high, low, precipChance, conditions }: DayWeather) {
@@ -63,19 +61,12 @@ function summarizeWeather({ high, low, precipChance, conditions }: DayWeather) {
     .join(" · ");
 }
 
-/**
- * One day's whole meal, read at the counter rather than at a desk.
- *
- * Sized like `/shop` rather than `/plan`: the question it answers — "what are we eating tonight,
- * and what am I cooking" — is asked with a phone in one hand.
- */
 export function DayView({ planId, day, weather }: Props) {
   if (!day.planned) {
     return (
       <main className="mx-auto max-w-2xl p-4 pb-16">
         <DayHeading planId={planId} date={day.date} />
 
-        {/* The forecast still shows: on an unplanned day it is the input for what to plan. */}
         {weather === null ? null : (
           <dl className="mt-8">
             <Fact label="Forecast">{summarizeWeather(weather)}</Fact>
@@ -93,8 +84,9 @@ export function DayView({ planId, day, weather }: Props) {
     );
   }
 
-  const potluck = day.main === null && day.extras.length > 0;
-  const dishes = dishesOf(day, potluck);
+  const dishes = dishesOf(day);
+  // A single dish and no main is a potluck whether it was stored as the side or as an extra.
+  const potluck = day.main === null && dishes.length > 0;
   const timed = dishes.filter((dish) => dish.recipe.totalMin !== null);
   const totalMin = timed.reduce((total, dish) => total + (dish.recipe.totalMin ?? 0), 0);
 
@@ -122,7 +114,7 @@ export function DayView({ planId, day, weather }: Props) {
         <Fact label="Forecast">{weather === null ? "—" : summarizeWeather(weather)}</Fact>
       </dl>
 
-      {timed.length === 0 || timed.length === dishes.length ? null : (
+      {timed.length === dishes.length ? null : (
         <p className="text-muted-foreground mt-2 text-xs">
           {dishes.length - timed.length} of {dishes.length} dishes have no time recorded.
         </p>
@@ -144,21 +136,26 @@ export function DayView({ planId, day, weather }: Props) {
         </h2>
 
         {potluck ? (
-          <p className="mt-1 text-sm">No main tonight — the meal is what you are bringing.</p>
+          <p className="mt-1 text-sm">No main — the meal is what you are bringing.</p>
         ) : null}
 
         {dishes.length === 0 ? (
           <p className="mt-1 text-base">This day is planned, but no dishes are chosen yet.</p>
         ) : (
           <ul className="divide-border mt-1 divide-y">
-            {dishes.map((dish) => (
-              <li key={`${dish.role}-${dish.recipe.recipeId}`}>
+            {dishes.map((dish, position) => (
+              // Keyed by position: nothing stops a day from listing the same recipe as its side
+              // and again as an extra, and the list is never reordered or edited in place.
+              <li key={`${position}-${dish.recipe.recipeId}`}>
                 <Link
                   href={`/recipes/${dish.recipe.recipeId}`}
                   className="flex min-h-11 items-center justify-between gap-3 py-3"
                 >
                   <span className="min-w-0">
-                    <span className="text-muted-foreground block text-xs">{dish.role}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      {/* "Side" on a potluck contradicts the heading saying there is no main. */}
+                      {potluck ? "Bringing" : dish.role}
+                    </span>
                     <span className="text-lg">{dish.recipe.title}</span>
                   </span>
 

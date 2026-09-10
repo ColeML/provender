@@ -2,7 +2,7 @@
 
 import type { WeekPlanDay } from "@server/services/week-plan";
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DayView, type DayWeather } from "./day-view";
 
@@ -145,6 +145,45 @@ describe("the day view", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Potluck" })).toBeInTheDocument();
     expect(screen.getAllByText("Bringing")).toHaveLength(2);
     expect(screen.queryByText("Side")).not.toBeInTheDocument();
+  });
+
+  it("lists a dish brought twice once per role, without colliding keys", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    renderDay({
+      main: null,
+      side: recipe("baked-beans", "Baked beans"),
+      extras: [recipe("baked-beans", "Baked beans")],
+    });
+
+    expect(screen.getAllByRole("link", { name: /Baked beans/ })).toHaveLength(2);
+    expect(errors).not.toHaveBeenCalled();
+
+    errors.mockRestore();
+  });
+
+  it("reads a day whose only dish is a side as a potluck too", () => {
+    renderDay({ main: null, side: recipe("baked-beans", "Baked beans") });
+
+    expect(screen.getByRole("heading", { level: 2, name: "Potluck" })).toBeInTheDocument();
+    expect(screen.getByText("Bringing")).toBeInTheDocument();
+    expect(screen.queryByText("Side")).not.toBeInTheDocument();
+  });
+
+  it("says there is no main without claiming the day is tonight", () => {
+    renderDay({ main: null, extras: [recipe("baked-beans", "Baked beans")] });
+
+    expect(screen.queryByText(/tonight/)).not.toBeInTheDocument();
+    expect(screen.getByText(/the meal is what you are bringing/)).toBeInTheDocument();
+  });
+
+  it("says no dish has a time rather than leaving the dash unexplained", () => {
+    renderDay({
+      main: recipe("chicken-fajitas", "Chicken fajitas", null),
+      side: recipe("cilantro-rice", "Cilantro rice", null),
+    });
+
+    expect(screen.getByText("2 of 2 dishes have no time recorded.")).toBeInTheDocument();
   });
 
   it("still shows the forecast on an unplanned day, since it is the input for planning it", () => {
