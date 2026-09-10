@@ -1,22 +1,17 @@
-import { defaultShouldDehydrateQuery, QueryClient } from "@tanstack/react-query";
-import superjson from "superjson";
+import { QueryClient } from "@tanstack/react-query";
 
+/**
+ * No dehydrate/hydrate options: pages hand server-loaded data to client components as props, so
+ * no query is ever dehydrated. Add them back with the first server-side prefetch.
+ */
 export function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // Long enough that a Server Component's prefetched data is not immediately refetched on
-        // the client, short enough that a stale week plan does not linger.
+        // Long enough that a remount does not refetch what was just fetched, short enough that a
+        // stale week plan does not linger.
         staleTime: 30 * 1000,
       },
-      dehydrate: {
-        serializeData: superjson.serialize,
-        // Dehydrate still-pending queries too, so a streamed Server Component can hand the client
-        // a query that has not resolved yet instead of making it start over.
-        shouldDehydrateQuery: (query) =>
-          defaultShouldDehydrateQuery(query) || query.state.status === "pending",
-      },
-      hydrate: { deserializeData: superjson.deserialize },
     },
   });
 }
