@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { useStoredFlag } from "@/hooks/use-stored-flag";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -106,9 +107,22 @@ export function ShoppingList(props: Props) {
   return <List {...props} planId={props.planId} />;
 }
 
+/** Where the hide-bought preference lives, so it is not re-set mid-aisle after a reload. */
+const HIDE_BOUGHT_KEY = "provender.shop.hideBought";
+
 function List({ planId, budgetTarget, initialItems }: Props & { planId: string }) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
+  const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
+  const [showBought, setShowBought] = useState(false);
+
+  function onHideBoughtChange(next: boolean) {
+    setHideBought(next);
+    // Collapsed on both transitions: turning hiding on should reveal a closed list rather than
+    // whatever it was left at, and turning it off unmounts the section anyway.
+    setShowBought(false);
+  }
+
   // Per item, not one value: a successful tick must not clear a warning that belongs to a
   // different item which is still unsaved.
   const [failed, setFailed] = useState<Set<string>>(new Set());
@@ -150,8 +164,13 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
   const toBuy = items.filter((item) => !item.haveAlready);
   const alreadyHave = items.filter((item) => item.haveAlready);
   const outstanding = toBuy.filter((item) => !item.purchased);
+  const bought = toBuy.filter((item) => item.purchased);
+  // Counted from every item the plan calls for, never from what is on screen — hiding a row must
+  // not change what the shop costs.
   const remaining = outstanding.reduce((total, item) => total + (item.estCost ?? 0), 0);
   const left = outstanding.length;
+  // A hidden row is still recoverable: it moves into the "Bought" list rather than disappearing.
+  const visible = hideBought ? outstanding : toBuy;
 
   return (
     // Padded at the bottom so the sticky total never covers the last row.
@@ -161,6 +180,18 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
         <p className="text-muted-foreground mt-0.5 text-sm">
           Week of {planId} · {left} left of {toBuy.length}
         </p>
+
+        {bought.length > 0 ? (
+          <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={hideBought}
+              onChange={(event) => onHideBoughtChange(event.target.checked)}
+              className="border-muted-foreground/40 checked:border-primary checked:bg-primary size-5 appearance-none rounded border-2"
+            />
+            Hide the {bought.length} already in the trolley
+          </label>
+        ) : null}
       </header>
 
       {failed.size > 0 ? (
@@ -174,7 +205,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
       ) : null}
 
       {AISLES.map((aisle) => {
-        const rows = toBuy.filter((item) => item.category === aisle);
+        const rows = visible.filter((item) => item.category === aisle);
 
         if (rows.length === 0) {
           return null;
@@ -253,6 +284,38 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
           </section>
         );
       })}
+
+      {hideBought && bought.length > 0 ? (
+        <section className="border-border border-t px-4 py-4">
+          <button
+            type="button"
+            onClick={() => setShowBought((current) => !current)}
+            aria-expanded={showBought}
+            className="focus-visible:ring-ring text-muted-foreground min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
+          >
+            {showBought ? "Hide" : "Show"} the {bought.length} in the trolley
+          </button>
+
+          {showBought ? (
+            <ul className="mt-2">
+              {bought.map((item) => (
+                <li key={item.id}>
+                  {/* Still a checkbox, so a mis-tap can be undone without turning hiding off. */}
+                  <label className="flex min-h-11 items-center gap-3 py-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked
+                      onChange={() => onToggle(item)}
+                      className="border-primary bg-primary size-5 shrink-0 appearance-none rounded border-2"
+                    />
+                    <span className="text-muted-foreground line-through">{item.name}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
 
       {alreadyHave.length > 0 ? (
         <section className="px-4 py-5">
