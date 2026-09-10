@@ -61,6 +61,10 @@ interface TickBoxProps {
  * `primary-foreground`, so the tick is a sibling drawn over it. Baking the glyph into a
  * background image fixes its color instead, and dark mode's `primary` is a pale gold that a
  * white tick disappears against.
+ *
+ * The focus ring belongs on the input here rather than on each call site's label: the input
+ * suppresses the user-agent outline, so a call site that forgot a ring rule would have no
+ * focus indicator at all.
  */
 function TickBox({ checked, onChange, size, describedBy }: TickBoxProps) {
   const sizing = TICK_SIZES[size];
@@ -74,6 +78,7 @@ function TickBox({ checked, onChange, size, describedBy }: TickBoxProps) {
         aria-describedby={describedBy}
         className={cn(
           "peer appearance-none border-2 focus-visible:outline-none",
+          "focus-visible:ring-ring focus-visible:ring-3",
           "border-muted-foreground checked:border-primary checked:bg-primary",
           sizing.box,
           sizing.radius,
@@ -245,7 +250,6 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                   <label
                     className={cn(
                       "border-border flex min-h-14 w-full items-center gap-3 border-b px-4 py-3",
-                      "has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-3",
                       "active:bg-muted",
                     )}
                   >
