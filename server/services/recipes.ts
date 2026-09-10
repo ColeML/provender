@@ -474,7 +474,13 @@ export async function deleteIngredient(
 ) {
   const deleted = await db
     .delete(schema.ingredients)
-    .where(and(eq(schema.ingredients.recipeId, recipeId), eq(schema.ingredients.id, ingredientId)))
+    .where(
+      and(
+        eq(schema.ingredients.householdId, householdId),
+        eq(schema.ingredients.recipeId, recipeId),
+        eq(schema.ingredients.id, ingredientId),
+      ),
+    )
     .returning({ id: schema.ingredients.id });
 
   return deleted.length > 0;
