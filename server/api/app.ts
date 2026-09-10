@@ -3,6 +3,7 @@ import { historyRoutes } from "@server/api/routes/history";
 import { plansRoutes } from "@server/api/routes/plans";
 import { pricesRoutes } from "@server/api/routes/prices";
 import { shoppingRoutes } from "@server/api/routes/shopping";
+import { weatherRoutes } from "@server/api/routes/weather";
 import { recipesRoutes } from "@server/api/routes/recipes";
 import { getConfig, setConfigValue } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
@@ -106,6 +107,7 @@ api.route("/", plansRoutes);
 api.route("/", historyRoutes);
 api.route("/", shoppingRoutes);
 api.route("/", pricesRoutes);
+api.route("/", weatherRoutes);
 
 // Hono's default 404 is plain text, which would make an unknown path the one response that does
 // not follow AIP-193.
