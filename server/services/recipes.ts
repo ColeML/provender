@@ -200,6 +200,27 @@ export async function getRecipe(householdId: string, recipeId: string, db: Datab
   return recipe;
 }
 
+/**
+ * Every recipe in the library, following the page token to exhaustion.
+ *
+ * For the screens that show the whole library rather than a page of it. `listRecipes` caps a page
+ * at `MAX_PAGE_SIZE`, so a caller that asks for one big page and ignores the token silently loses
+ * everything past it — and a search over that page reports a real recipe as missing.
+ */
+export async function allRecipes(householdId: string, db: Database = defaultDb) {
+  const recipes: Recipe[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const page = await listRecipes(householdId, { pageSize: MAX_PAGE_SIZE, pageToken }, db);
+
+    recipes.push(...page.recipes);
+    pageToken = page.nextPageToken;
+  } while (pageToken !== undefined);
+
+  return recipes;
+}
+
 export async function listIngredients(
   householdId: string,
   recipeId: string,

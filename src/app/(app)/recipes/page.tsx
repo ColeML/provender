@@ -1,14 +1,34 @@
+import { householdForSession } from "@server/auth/household";
+import { allRecipes } from "@server/services/recipes";
+import { redirect } from "next/navigation";
+
+import { RecipeLibrary } from "@/components/recipes/recipe-library";
+
+import { auth } from "../../../../auth";
+
+/** Live data, and read at request time — see the note on the home page. */
+export const dynamic = "force-dynamic";
+
 export const metadata = { title: "Recipes — Provender" };
 
-/** A stub so the nav does not link into a 404 before issue #40 builds the library and cook view. */
-export default function Recipes() {
+export default async function Recipes() {
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const recipes = await allRecipes(householdForSession(session));
+
   return (
-    <main className="mx-auto max-w-2xl p-4">
-      <h1 className="text-2xl font-semibold">Recipes</h1>
-      <p className="text-muted-foreground mt-2 text-sm">
-        Not built yet — issue #40. Ask Claude Code to plan the week or scale a recipe in the
-        meantime.
-      </p>
-    </main>
+    <RecipeLibrary
+      recipes={recipes.map((recipe) => ({
+        recipeId: recipe.id,
+        title: recipe.title,
+        baseServings: recipe.baseServings,
+        totalMin: recipe.totalMin,
+        tags: recipe.tags,
+      }))}
+    />
   );
 }

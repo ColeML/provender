@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useStoredFlag } from "@/hooks/use-stored-flag";
+import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -38,36 +39,6 @@ const AISLE_LABELS: Record<string, string> = {
   pantry: "Pantry",
   other: "Other",
 };
-
-/** Quantities read as fractions, because that is how a recipe is written. */
-const FRACTIONS: Record<string, string> = {
-  "0.125": "⅛",
-  "0.25": "¼",
-  "0.33": "⅓",
-  "0.375": "⅜",
-  "0.5": "½",
-  "0.625": "⅝",
-  "0.66": "⅔",
-  "0.67": "⅔",
-  "0.75": "¾",
-  "0.875": "⅞",
-};
-
-function formatQuantity(quantity: number | null, unit: string | null) {
-  if (quantity === null) {
-    return unit ?? "";
-  }
-
-  const whole = Math.floor(quantity);
-  const remainder = Number((quantity - whole).toFixed(3));
-  const fraction = FRACTIONS[String(remainder)];
-
-  const amount = fraction
-    ? `${whole > 0 ? whole : ""}${fraction}`
-    : String(Number(quantity.toFixed(2)));
-
-  return unit ? `${amount} ${unit}` : amount;
-}
 
 /** Why the item is on the list, or that its last tick did not save. */
 function ItemSubtitle({ item, failed }: { item: ShopItem; failed: boolean }) {
