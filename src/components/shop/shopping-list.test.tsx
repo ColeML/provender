@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShoppingList, type ShopItem } from "./shopping-list";
 
@@ -63,6 +63,76 @@ function renderList(items: ShopItem[], budgetTarget: number | null = 120) {
 
   return user;
 }
+
+describe("hiding what is already in the trolley", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  function twoItemsOneBought() {
+    return renderList([
+      item({ id: "onion", name: "onion", estCost: 4 }),
+      item({ id: "beef", name: "beef", category: "meat", estCost: 6, purchased: true }),
+    ]);
+  }
+
+  it("offers the toggle only once something is in the trolley", () => {
+    renderList([item({ id: "onion", name: "onion" })]);
+
+    expect(screen.queryByRole("checkbox", { name: /already in the trolley/ })).toBeNull();
+  });
+
+  it("takes bought items out of the aisles", async () => {
+    const user = twoItemsOneBought();
+
+    expect(screen.getByRole("checkbox", { name: /beef/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+
+    expect(screen.queryByRole("checkbox", { name: /beef/ })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: /onion/ })).toBeInTheDocument();
+  });
+
+  it("keeps a mis-tap recoverable, without turning hiding off", async () => {
+    const user = twoItemsOneBought();
+
+    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+    await user.click(screen.getByRole("button", { name: /Show the 1 in the trolley/ }));
+
+    const beef = screen.getByRole("checkbox", { name: /beef/ });
+
+    expect(beef).toBeChecked();
+
+    await user.click(beef);
+
+    // Back in its aisle, and out of the trolley list.
+    expect(screen.getByRole("checkbox", { name: /beef/ })).not.toBeChecked();
+  });
+
+  it("does not change the total or the count", async () => {
+    const user = twoItemsOneBought();
+
+    expect(screen.getByLabelText("Still to buy: $4.00")).toBeInTheDocument();
+    expect(screen.getByText(/1 left of 2/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+
+    expect(screen.getByLabelText("Still to buy: $4.00")).toBeInTheDocument();
+    expect(screen.getByText(/1 left of 2/)).toBeInTheDocument();
+  });
+
+  it("remembers the choice, so it is not re-set mid-aisle", async () => {
+    const user = twoItemsOneBought();
+
+    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+
+    expect(window.localStorage.getItem("provender.shop.hideBought")).toBe("true");
+
+    cleanup();
+    twoItemsOneBought();
+
+    expect(screen.getByRole("checkbox", { name: /already in the trolley/ })).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: /beef/ })).toBeNull();
+  });
+});
 
 describe("the shopping list", () => {
   it("groups items by aisle, in the order the shop is walked", () => {

@@ -153,6 +153,12 @@ Philosophy: **test the application the way a user uses it.**
 - **Always assert the outcome.** Every interaction is followed by an assertion that the DOM or
   system updated.
 - Use `queryBy*` for `.not.toBeInTheDocument()`; `findBy*` already asserts presence.
+- **Client state that lives outside React** (`localStorage`, media queries) is read with
+  `useSyncExternalStore`, not `useState` plus an effect. A component renders on the server first,
+  so an initialiser reading the browser store would crash or hydrate to a different value, and
+  setting state in an effect starts a second render for something that was never a state change.
+  `src/hooks/use-stored-flag.ts` is the reference. Note jsdom 30 provides no `localStorage`, so
+  `vitest.setup.ts` installs a minimal one.
 - **Component tests opt into a DOM** with `// @vitest-environment jsdom` at the top of the file.
   `environmentMatchGlobs` was removed in Vitest 4, and setting jsdom globally would make every
   service and SQL test pay for a DOM it never touches.
