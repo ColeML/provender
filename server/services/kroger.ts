@@ -24,7 +24,7 @@ const API_URL = "https://api.kroger.com/v1";
 const TIMEOUT_MS = 15_000;
 
 /** The store the household shops, chosen with a location lookup and saved as a setting. */
-export const LOCATION_SETTING = "kroger_location_id";
+const LOCATION_SETTING = "kroger_location_id";
 
 export interface KrogerLocation {
   locationId: string;
@@ -81,9 +81,9 @@ interface Credentials {
   clientSecret: string;
 }
 
-function credentials(env: NodeJS.ProcessEnv = process.env): Credentials | null {
-  const clientId = env.KROGER_CLIENT_ID;
-  const clientSecret = env.KROGER_CLIENT_SECRET;
+function credentials(): Credentials | null {
+  const clientId = process.env.KROGER_CLIENT_ID;
+  const clientSecret = process.env.KROGER_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
     return null;
@@ -209,33 +209,47 @@ function requireCredentials(): Credentials {
   return creds;
 }
 
-async function get(path: string, params: Record<string, string>) {
-  const token = await accessToken(requireCredentials());
-  const query = new URLSearchParams(params);
+function refusedTheToken(status: number) {
+  return status === 401 || status === 403;
+}
 
-  let response: Response;
-
+async function send(url: string, token: string): Promise<Response> {
   try {
-    response = await fetch(`${API_URL}${path}?${query}`, {
+    return await fetch(url, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { authorization: `Bearer ${token}`, accept: "application/json" },
     });
   } catch (error) {
     throw new KrogerUnavailableError(error);
   }
+}
 
-  if (response.status === 401 || response.status === 403) {
-    // The cached token is the likely culprit — Kroger can revoke one before it expires — so drop
-    // it, but only while it is still the token this request used. A concurrent call may have
-    // minted a good one already, and wiping that would cost another mint.
+async function get(path: string, params: Record<string, string>) {
+  const creds = requireCredentials();
+  const url = `${API_URL}${path}?${new URLSearchParams(params)}`;
+
+  const token = await accessToken(creds);
+
+  let response = await send(url, token);
+
+  if (refusedTheToken(response.status)) {
+    // Kroger revokes and rotates a token before its stated expiry, so a refused one is far more
+    // likely stale than wrong — the credentials behind it were already vetted at mint time. Drop
+    // only the token this request used, since a concurrent call may have minted a good one, and
+    // leave `pendingToken` alone or a mint in flight is orphaned and posts again.
     if (cachedToken?.accessToken === token) {
-      clearTokenCache();
+      cachedToken = null;
     }
 
-    throw new KrogerNotConfiguredError(
-      `Kroger refused the request (HTTP ${response.status}). Check the credentials and that the ` +
-        "app has the Products and Locations APIs enabled.",
-    );
+    response = await send(url, await accessToken(creds));
+
+    // One retry, never a loop. A freshly minted token refused as well is Kroger misbehaving, not
+    // the deployment: bad credentials fail at the token endpoint instead.
+    if (refusedTheToken(response.status)) {
+      throw new KrogerUnavailableError(
+        `Kroger refused a freshly minted token (HTTP ${response.status})`,
+      );
+    }
   }
 
   // 429 is the daily quota, which resets, so it stays a retry-later. Any other 4xx is this
@@ -300,7 +314,7 @@ const ProductsResponseSchema = z.object({
     .optional(),
 });
 
-export function parseLocations(payload: unknown): KrogerLocation[] {
+function parseLocations(payload: unknown): KrogerLocation[] {
   const parsed = LocationsResponseSchema.safeParse(payload);
 
   if (!parsed.success) {
@@ -357,7 +371,7 @@ export async function findLocations(
 ): Promise<KrogerLocation[]> {
   const params: Record<string, string> = {
     "filter.zipCode.near": search.zipCode,
-    "filter.limit": String(Math.min(Math.max(search.limit ?? 5, 1), 200)),
+    "filter.limit": String(search.limit ?? 5),
   };
 
   if (search.chain) {
@@ -402,7 +416,7 @@ export async function searchPrices(
     await get("/products", {
       "filter.term": search.term,
       "filter.locationId": locationId,
-      "filter.limit": String(Math.min(Math.max(search.limit ?? 10, 1), 50)),
+      "filter.limit": String(search.limit ?? 10),
     }),
   );
 

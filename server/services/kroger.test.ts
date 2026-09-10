@@ -132,6 +132,18 @@ describe("findLocations", () => {
     await findLocations(H, { zipCode: "67206" });
     expect(String(without.mock.calls[1][0])).not.toContain("filter.chain");
   });
+
+  it("asks the locations endpoint, near the zip, for the number of stores requested", async () => {
+    const fetchMock = mockFetch(TOKEN, LOCATIONS);
+
+    await findLocations(H, { zipCode: "67206", limit: 3 });
+
+    const url = new URL(String(fetchMock.mock.calls[1][0]));
+
+    expect(url.pathname).toBe("/v1/locations");
+    expect(url.searchParams.get("filter.zipCode.near")).toBe("67206");
+    expect(url.searchParams.get("filter.limit")).toBe("3");
+  });
 });
 
 describe("searchPrices", () => {
@@ -177,6 +189,21 @@ describe("searchPrices", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain("filter.locationId=09900123");
   });
 
+  it("asks the products endpoint for the search term, at the store, bearing the token", async () => {
+    const fetchMock = mockFetch(TOKEN, PRODUCTS);
+
+    await searchPrices(H, { term: "ground beef", locationId: "01400943", limit: 4 }, db);
+
+    const [url, init] = fetchMock.mock.calls[1];
+    const parsed = new URL(String(url));
+
+    expect(parsed.pathname).toBe("/v1/products");
+    expect(parsed.searchParams.get("filter.term")).toBe("ground beef");
+    expect(parsed.searchParams.get("filter.locationId")).toBe("01400943");
+    expect(parsed.searchParams.get("filter.limit")).toBe("4");
+    expect(init.headers.authorization).toBe("Bearer tok");
+  });
+
   it("says which setting to fill in when no store has been chosen", async () => {
     mockFetch(TOKEN, PRODUCTS);
 
@@ -213,6 +240,27 @@ describe("parseProducts", () => {
 });
 
 describe("the access token", () => {
+  /** Wrong scope, header or body encoding all surface only as a 401 on the next call. */
+  it("is requested with Basic credentials and a form-encoded client-credentials grant", async () => {
+    const fetchMock = mockFetch(TOKEN, LOCATIONS);
+
+    await findLocations(H, { zipCode: "67206" });
+
+    const [url, init] = fetchMock.mock.calls[0];
+
+    expect(String(url)).toBe("https://api.kroger.com/v1/connect/oauth2/token");
+    expect(init.method).toBe("POST");
+    expect(init.headers.authorization).toBe(
+      `Basic ${Buffer.from("client:secret").toString("base64")}`,
+    );
+    expect(init.headers["content-type"]).toBe("application/x-www-form-urlencoded");
+    expect(init.body).toBeInstanceOf(URLSearchParams);
+    expect(Object.fromEntries(init.body as URLSearchParams)).toEqual({
+      grant_type: "client_credentials",
+      scope: "product.compact",
+    });
+  });
+
   it("is minted once and reused across calls", async () => {
     const fetchMock = mockFetch(TOKEN, LOCATIONS, LOCATIONS);
 
@@ -272,23 +320,45 @@ describe("the access token", () => {
     );
   });
 
-  it("is dropped when Kroger refuses it, so the next call mints a fresh one", async () => {
+  /** Kroger revokes and rotates a token before its stated expiry, so a refused one is stale. */
+  it("is re-minted and the call retried when Kroger refuses it mid-life", async () => {
     const fetchMock = vi.fn();
 
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => TOKEN });
     fetchMock.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => TOKEN });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: "fresh", expires_in: 1800 }),
+    });
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => LOCATIONS });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(findLocations(H, { zipCode: "67206" })).rejects.toBeInstanceOf(
-      KrogerNotConfiguredError,
-    );
     await expect(findLocations(H, { zipCode: "67206" })).resolves.toHaveLength(1);
 
     const tokenCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("oauth2/token"));
 
     expect(tokenCalls).toHaveLength(2);
+    expect(fetchMock.mock.calls[3][1].headers.authorization).toBe("Bearer fresh");
+  });
+
+  it("retries once, not in a loop, and calls a second refusal an outage", async () => {
+    const fetchMock = vi.fn();
+
+    fetchMock.mockImplementation((url: string) =>
+      String(url).includes("oauth2/token")
+        ? Promise.resolve({ ok: true, status: 200, json: async () => TOKEN })
+        : Promise.resolve({ ok: false, status: 401, json: async () => ({}) }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(findLocations(H, { zipCode: "67206" })).rejects.toBeInstanceOf(
+      KrogerUnavailableError,
+    );
+
+    const dataCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("/locations"));
+
+    expect(dataCalls).toHaveLength(2);
   });
 });
 
