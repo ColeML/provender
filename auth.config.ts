@@ -23,14 +23,12 @@ export async function authorizeHousehold(
   }
 
   if (!storedHash) {
-    // A broken deploy rather than a bad caller: nobody can sign in until it is fixed.
     logError("auth.password_hash_unset");
 
     return null;
   }
 
   if (!(await verifyPassword(password, storedHash))) {
-    // What was typed is never logged, so a mistyped password cannot reach the log.
     logWarn("auth.password_rejected", { reason: "wrong_password" });
 
     return null;
@@ -39,6 +37,24 @@ export async function authorizeHousehold(
   // A single shared identity, so the subject is a constant rather than anything derived from what
   // was typed.
   return { id: "household", name: "Household" };
+}
+
+/**
+ * The error Auth.js wrapped, if it wrapped one.
+ *
+ * An `AuthError`'s own message is only a link to the docs; whatever actually failed inside
+ * `authorize` is at `cause.err`. Three named fields are read off it rather than the cause being
+ * spread, because the rest of that object is whatever Auth.js and the thrown error attached and
+ * its shape is not ours to guarantee free of a credential.
+ */
+function wrappedCause(error: Error): Error | undefined {
+  const cause: unknown = error.cause;
+
+  if (cause && typeof cause === "object" && "err" in cause && cause.err instanceof Error) {
+    return cause.err;
+  }
+
+  return undefined;
 }
 
 /**
@@ -71,7 +87,17 @@ export const authConfig = {
         return;
       }
 
-      logError("auth.internal_error", { name: error.name, message: error.message });
+      const cause = wrappedCause(error);
+
+      logError("auth.internal_error", {
+        name: error.name,
+        message: error.message,
+        ...(cause && {
+          causeName: cause.name,
+          causeMessage: cause.message,
+          causeStack: cause.stack ?? "",
+        }),
+      });
     },
   },
 } satisfies NextAuthConfig;

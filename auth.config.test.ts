@@ -14,6 +14,20 @@ class CredentialsSignin extends Error {
   override name = "CredentialsSignin";
 }
 
+/**
+ * What Auth.js hands its logger when `authorize` throws: the wrapper's own message is only a link
+ * to the docs, and the error that actually failed is at `cause.err`.
+ */
+class CallbackRouteError extends Error {
+  override name = "CallbackRouteError";
+
+  constructor(err: Error) {
+    super("Read more at https://errors.authjs.dev#callbackrouteerror", {
+      cause: { err, provider: "credentials" },
+    });
+  }
+}
+
 let warn: MockInstance<typeof console.warn>;
 let error: MockInstance<typeof console.error>;
 
@@ -101,15 +115,20 @@ describe("the Auth.js logger", () => {
     expect(error).not.toHaveBeenCalled();
   });
 
-  it("records anything else Auth.js throws, without its own console formatting", () => {
-    authConfig.logger.error(new Error("the database is unreachable"));
+  it("records what Auth.js wrapped, not just the wrapper's link to the docs", () => {
+    const cause = new Error("the database is unreachable");
+
+    authConfig.logger.error(new CallbackRouteError(cause));
 
     expect(loggedJson(error)).toEqual([
       {
         level: "error",
         event: "auth.internal_error",
-        name: "Error",
-        message: "the database is unreachable",
+        name: "CallbackRouteError",
+        message: "Read more at https://errors.authjs.dev#callbackrouteerror",
+        causeName: "Error",
+        causeMessage: "the database is unreachable",
+        causeStack: cause.stack,
       },
     ]);
   });

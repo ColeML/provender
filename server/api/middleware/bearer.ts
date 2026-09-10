@@ -50,8 +50,6 @@ export const requireBearerToken = createMiddleware<ApiEnv>(async (c, next) => {
   const provided = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
 
   if (!provided || !tokensMatch(provided, expected)) {
-    // The token itself is never logged — the reason separates a caller who sent nothing from one
-    // whose token is wrong, which is as much as anyone needs to debug it.
     logWarn("auth.bearer_rejected", {
       method: c.req.method,
       path: c.req.path,
