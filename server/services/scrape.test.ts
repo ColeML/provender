@@ -9,6 +9,7 @@ import {
   parseYield,
   scrapeRecipe,
   toScrapedRecipe,
+  UnsupportedUrlError,
   yieldText,
 } from "./scrape";
 
@@ -270,6 +271,40 @@ describe("scrapeRecipe", () => {
 
     await expect(scrapeRecipe("https://example.test/x")).rejects.toBeInstanceOf(
       PageUnavailableError,
+    );
+  });
+
+  it.each([
+    "http://localhost:3000/x",
+    "http://127.0.0.1/x",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://10.0.0.5/x",
+    "http://192.168.1.1/x",
+    "http://172.16.0.1/x",
+    "file:///etc/passwd",
+    "not a url",
+  ])("refuses to fetch %s", async (url) => {
+    const fetchMock = vi.fn();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(scrapeRecipe(url)).rejects.toBeInstanceOf(UnsupportedUrlError);
+    // Refused before the request, not after.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a redirect that lands somewhere internal", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "http://169.254.169.254/latest/meta-data/",
+        text: async () => page(RECIPE),
+      }),
+    );
+
+    await expect(scrapeRecipe("https://example.test/redirects")).rejects.toBeInstanceOf(
+      UnsupportedUrlError,
     );
   });
 

@@ -76,6 +76,36 @@ describe("geocode", () => {
     expect(String(fetchMock.mock.calls[0][0])).not.toContain("OK");
   });
 
+  it("does not match a hint that is merely a substring of somewhere else", async () => {
+    // "yokohama" contains "ok". v1 matched on substring, so this picked Yokohama.
+    mockFetch({
+      results: [
+        {
+          name: "Edmond",
+          admin1: "Yokohama",
+          country_code: "JP",
+          latitude: 35.4,
+          longitude: 139.6,
+        },
+        {
+          name: "Edmond",
+          admin1: "Oklahoma",
+          country_code: "US",
+          latitude: 35.65,
+          longitude: -97.48,
+        },
+      ],
+    });
+
+    await expect(geocode("Edmond, OK")).resolves.toMatchObject({ latitude: 35.65 });
+  });
+
+  it("matches a country code hint exactly", async () => {
+    mockFetch(EDMONDS);
+
+    await expect(geocode("Edmond, CA")).resolves.toMatchObject({ latitude: 53.5 });
+  });
+
   it("takes the first result when there is no hint to go on", async () => {
     mockFetch(EDMONDS);
 

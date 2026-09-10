@@ -26,7 +26,12 @@ import {
   type IngredientInput,
   type Recipe,
 } from "@server/services/recipes";
-import { NoRecipeFoundError, PageUnavailableError, scrapeRecipe } from "@server/services/scrape";
+import {
+  NoRecipeFoundError,
+  PageUnavailableError,
+  scrapeRecipe,
+  UnsupportedUrlError,
+} from "@server/services/scrape";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 /**
@@ -587,7 +592,7 @@ recipesRoutes.openapi(
           },
         },
       },
-      400: { description: "The page carries no recipe" },
+      400: { description: "The page carries no recipe, or the URL is not a public web address" },
       503: { description: "The page could not be fetched" },
     },
   }),
@@ -597,7 +602,7 @@ recipesRoutes.openapi(
     try {
       return c.json(await scrapeRecipe(url), 200);
     } catch (error) {
-      if (error instanceof NoRecipeFoundError) {
+      if (error instanceof NoRecipeFoundError || error instanceof UnsupportedUrlError) {
         // The request was wrong, not the world: this URL will never have a recipe on it.
         return apiError(c, "INVALID_ARGUMENT", error.message);
       }

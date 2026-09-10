@@ -3,6 +3,7 @@ import "server-only";
 import type { Database } from "@server/db";
 import { db as defaultDb } from "@server/db";
 import { US_STATES, WMO_CONDITIONS } from "@server/lib/weather-codes";
+import { z } from "zod";
 
 import { getConfig } from "./config";
 
@@ -76,31 +77,63 @@ async function fetchJson(url: string, params: Record<string, string>) {
   return response.json() as Promise<Record<string, unknown>>;
 }
 
-interface GeocodeResult {
-  name?: string;
-  admin1?: string;
-  country?: string;
-  country_code?: string;
-  latitude: number;
-  longitude: number;
-}
+/**
+ * Validated rather than cast.
+ *
+ * Everything inbound in this codebase is parsed with zod; a third party's response deserves the
+ * same. Without it a renamed field becomes `undefined`, then the string "undefined" in the next
+ * query, and the failure surfaces as a confusing upstream error instead of a clear one.
+ */
+const GeocodeResponseSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        admin1: z.string().optional(),
+        country: z.string().optional(),
+        country_code: z.string().optional(),
+        latitude: z.number(),
+        longitude: z.number(),
+      }),
+    )
+    .optional(),
+});
+
+type GeocodeResult = NonNullable<z.infer<typeof GeocodeResponseSchema>["results"]>[number];
+
+const ForecastResponseSchema = z.object({
+  daily: z
+    .object({
+      time: z.array(z.string()).optional(),
+      temperature_2m_max: z.array(z.number().nullable()).optional(),
+      temperature_2m_min: z.array(z.number().nullable()).optional(),
+      precipitation_probability_max: z.array(z.number().nullable()).optional(),
+      weather_code: z.array(z.number().nullable()).optional(),
+    })
+    .optional(),
+});
 
 /**
  * Whether a candidate matches a trailing hint like `OK` or `United Kingdom`.
  *
- * The geocoder returns `admin1` spelled out, so an abbreviation has to be expanded before it can
- * be compared — without this, "Edmond, OK" picks whichever Edmond the geocoder ranked first.
+ * The geocoder returns `admin1` spelled out, so an abbreviation is expanded before comparing.
+ *
+ * Matched exactly, not as a substring. v1 used `includes`, which makes a two-letter code match
+ * places it has nothing to do with — "Edmond, OK" picks Yokohama, because "yokohama" contains
+ * "ok". The hint exists to disambiguate, so a wrong match is worse than no hint at all.
  */
 function matchesHint(result: GeocodeResult, hint: string) {
   const candidates = [result.admin1, result.country, result.country_code]
     .filter(Boolean)
-    .map((value) => String(value).toLowerCase());
+    .map((value) => String(value).trim().toLowerCase());
 
-  const wanted = [hint.toLowerCase(), (US_STATES[hint.toUpperCase()] ?? "").toLowerCase()].filter(
-    Boolean,
+  const wanted = new Set(
+    [hint.trim().toLowerCase(), (US_STATES[hint.trim().toUpperCase()] ?? "").toLowerCase()].filter(
+      Boolean,
+    ),
   );
 
-  return candidates.some((candidate) => wanted.some((want) => candidate.includes(want)));
+  return candidates.some((candidate) => wanted.has(candidate));
 }
 
 export async function geocode(location: string) {
@@ -113,8 +146,15 @@ export async function geocode(location: string) {
   const city = parts[0] ?? location;
   const hints = parts.slice(1);
 
-  const body = await fetchJson(GEOCODE_URL, { name: city, count: "10", format: "json" });
-  const results = (body.results ?? []) as GeocodeResult[];
+  const parsed = GeocodeResponseSchema.safeParse(
+    await fetchJson(GEOCODE_URL, { name: city, count: "10", format: "json" }),
+  );
+
+  if (!parsed.success) {
+    throw new WeatherUnavailableError("the geocoder returned an unexpected shape");
+  }
+
+  const results = parsed.data.results ?? [];
 
   if (results.length === 0) {
     throw new LocationNotFoundError(location);
@@ -169,20 +209,25 @@ export async function getForecast(
     forecast_days: String(days),
   });
 
-  const daily = (body.daily ?? {}) as Record<string, (number | null)[] | string[]>;
-  const dates = (daily.time ?? []) as string[];
+  const parsed = ForecastResponseSchema.safeParse(body);
+
+  if (!parsed.success) {
+    throw new WeatherUnavailableError("the forecast returned an unexpected shape");
+  }
+
+  const daily = parsed.data.daily ?? {};
+  const dates = daily.time ?? [];
 
   return {
     location: place.name,
     days: dates.map((date, index) => {
-      const code = (daily.weather_code as (number | null)[] | undefined)?.[index];
+      const code = daily.weather_code?.[index];
 
       return {
         date,
-        high: (daily.temperature_2m_max as (number | null)[] | undefined)?.[index] ?? null,
-        low: (daily.temperature_2m_min as (number | null)[] | undefined)?.[index] ?? null,
-        precipChance:
-          (daily.precipitation_probability_max as (number | null)[] | undefined)?.[index] ?? null,
+        high: daily.temperature_2m_max?.[index] ?? null,
+        low: daily.temperature_2m_min?.[index] ?? null,
+        precipChance: daily.precipitation_probability_max?.[index] ?? null,
         // An unmapped code is reported as unknown rather than dropped: the planner can still see
         // the temperature, and a missing day would look like a shorter forecast.
         conditions:

@@ -50,6 +50,13 @@ export class NoRecipeFoundError extends Error {
   }
 }
 
+/** The URL is one this will not fetch — a scheme or a host that has no business being scraped. */
+export class UnsupportedUrlError extends Error {
+  constructor(readonly url: string) {
+    super(`${url} is not a public web address`);
+  }
+}
+
 /** The page could not be fetched. Worth retrying, unlike a page with no recipe on it. */
 export class PageUnavailableError extends Error {
   constructor(
@@ -306,7 +313,52 @@ export function toScrapedRecipe(recipe: JsonLdRecipe, url: string): ScrapedRecip
   };
 }
 
+/**
+ * Hosts that are not somewhere a recipe lives.
+ *
+ * The caller supplies this URL, so without a check the server can be asked to fetch its own
+ * network — cloud metadata endpoints, loopback, anything on the private ranges. The API is gated
+ * to one household, which makes the blast radius small rather than the pattern acceptable, and
+ * closing it is cheaper now than once the endpoint has callers.
+ */
+function assertPublicUrl(url: string) {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new UnsupportedUrlError(url);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new UnsupportedUrlError(url);
+  }
+
+  const host = parsed.hostname.toLowerCase();
+
+  const blocked =
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "[::1]" ||
+    // IPv4 literals on the loopback, link-local and private ranges. A hostname that resolves to
+    // one of these still gets through; stopping that needs resolution before connecting, which is
+    // more machinery than this is worth for a single-household API.
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("169.254.") ||
+    host.startsWith("192.168.") ||
+    // 172.16.0.0/12 — only the second octet in 16..31, so a prefix check will not do.
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    host === "0.0.0.0";
+
+  if (blocked) {
+    throw new UnsupportedUrlError(url);
+  }
+}
+
 export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
+  assertPublicUrl(url);
+
   let response: Response;
 
   try {
@@ -322,6 +374,10 @@ export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
   } catch (error) {
     throw new PageUnavailableError(url, error);
   }
+
+  // Redirects are followed, so where we ended up matters as much as where we started. Checked
+  // outside the try, or the refusal would be caught and reported as a fetch failure.
+  assertPublicUrl(response.url || url);
 
   if (!response.ok) {
     // Includes the bot blocks some sites answer with. The spike found one such site out of
