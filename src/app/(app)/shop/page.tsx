@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { ShoppingList } from "@/components/shop/shopping-list";
 
-import { auth } from "../../../auth";
+import { auth } from "../../../../auth";
 
 /** Live data, and read at request time — see the note on the home page. */
 export const dynamic = "force-dynamic";
