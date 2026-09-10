@@ -114,6 +114,19 @@ describe("the week grid", () => {
     expect(screen.getAllByRole("combobox", { name: "Side" })[0]).toHaveValue("ziti");
   });
 
+  it("links each day to its own day view, from both the summary and the grid", () => {
+    renderGrid();
+
+    // One in the mobile summary and one in the desktop grid, since both render at every width.
+    const links = screen.getAllByRole("link", { name: /Mon 8\/31/ });
+
+    expect(links).toHaveLength(2);
+
+    for (const link of links) {
+      expect(link).toHaveAttribute("href", "/plan/2026-08-31");
+    }
+  });
+
   it("shows the forecast against the day it belongs to", () => {
     renderGrid();
 

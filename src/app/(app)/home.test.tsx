@@ -102,6 +102,23 @@ describe("the home screen", () => {
     expect(screen.getByText("potluck")).toBeInTheDocument();
   });
 
+  it("links a dinner to its day view, but not a lunch — the day view is the dinner", async () => {
+    await renderHome({
+      planId: "2026-W37",
+      isCurrentWeek: true,
+      days: [
+        day({ date: "2026-09-07", mainRecipeId: "fajitas", mainTitle: "Chicken Fajitas" }),
+        day({ date: "2026-09-08", mealSlot: "lunch", mainRecipeId: "ziti", mainTitle: "Ziti" }),
+      ],
+    });
+
+    expect(screen.getByRole("link", { name: "Monday" })).toHaveAttribute(
+      "href",
+      "/plan/2026-09-07",
+    );
+    expect(screen.queryByRole("link", { name: "Tuesday" })).not.toBeInTheDocument();
+  });
+
   it("falls back to the recipe id when a title is missing", async () => {
     await renderHome({
       planId: "2026-W37",
