@@ -120,6 +120,39 @@ describe("every documented route", () => {
   });
 });
 
+describe("a custom method on a resource", () => {
+  /**
+   * The guard on the router choice.
+   *
+   * AIP-136 puts a custom method on the resource, and only PatternRouter of Hono's four can route
+   * a colon straight after a path parameter — the others read `:recipe:scale` as one parameter
+   * named `recipe:scale`, so the real one never binds. Swapping the router back would break this
+   * and nothing else, silently.
+   */
+  it("binds the path parameter that precedes the colon", async () => {
+    const response = await api.request("/v1/recipes/no-such-recipe:scale", {
+      method: "POST",
+      headers: { ...authed.headers, "content-type": "application/json" },
+      body: JSON.stringify({ targetServings: 8 }),
+    });
+
+    // 404 with the id in the message proves the parameter bound and the lookup ran. A 400 would
+    // mean it never arrived, which is what every other router produces.
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "NOT_FOUND", message: expect.stringContaining("no-such-recipe") },
+    });
+  });
+
+  it("is advertised at its resource path", async () => {
+    const document = (await (await api.request("/v1/openapi.json")).json()) as {
+      paths: Record<string, unknown>;
+    };
+
+    expect(document.paths).toHaveProperty("/v1/recipes/{recipe}:scale");
+  });
+});
+
 describe("the OpenAPI document", () => {
   it("is served without a token, so an agent can discover the surface first", async () => {
     const response = await api.request("/v1/openapi.json");
