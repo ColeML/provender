@@ -225,6 +225,66 @@ describe("the shopping list", () => {
     expect(screen.getByRole("checkbox", { name: /milk/ })).not.toBeChecked();
   });
 
+  it("paints the tick in the color that sits on primary, not a fixed white", async () => {
+    // Load-bearing: after the tap the item is bought, and a hide-bought preference left in
+    // storage by another test would unmount the row before the assertions run.
+    window.localStorage.clear();
+
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+    const box = screen.getByRole("checkbox", { name: /onion/ });
+    const tick = box.parentElement?.querySelector("svg");
+
+    // The glyph inherits its color rather than carrying one, so it flips with the theme —
+    // white was 1.41:1 on dark mode's pale-gold `primary`.
+    expect(tick).toBeInTheDocument();
+    expect(tick).toHaveClass("text-primary-foreground");
+    expect(tick?.getAttribute("stroke")).toBe("currentColor");
+
+    // Hidden until the box is ticked, and shown by the box's own checked state.
+    expect(tick).toHaveClass("opacity-0", "peer-checked:opacity-100");
+    expect(box).toHaveClass("peer");
+
+    // `peer-checked:` compiles to a `~` sibling selector, so the classes above only do anything
+    // while the glyph is a *later* sibling of the input under the same parent. jsdom applies no
+    // CSS, so the order is what has to be asserted.
+    const siblings = Array.from(box.parentElement?.children ?? []);
+    expect(siblings.indexOf(box)).toBeGreaterThanOrEqual(0);
+    expect(siblings.indexOf(tick as Element)).toBeGreaterThan(siblings.indexOf(box));
+
+    await user.click(box);
+
+    expect(screen.getByRole("checkbox", { name: /onion/ })).toBeChecked();
+  });
+
+  it("gives every checkbox a focus ring, since they all suppress the browser's outline", async () => {
+    window.localStorage.clear();
+
+    const user = renderList([
+      item({ id: "onion", name: "onion" }),
+      item({ id: "milk", name: "milk", purchased: true }),
+    ]);
+
+    // Reveal the bought list too, so all three call sites are on screen at once.
+    await user.click(screen.getByRole("checkbox", { name: /trolley/ }));
+    await user.click(screen.getByRole("button", { name: /Show the 1 in the trolley/ }));
+
+    const boxes = screen.getAllByRole("checkbox");
+
+    expect(boxes).toHaveLength(3);
+
+    for (const box of boxes) {
+      // Suppressing the user-agent outline without putting something back leaves a keyboard
+      // shopper with no idea which box focus is on.
+      expect(box).toHaveClass("focus-visible:outline-none");
+      expect(box).toHaveClass("focus-visible:ring-ring", "focus-visible:ring-3");
+    }
+
+    // The ring lives on the input, so a label must not draw a second one around the whole row.
+    for (const label of Array.from(document.querySelectorAll("label"))) {
+      expect(label.className).not.toContain("has-[:focus-visible]:ring");
+    }
+  });
+
   it("renders quantities as fractions, the way a recipe reads", () => {
     renderList([
       item({ id: "salt", name: "salt", quantity: 0.5, unit: "tsp", category: "pantry" }),
