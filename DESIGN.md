@@ -30,12 +30,45 @@ When a rule below conflicts with something else:
 4. **This document.**
 5. **Upstream shadcn/Base UI defaults**, where Provender hasn't decided yet.
 
+## The palette
+
+**Illuminated.** A medieval manuscript page: iron-gall ink on vellum, vermilion for what the
+scribe wanted you to notice, gold leaf for what mattered most, verdigris for the rest. The name
+fits the app — *provender* is the word in Genesis 42:27 for the fodder Joseph's brothers fed their
+donkeys, and rubrication is genuinely how a scribe marked the important line in a body of text,
+which is the same job a status color does here.
+
+| Token | Light | Dark | Used for |
+| ----- | ----- | ---- | -------- |
+| `background` | vellum `#F5EEDD` | `#181310` | the page |
+| `foreground` | iron gall `#2B2118` | parchment `#EDE3CC` | body text |
+| `primary` | iron gall `#2B2118` | pale gold `#E8D9A8` | buttons, a ticked box |
+| `muted-foreground` | faded ink `#6E5F49` | `#AB9A7D` | secondary text, quantities |
+| `destructive` | vermilion `#8B2E1F` | `#D2604A` | over budget, a failed write |
+| `accent` | verdigris `#1F4E5F` | `#5FA0AF` | a second status, sparingly |
+| `ring` | old gold `#9C7B15` | leaf gold `#C9A227` | focus |
+
+Dark mode is the scriptorium at night, not an inverted page: a warm ink-stained ground under
+parchment text. Inverting the light ramp yields a blue-grey that fights every warm hue in it.
+
+- **Contrast is checked, not assumed.** Body text clears 4.5:1 on the surface behind it and focus
+  rings clear 3:1, both verified before a token lands. Leaf gold is the worked example — it reads
+  beautifully and manages only 2.09:1 on vellum, so light mode uses a darker gold and keeps the
+  leaf for dark backgrounds.
+- **Gold is for one thing per screen.** A page where three elements are gold has none.
+- Hairline `border` sits below 3:1 on purpose. It separates rows; it never carries meaning on its
+  own, and a control that needs a visible boundary gets `ring` or `muted-foreground`, not `border`.
+
 ## Foundation
 
 - **Tailwind CSS 4 + shadcn on Base UI.** Utility classes only — no inline `style`, no custom CSS
   files. Custom CSS is a last resort.
 - **Tokens, not palette values.** Every color and radius comes from `src/app/globals.css`. Never
-  an arbitrary hex, never a raw `oklch()` outside `globals.css`.
+  an arbitrary hex, never a raw `oklch()` outside `globals.css`, and never a stock Tailwind ramp
+  (`text-red-600`) where a token says the same thing — a status color has to move with the theme.
+- **Every token the components reference is defined.** `bg-input` and `border-destructive` shipped
+  in the generated checkbox for a while with no matching token, so Tailwind emitted no rule at all
+  and the styles were simply absent. Adding a primitive means checking its classes resolve.
 - **Dark mode is class-based**, via `next-themes`. Tokens first, `dark:` variants only where a
   token genuinely can't express the difference.
 - **Fluid layouts first.** Reach for `md:`/`lg:` only when fluidity can't do the job.

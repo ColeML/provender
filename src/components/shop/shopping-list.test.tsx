@@ -244,7 +244,7 @@ describe("the shopping list", () => {
   it("flags going over budget", () => {
     renderList([item({ id: "beef", name: "beef", estCost: 200 })], 120);
 
-    expect(screen.getByText("of $120.00")).toHaveClass("text-red-600");
+    expect(screen.getByText("of $120.00")).toHaveClass("text-destructive");
   });
 
   it("explains itself when no week is planned", () => {
