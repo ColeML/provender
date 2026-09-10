@@ -1,5 +1,6 @@
 import { requireBearerToken, type ApiEnv } from "@server/api/middleware/bearer";
 import { historyRoutes } from "@server/api/routes/history";
+import { krogerRoutes } from "@server/api/routes/kroger";
 import { plansRoutes } from "@server/api/routes/plans";
 import { pricesRoutes } from "@server/api/routes/prices";
 import { shoppingRoutes } from "@server/api/routes/shopping";
@@ -130,6 +131,7 @@ api.route("/", historyRoutes);
 api.route("/", shoppingRoutes);
 api.route("/", pricesRoutes);
 api.route("/", weatherRoutes);
+api.route("/", krogerRoutes);
 api.route("/", unitsRoutes);
 
 // Hono's default 404 is plain text, which would make an unknown path the one response that does

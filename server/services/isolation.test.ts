@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
@@ -14,6 +14,7 @@ import {
   RecipeNotFoundError,
   updateRecipe,
 } from "@server/services/recipes";
+import { NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
 import { listItems, replaceItems } from "@server/services/shopping";
 import { schema } from "@server/db";
 
@@ -143,5 +144,35 @@ describe("shopping lists", () => {
   it("hides another household's list", async () => {
     await expect(listItems(A, "2026-W36", db)).resolves.toHaveLength(1);
     await expect(listItems(B, "2026-W36", db)).resolves.toEqual([]);
+  });
+});
+
+describe("kroger price lookups", () => {
+  beforeEach(async () => {
+    vi.stubEnv("KROGER_CLIENT_ID", "client");
+    vi.stubEnv("KROGER_CLIENT_SECRET", "secret");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ access_token: "tok", expires_in: 1800, data: [] }),
+      }),
+    );
+    await setConfigValue(A, "kroger_location_id", "01400943", db);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("does not fall back to another household's store", async () => {
+    await expect(searchPrices(A, { term: "ground beef" }, db)).resolves.toMatchObject({
+      locationId: "01400943",
+    });
+    await expect(searchPrices(B, { term: "ground beef" }, db)).rejects.toBeInstanceOf(
+      NoStoreConfiguredError,
+    );
   });
 });
