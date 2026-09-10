@@ -2,7 +2,8 @@ import "server-only";
 
 import { getConfig } from "@server/services/config";
 import { listHistory } from "@server/services/history";
-import { currentOrLatestPlan, getPlan } from "@server/services/plans";
+import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
+import { weekPlan } from "@server/services/week-plan";
 import { listPrices } from "@server/services/prices";
 import { getForecast } from "@server/services/weather";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
@@ -89,6 +90,33 @@ export const appRouter = router({
     get: protectedProcedure
       .input(z.object({ planId: z.string().min(1) }))
       .query(({ ctx, input }) => getPlan(ctx.householdId, input.planId, ctx.db)),
+    /** What the /plan grid loads: seven dates with their recipes named and priced. */
+    week: protectedProcedure
+      .input(z.object({ planId: z.string().min(1) }))
+      .query(({ ctx, input }) => weekPlan(ctx.householdId, input.planId, ctx.db)),
+    setDay: protectedProcedure
+      .input(
+        z.object({
+          planId: z.string().min(1),
+          date: z.string().min(1),
+          servings: z.number().int().positive().max(500),
+          status: z.string().min(1).optional(),
+          notes: z.string().nullable().optional(),
+          main: z.string().nullable().optional(),
+          side: z.string().nullable().optional(),
+          extras: z.array(z.string().min(1)).optional(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const { planId, date, ...day } = input;
+
+        return setPlanDay(ctx.householdId, planId, date, "dinner", day, ctx.db);
+      }),
+    clearDay: protectedProcedure
+      .input(z.object({ planId: z.string().min(1), date: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deletePlanDay(ctx.householdId, input.planId, input.date, "dinner", {}, ctx.db),
+      ),
   }),
   recipes: router({
     list: protectedProcedure

@@ -2,7 +2,8 @@ import { type Database, db as defaultDb } from "@server/db";
 import * as schema from "@server/db/schema";
 import { isoWeekFor } from "@server/lib/iso-week";
 import { currentOrLatestPlan, type MealSlot } from "@server/services/plans";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { recipesByIds } from "@server/services/recipes";
+import { and, asc, eq } from "drizzle-orm";
 
 export interface OverviewDay {
   date: string;
@@ -81,26 +82,11 @@ export async function weekOverview(
   const dayKey = (date: string, mealSlot: string) => `${date}\u0000${mealSlot}`;
   const mainFor = new Map(mains.map((row) => [dayKey(row.date, row.mealSlot), row.recipeId]));
 
-  const titles = new Map<string, string>();
-
-  if (mains.length > 0) {
-    const rows = await db
-      .select({ id: schema.recipes.id, title: schema.recipes.title })
-      .from(schema.recipes)
-      .where(
-        and(
-          eq(schema.recipes.householdId, householdId),
-          inArray(
-            schema.recipes.id,
-            mains.map((row) => row.recipeId),
-          ),
-        ),
-      );
-
-    for (const row of rows) {
-      titles.set(row.id, row.title);
-    }
-  }
+  const recipes = await recipesByIds(
+    householdId,
+    mains.map((row) => row.recipeId),
+    db,
+  );
 
   return {
     planId: plan.id,
@@ -113,7 +99,7 @@ export async function weekOverview(
         mealSlot: day.mealSlot,
         status: day.status,
         mainRecipeId,
-        mainTitle: mainRecipeId === null ? null : (titles.get(mainRecipeId) ?? null),
+        mainTitle: mainRecipeId === null ? null : (recipes.get(mainRecipeId)?.title ?? null),
       };
     }),
     outstandingItems: items.filter((item) => !item.purchased && !item.haveAlready).length,

@@ -2,7 +2,7 @@ import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
 import { scaleFactor, snapToKitchenUnit, VOLUME_LADDER } from "@server/lib/units";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
 /**
  * The recipe library.
@@ -151,6 +151,13 @@ function decodeToken(token: string | undefined) {
   return decoded;
 }
 
+export interface RecipeSummary {
+  recipeId: string;
+  title: string;
+  costEstimate: number | null;
+  totalMin: number | null;
+}
+
 export async function listRecipes(
   householdId: string,
   options: ListOptions = {},
@@ -208,6 +215,46 @@ export async function listIngredients(
       ),
     )
     .orderBy(asc(schema.ingredients.position));
+}
+
+/**
+ * The recipes behind a set of ids, for a screen that holds ids and needs to show names.
+ *
+ * Returns a map rather than an array because every caller is doing a lookup, and an empty set of
+ * ids skips the query — `inArray` with an empty list is not valid SQL in every dialect.
+ */
+export async function recipesByIds(
+  householdId: string,
+  ids: readonly string[],
+  db: Database = defaultDb,
+) {
+  const wanted = [...new Set(ids)];
+
+  if (wanted.length === 0) {
+    return new Map<string, RecipeSummary>();
+  }
+
+  const rows = await db
+    .select({
+      id: schema.recipes.id,
+      title: schema.recipes.title,
+      costEstimate: schema.recipes.costEstimate,
+      totalMin: schema.recipes.totalMin,
+    })
+    .from(schema.recipes)
+    .where(and(eq(schema.recipes.householdId, householdId), inArray(schema.recipes.id, wanted)));
+
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      {
+        recipeId: row.id,
+        title: row.title,
+        costEstimate: row.costEstimate === null ? null : Number(row.costEstimate),
+        totalMin: row.totalMin,
+      },
+    ]),
+  );
 }
 
 /**
