@@ -38,9 +38,12 @@ Parse each raw line, so `"2 cloves garlic, minced"` becomes
 - The shopping list keys a row on name plus unit, so reuse the unit a saved recipe already uses
   for that ingredient, or the two lines never merge.
 - Add `tags`: cuisine, "quick", equipment, "kid-friendly".
-- `costEstimate` covers the whole recipe. Price from `./scripts/prov GET /prices` first, estimate
-  the rest, count `config.pantry_staples` as free, and say which lines you estimated. `/prices` is
-  what the household actually paid, so a guess does not belong in it.
+- `costEstimate` covers the whole recipe. Price from `./scripts/prov GET /prices` first, then
+  `./scripts/prov GET '/kroger/prices?term=<item>'`, then estimate the rest; count
+  `config.pantry_staples` as free and say which lines you estimated. Kroger is opt-in and answers
+  `FAILED_PRECONDITION` when it is unconfigured — skip that tier for the rest of the recipe the
+  first time it does. `/prices` is what the household actually paid, so a guess does not belong
+  in it.
 
 ## 3. Set the servings the household will cook
 

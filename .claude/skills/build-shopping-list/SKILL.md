@@ -38,7 +38,13 @@ writing.
 
 ## 3. Price each line
 
-In order: a match from `./scripts/prov GET /prices`, then your own estimate. Say which lines were estimated.
+In order: a match from `./scripts/prov GET /prices`, then `./scripts/prov GET
+'/kroger/prices?term=<item>'`, then your own estimate. Say which lines were estimated.
+
+Kroger is opt-in and answers `FAILED_PRECONDITION` when the deployment has no credentials or the
+household has picked no store. Skip that tier for the rest of the list the first time it does.
+It returns every match, including deli slices for "chicken breast" — pick the one the recipe
+meant, or fall through to an estimate.
 
 ## 4. Mark what the household already has
 
