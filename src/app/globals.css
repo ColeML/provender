@@ -3,31 +3,63 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/**
+ * The Illuminated palette. See DESIGN.md for the provenance and the rules.
+ *
+ * Every value is checked for WCAG contrast against the surface it sits on, and the hex it came
+ * from is kept in a comment so the next person can re-check the arithmetic rather than trust it.
+ */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --border: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+
+  --background: oklch(0.95 0.024 88.2); /* #F5EEDD vellum */
+  --foreground: oklch(0.257 0.022 63.6); /* #2B2118 iron-gall ink */
+  --card: oklch(0.976 0.015 90.2); /* #FBF7EC a fresher leaf */
+  --card-foreground: oklch(0.257 0.022 63.6); /* #2B2118 */
+  --primary: oklch(0.257 0.022 63.6); /* #2B2118 — a button is ink on the page */
+  --primary-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
+  --muted: oklch(0.911 0.035 88.8); /* #EBE1C8 */
+  --muted-foreground: oklch(0.494 0.038 77.2); /* #6E5F49 faded ink */
+  --border: oklch(0.857 0.044 88); /* #DCCFB0 */
+  --input: oklch(0.887 0.038 88.5); /* #E4D9BE */
+  --accent: oklch(0.399 0.058 225); /* #1F4E5F verdigris */
+  --accent-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
+  --destructive: oklch(0.437 0.13 31.7); /* #8B2E1F vermilion */
+  --destructive-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
+
+  /**
+   * Old gold, not leaf gold.
+   *
+   * Leaf gold (#C9A227) reaches only 2.09:1 on vellum, and a focus ring is the one thing a
+   * keyboard user cannot do without — WCAG 2.2 wants 3:1 for it. This is 3.45:1 on the page and
+   * 3.73:1 on a card. Dark mode keeps the brighter leaf, where it has the contrast to spare.
+   */
+  --ring: oklch(0.598 0.116 88.6); /* #9C7B15 */
 }
 
+/**
+ * The scriptorium at night, not an inverted page.
+ *
+ * Flipping the light ramp gives a blue-grey that fights the warm hues; this is ink-stained wood
+ * with parchment text on it. `primary` becomes pale gold because a dark surface needs its buttons
+ * light, which is also shadcn's convention.
+ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --ring: oklch(0.556 0 0);
+  --background: oklch(0.192 0.01 52.8); /* #181310 */
+  --foreground: oklch(0.918 0.032 87.3); /* #EDE3CC parchment */
+  --card: oklch(0.23 0.017 58.7); /* #231B15 */
+  --card-foreground: oklch(0.918 0.032 87.3); /* #EDE3CC */
+  --primary: oklch(0.886 0.066 93.1); /* #E8D9A8 pale gold */
+  --primary-foreground: oklch(0.23 0.017 58.7); /* #231B15 */
+  --muted: oklch(0.269 0.021 60.4); /* #2E241C */
+  --muted-foreground: oklch(0.693 0.045 81); /* #AB9A7D */
+  --border: oklch(0.315 0.026 64.2); /* #3B2F24 */
+  --input: oklch(0.287 0.022 57.8); /* #332820 */
+  --accent: oklch(0.668 0.07 214.2); /* #5FA0AF verdigris, lifted */
+  --accent-foreground: oklch(0.192 0.01 52.8); /* #181310 */
+  --destructive: oklch(0.656 0.143 33.2); /* #DA6C55 vermilion, lifted */
+  --destructive-foreground: oklch(0.192 0.01 52.8); /* #181310 */
+  --ring: oklch(0.728 0.138 89.7); /* #C9A227 leaf gold */
 }
 
 @theme inline {
@@ -40,6 +72,11 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-ring: var(--ring);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

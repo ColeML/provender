@@ -52,7 +52,7 @@ export default async function Login({ searchParams }: Props) {
         />
 
         {error ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-destructive text-sm">
             That password is not right.
           </p>
         ) : null}

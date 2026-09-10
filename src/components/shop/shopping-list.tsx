@@ -73,7 +73,7 @@ function formatQuantity(quantity: number | null, unit: string | null) {
 function ItemSubtitle({ item, failed }: { item: ShopItem; failed: boolean }) {
   if (failed) {
     return (
-      <span id={`${item.id}-failed`} className="block text-xs text-red-600">
+      <span id={`${item.id}-failed`} className="text-destructive block text-xs">
         Not saved — tap again
       </span>
     );
@@ -187,7 +187,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
               type="checkbox"
               checked={hideBought}
               onChange={(event) => onHideBoughtChange(event.target.checked)}
-              className="border-muted-foreground/40 checked:border-primary checked:bg-primary size-5 appearance-none rounded border-2"
+              className="border-muted-foreground checked:border-primary checked:bg-primary size-5 appearance-none rounded border-2"
             />
             Hide the {bought.length} already in the trolley
           </label>
@@ -197,7 +197,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
       {failed.size > 0 ? (
         <p
           role="alert"
-          className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          className="border-destructive/30 bg-destructive/10 text-destructive border-b px-4 py-3 text-sm"
         >
           {failed.size === 1 ? "One item did not save" : `${failed.size} items did not save`} —
           check your signal and tap {failed.size === 1 ? "it" : "them"} again.
@@ -243,7 +243,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                       aria-describedby={failed.has(item.id) ? `${item.id}-failed` : undefined}
                       className={cn(
                         "size-6 shrink-0 appearance-none rounded-md border-2 bg-no-repeat",
-                        "border-muted-foreground/40",
+                        "border-muted-foreground",
                         "checked:border-primary checked:bg-primary",
                         "checked:bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polyline points=%2220 6 9 17 4 12%22/></svg>')] checked:bg-center",
                         "focus-visible:outline-none",
@@ -344,7 +344,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
             <span
               className={cn(
                 "font-mono text-sm",
-                remaining > budgetTarget ? "text-red-600" : "text-muted-foreground",
+                remaining > budgetTarget ? "text-destructive" : "text-muted-foreground",
               )}
             >
               of ${budgetTarget.toFixed(2)}
