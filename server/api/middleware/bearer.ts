@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { apiError } from "@server/api/errors";
 import { householdForApiToken } from "@server/auth/household";
+import { logError, logWarn } from "@server/lib/log";
 import { createMiddleware } from "hono/factory";
 
 /**
@@ -38,7 +39,10 @@ export const requireBearerToken = createMiddleware<ApiEnv>(async (c, next) => {
   const expected = process.env.PROVENDER_API_TOKEN;
 
   if (!expected) {
-    // No token configured means nothing can be authenticated, so refuse rather than allow.
+    // No token configured means nothing can be authenticated, so refuse rather than allow. This
+    // is a broken deploy rather than a bad caller, and every request will fail until it is fixed.
+    logError("auth.api_token_unset", { method: c.req.method, path: c.req.path });
+
     return apiError(c, "UNAUTHENTICATED", "The API is not configured to accept requests");
   }
 
@@ -46,6 +50,12 @@ export const requireBearerToken = createMiddleware<ApiEnv>(async (c, next) => {
   const provided = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
 
   if (!provided || !tokensMatch(provided, expected)) {
+    logWarn("auth.bearer_rejected", {
+      method: c.req.method,
+      path: c.req.path,
+      reason: provided ? "wrong_token" : "no_token",
+    });
+
     return apiError(c, "UNAUTHENTICATED", "A valid bearer token is required");
   }
 
