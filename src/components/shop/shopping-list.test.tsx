@@ -226,18 +226,27 @@ describe("the shopping list", () => {
   });
 
   it("paints the tick in the color that sits on primary, not a fixed white", async () => {
+    // Load-bearing: after the tap the item is bought, and a hide-bought preference left in
+    // storage by another test would unmount the row before the assertions run.
     window.localStorage.clear();
 
     const user = renderList([item({ id: "onion", name: "onion" })]);
     const box = screen.getByRole("checkbox", { name: /onion/ });
-
-    await user.click(box);
-
     const tick = box.parentElement?.querySelector("svg");
 
+    // The glyph inherits its color rather than carrying one, so it flips with the theme —
+    // white was 1.41:1 on dark mode's pale-gold `primary`.
     expect(tick).toBeInTheDocument();
     expect(tick).toHaveClass("text-primary-foreground");
     expect(tick?.getAttribute("stroke")).toBe("currentColor");
+
+    // Hidden until the box is ticked, and shown by the box's own checked state.
+    expect(tick).toHaveClass("opacity-0", "peer-checked:opacity-100");
+    expect(box).toHaveClass("peer");
+
+    await user.click(box);
+
+    expect(screen.getByRole("checkbox", { name: /onion/ })).toBeChecked();
   });
 
   it("renders quantities as fractions, the way a recipe reads", () => {

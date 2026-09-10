@@ -41,6 +41,56 @@ const AISLE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+/** How big the box is, and the glyph inside it. */
+const TICK_SIZES = {
+  sm: { box: "size-5", radius: "rounded", tick: "size-3.5" },
+  lg: { box: "size-6", radius: "rounded-md", tick: "size-4" },
+} as const;
+
+interface TickBoxProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  size: keyof typeof TICK_SIZES;
+  describedBy?: string;
+}
+
+/**
+ * A checkbox whose tick moves with the theme.
+ *
+ * The box fills with `primary`, and one element cannot also paint a glyph in
+ * `primary-foreground`, so the tick is a sibling drawn over it. Baking the glyph into a
+ * background image fixes its color instead, and dark mode's `primary` is a pale gold that a
+ * white tick disappears against.
+ */
+function TickBox({ checked, onChange, size, describedBy }: TickBoxProps) {
+  const sizing = TICK_SIZES[size];
+
+  return (
+    <span className={cn("relative flex shrink-0 items-center justify-center", sizing.box)}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        aria-describedby={describedBy}
+        className={cn(
+          "peer appearance-none border-2 focus-visible:outline-none",
+          "border-muted-foreground checked:border-primary checked:bg-primary",
+          sizing.box,
+          sizing.radius,
+        )}
+      />
+      <Check
+        aria-hidden
+        strokeWidth={3}
+        className={cn(
+          "text-primary-foreground pointer-events-none absolute opacity-0 peer-checked:opacity-100",
+          sizing.tick,
+        )}
+      />
+    </span>
+  );
+}
+
 /** Why the item is on the list, or that its last tick did not save. */
 function ItemSubtitle({ item, failed }: { item: ShopItem; failed: boolean }) {
   if (failed) {
@@ -155,19 +205,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
 
         {bought.length > 0 ? (
           <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
-            <span className="relative flex size-5 shrink-0 items-center justify-center">
-              <input
-                type="checkbox"
-                checked={hideBought}
-                onChange={(event) => onHideBoughtChange(event.target.checked)}
-                className="border-muted-foreground checked:border-primary checked:bg-primary peer size-5 appearance-none rounded border-2"
-              />
-              <Check
-                aria-hidden
-                strokeWidth={3}
-                className="text-primary-foreground pointer-events-none absolute size-3.5 opacity-0 peer-checked:opacity-100"
-              />
-            </span>
+            <TickBox size="sm" checked={hideBought} onChange={onHideBoughtChange} />
             Hide the {bought.length} already in the trolley
           </label>
         ) : null}
@@ -211,31 +249,12 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                       "active:bg-muted",
                     )}
                   >
-                    {/*
-                      The box fills with `primary` and the tick is a sibling drawn on top in
-                      `primary-foreground`, because one element cannot paint both. Painting the
-                      glyph into the background image would fix its color, and dark mode's
-                      `primary` is a pale gold that a white tick disappears against.
-                    */}
-                    <span className="relative flex size-6 shrink-0 items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={item.purchased}
-                        onChange={() => onToggle(item)}
-                        aria-describedby={failed.has(item.id) ? `${item.id}-failed` : undefined}
-                        className={cn(
-                          "peer size-6 appearance-none rounded-md border-2",
-                          "border-muted-foreground",
-                          "checked:border-primary checked:bg-primary",
-                          "focus-visible:outline-none",
-                        )}
-                      />
-                      <Check
-                        aria-hidden
-                        strokeWidth={3}
-                        className="text-primary-foreground pointer-events-none absolute size-4 opacity-0 peer-checked:opacity-100"
-                      />
-                    </span>
+                    <TickBox
+                      size="lg"
+                      checked={item.purchased}
+                      onChange={() => onToggle(item)}
+                      describedBy={failed.has(item.id) ? `${item.id}-failed` : undefined}
+                    />
 
                     <span className="min-w-0 flex-1">
                       <span
@@ -289,19 +308,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                 <li key={item.id}>
                   {/* Still a checkbox, so a mis-tap can be undone without turning hiding off. */}
                   <label className="flex min-h-11 items-center gap-3 py-1.5 text-sm">
-                    <span className="relative flex size-5 shrink-0 items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked
-                        onChange={() => onToggle(item)}
-                        className="border-primary bg-primary peer size-5 appearance-none rounded border-2"
-                      />
-                      <Check
-                        aria-hidden
-                        strokeWidth={3}
-                        className="text-primary-foreground pointer-events-none absolute size-3.5"
-                      />
-                    </span>
+                    <TickBox size="sm" checked onChange={() => onToggle(item)} />
                     <span className="text-muted-foreground line-through">{item.name}</span>
                   </label>
                 </li>
