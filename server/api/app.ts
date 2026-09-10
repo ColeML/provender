@@ -8,6 +8,7 @@ import { weatherRoutes } from "@server/api/routes/weather";
 import { recipesRoutes } from "@server/api/routes/recipes";
 import { getConfig, setConfigValue } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { PatternRouter } from "hono/router/pattern-router";
 
 import { apiError, validationError } from "./errors";
 
@@ -38,6 +39,23 @@ const getConfigRoute = createRoute({
  * Handlers delegate to `server/services/*` and decide nothing themselves.
  */
 export const api = new OpenAPIHono<ApiEnv>({
+  /**
+   * PatternRouter, not Hono's default.
+   *
+   * AIP-136 puts a custom method on the resource — `recipes/{recipe}:scale` — and the default
+   * SmartRouter cannot express it. Its segment parser is
+   * `/^\:([^\{\}]+)(?:\{(.+)\})?$/`, and `[^{}]+` is greedy and permits colons, so
+   * `:recipe:scale` becomes one parameter *named* `recipe:scale`: the real parameter never binds
+   * and every request fails validation on a field the caller did send. A `{regex}` constraint does
+   * not help either, because it must be anchored at the end of the segment.
+   *
+   * All four routers were tried. TrieRouter behaves as above, LinearRouter binds the whole
+   * `fajitas:scale` as the value, and only PatternRouter reads it correctly.
+   *
+   * It compiles a regex per route and scans them, so it is slower than RegExpRouter — irrelevant
+   * at this size, and worth paying for URLs that match the spec they claim to follow.
+   */
+  router: new PatternRouter(),
   // Without this, a failed request validation returns Hono's own error shape and the API has two
   // error formats depending on where the failure happened.
   defaultHook: (result, c) => {

@@ -297,7 +297,7 @@ describe("POST /v1/recipes/{recipe}:scale", () => {
   });
 
   it("returns measurable quantities without changing the recipe", async () => {
-    const response = await post("/v1/recipes:scale", { recipeId: "stirfry", targetServings: 8 });
+    const response = await post("/v1/recipes/stirfry:scale", { targetServings: 8 });
 
     expect(response.status).toBe(200);
 
@@ -321,15 +321,18 @@ describe("POST /v1/recipes/{recipe}:scale", () => {
   });
 
   it("returns NOT_FOUND for a recipe that does not exist", async () => {
-    expect((await post("/v1/recipes:scale", { recipeId: "nope", targetServings: 4 })).status).toBe(
-      404,
-    );
+    const response = await post("/v1/recipes/nope:scale", { targetServings: 4 });
+
+    expect(response.status).toBe(404);
+    // Naming the recipe proves the parameter bound and the lookup ran — a missing route would
+    // also answer 404, and this test used to pass for that reason.
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "NOT_FOUND", message: expect.stringContaining("nope") },
+    });
   });
 
   it.each([0, -2])("rejects %i servings", async (targetServings) => {
-    expect((await post("/v1/recipes:scale", { recipeId: "stirfry", targetServings })).status).toBe(
-      400,
-    );
+    expect((await post(`/v1/recipes/stirfry:scale`, { targetServings })).status).toBe(400);
   });
 });
 
