@@ -14,7 +14,7 @@ import {
   RecipeNotFoundError,
   updateRecipe,
 } from "@server/services/recipes";
-import { NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
+import { clearTokenCache, NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
 import { listItems, replaceItems } from "@server/services/shopping";
 import { schema } from "@server/db";
 
@@ -149,6 +149,7 @@ describe("shopping lists", () => {
 
 describe("kroger price lookups", () => {
   beforeEach(async () => {
+    clearTokenCache();
     vi.stubEnv("KROGER_CLIENT_ID", "client");
     vi.stubEnv("KROGER_CLIENT_SECRET", "secret");
     vi.stubGlobal(
@@ -163,6 +164,7 @@ describe("kroger price lookups", () => {
   });
 
   afterEach(() => {
+    clearTokenCache();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });

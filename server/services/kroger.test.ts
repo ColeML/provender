@@ -7,8 +7,8 @@ import { setConfigValue } from "@server/services/config";
 import {
   clearTokenCache,
   findLocations,
-  isConfigured,
   KrogerNotConfiguredError,
+  KrogerRejectedRequestError,
   KrogerUnavailableError,
   NoStoreConfiguredError,
   parseProducts,
@@ -83,10 +83,6 @@ describe("without credentials", () => {
   beforeEach(() => {
     vi.stubEnv("KROGER_CLIENT_ID", "");
     vi.stubEnv("KROGER_CLIENT_SECRET", "");
-  });
-
-  it("reports the feature as not configured", () => {
-    expect(isConfigured()).toBe(false);
   });
 
   it("refuses a location lookup with a message naming the variables to set", async () => {
@@ -241,6 +237,30 @@ describe("the access token", () => {
     expect(fetchMock.mock.calls[1][1].headers.authorization).toBe("Bearer other-tok");
   });
 
+  /** A shopping list prices many ingredients at once, all on a cold module. */
+  it("is minted once for lookups that start together, not once each", async () => {
+    const fetchMock = vi.fn();
+
+    fetchMock.mockImplementation((url: string) =>
+      String(url).includes("oauth2/token")
+        ? new Promise((resolve) =>
+            setTimeout(() => resolve({ ok: true, status: 200, json: async () => TOKEN }), 10),
+          )
+        : Promise.resolve({ ok: true, status: 200, json: async () => LOCATIONS }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await Promise.all([
+      findLocations(H, { zipCode: "67206" }),
+      findLocations(H, { zipCode: "67207" }),
+      findLocations(H, { zipCode: "67208" }),
+    ]);
+
+    const tokenCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("oauth2/token"));
+
+    expect(tokenCalls).toHaveLength(1);
+  });
+
   it("reports rejected credentials as a configuration problem, not a transient one", async () => {
     vi.stubGlobal(
       "fetch",
@@ -269,6 +289,33 @@ describe("the access token", () => {
     const tokenCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("oauth2/token"));
 
     expect(tokenCalls).toHaveLength(2);
+  });
+});
+
+describe("when Kroger rejects the request", () => {
+  /** A mistyped `kroger_location_id` gets a 400 from Kroger, and no retry will fix it. */
+  it("is the caller's error, not a Kroger outage", async () => {
+    const fetchMock = vi.fn();
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => TOKEN });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      searchPrices(H, { term: "ground beef", locationId: "nope" }, db),
+    ).rejects.toBeInstanceOf(KrogerRejectedRequestError);
+  });
+
+  it("treats a spent quota as retryable, since it resets", async () => {
+    const fetchMock = vi.fn();
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => TOKEN });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(findLocations(H, { zipCode: "67206" })).rejects.toBeInstanceOf(
+      KrogerUnavailableError,
+    );
   });
 });
 

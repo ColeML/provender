@@ -4,6 +4,7 @@ import type { ApiEnv } from "@server/api/middleware/bearer";
 import {
   findLocations,
   KrogerNotConfiguredError,
+  KrogerRejectedRequestError,
   KrogerUnavailableError,
   NoStoreConfiguredError,
   searchPrices,
@@ -45,6 +46,10 @@ export const krogerRoutes = new OpenAPIHono<ApiEnv>();
 function krogerError(c: Context, error: unknown) {
   if (error instanceof KrogerNotConfiguredError || error instanceof NoStoreConfiguredError) {
     return apiError(c, "FAILED_PRECONDITION", error.message);
+  }
+
+  if (error instanceof KrogerRejectedRequestError) {
+    return apiError(c, "INVALID_ARGUMENT", error.message);
   }
 
   if (error instanceof KrogerUnavailableError) {
@@ -123,7 +128,11 @@ krogerRoutes.openapi(
           },
         },
       },
-      400: { description: "Kroger is not configured, or no store has been chosen" },
+      400: {
+        description:
+          "Kroger is not configured, no store has been chosen, or Kroger rejected the store id " +
+          "or search term",
+      },
       503: { description: "Kroger is unreachable" },
     },
   }),

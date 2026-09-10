@@ -140,6 +140,24 @@ describe("GET /v1/kroger/locations", () => {
     await expect(response.json()).resolves.toMatchObject({ error: { status: "UNAVAILABLE" } });
   });
 
+  it("answers INVALID_ARGUMENT when Kroger rejects the request itself", async () => {
+    vi.stubEnv("KROGER_CLIENT_ID", "client");
+    vi.stubEnv("KROGER_CLIENT_SECRET", "secret");
+    const fetchMock = vi.fn();
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => TOKEN });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await api.request("/v1/kroger/locations?zipCode=00000", authed);
+
+    // 503 would tell the agent to retry a request that will fail the same way every time.
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+
   it("requires a zip", async () => {
     const response = await api.request("/v1/kroger/locations", authed);
 

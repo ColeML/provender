@@ -57,6 +57,15 @@ export class KrogerUnavailableError extends Error {
   }
 }
 
+/**
+ * Kroger refused the request itself — an unknown store id, a search term below its minimum length.
+ *
+ * Separate from `KrogerUnavailableError` because retrying changes nothing: a mistyped
+ * `kroger_location_id` would otherwise be reported as Kroger being down, which sends the
+ * household to check someone else's uptime instead of their own setting.
+ */
+export class KrogerRejectedRequestError extends Error {}
+
 /** Credentials are present but no store has been picked, so a price has nowhere to come from. */
 export class NoStoreConfiguredError extends Error {
   constructor() {
@@ -83,11 +92,6 @@ function credentials(env: NodeJS.ProcessEnv = process.env): Credentials | null {
   return { clientId, clientSecret };
 }
 
-/** Whether Kroger lookups are available at all — the opt-in switch. */
-export function isConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return credentials(env) !== null;
-}
-
 const TokenResponseSchema = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().optional(),
@@ -103,24 +107,49 @@ const TokenResponseSchema = z.object({
  */
 let cachedToken: { clientId: string; accessToken: string; expiresAt: number } | null = null;
 
+/**
+ * The mint in progress, so concurrent lookups share one.
+ *
+ * A shopping list prices a dozen ingredients at once, and on a cold module each of those would
+ * otherwise miss the cache and post to the token endpoint, which Kroger rate-limits.
+ */
+let pendingToken: { clientId: string; token: Promise<string> } | null = null;
+
 /** Refresh this long before expiry, so a token cannot lapse mid-request. */
 const EXPIRY_MARGIN_MS = 30_000;
 
 /** Test seam: the cache is module state, and a test that mints a token would leak into the next. */
 export function clearTokenCache() {
   cachedToken = null;
+  pendingToken = null;
 }
 
-async function accessToken(creds: Credentials): Promise<string> {
-  const now = Date.now();
-
+function accessToken(creds: Credentials): Promise<string> {
   if (
     cachedToken &&
     cachedToken.clientId === creds.clientId &&
-    cachedToken.expiresAt > now + EXPIRY_MARGIN_MS
+    cachedToken.expiresAt > Date.now() + EXPIRY_MARGIN_MS
   ) {
-    return cachedToken.accessToken;
+    return Promise.resolve(cachedToken.accessToken);
   }
+
+  if (pendingToken?.clientId === creds.clientId) {
+    return pendingToken.token;
+  }
+
+  const token = mintToken(creds).finally(() => {
+    if (pendingToken?.clientId === creds.clientId) {
+      pendingToken = null;
+    }
+  });
+
+  pendingToken = { clientId: creds.clientId, token };
+
+  return token;
+}
+
+async function mintToken(creds: Credentials): Promise<string> {
+  const now = Date.now();
 
   const basic = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64");
 
@@ -197,12 +226,23 @@ async function get(path: string, params: Record<string, string>) {
 
   if (response.status === 401 || response.status === 403) {
     // The cached token is the likely culprit — Kroger can revoke one before it expires — so drop
-    // it rather than serving the same rejected token for another half hour.
-    clearTokenCache();
+    // it, but only while it is still the token this request used. A concurrent call may have
+    // minted a good one already, and wiping that would cost another mint.
+    if (cachedToken?.accessToken === token) {
+      clearTokenCache();
+    }
 
     throw new KrogerNotConfiguredError(
       `Kroger refused the request (HTTP ${response.status}). Check the credentials and that the ` +
         "app has the Products and Locations APIs enabled.",
+    );
+  }
+
+  // 429 is the daily quota, which resets, so it stays a retry-later. Any other 4xx is this
+  // request's own fault and will fail identically however many times it is sent.
+  if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+    throw new KrogerRejectedRequestError(
+      `Kroger rejected the request (HTTP ${response.status}). Check the store id and search term.`,
     );
   }
 
