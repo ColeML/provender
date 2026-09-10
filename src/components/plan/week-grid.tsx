@@ -141,7 +141,10 @@ export function WeekGrid({ week, recipes, forecast, defaultServings }: Props) {
         {week.days.map((day) => (
           <li key={day.date} className="py-3">
             <p className="text-sm font-medium">
-              <Link href={`/plan/${day.date}`}>
+              <Link
+                href={`/plan/${day.date}`}
+                className="inline-flex min-h-11 items-center underline"
+              >
                 {WEEKDAY.format(utc(day.date))} {DATE.format(utc(day.date))}
               </Link>
             </p>
@@ -173,7 +176,7 @@ export function WeekGrid({ week, recipes, forecast, defaultServings }: Props) {
             <section key={day.date} className="flex flex-col gap-2">
               <header>
                 <h2 className="text-sm font-medium">
-                  <Link href={`/plan/${day.date}`}>
+                  <Link href={`/plan/${day.date}`} className="underline">
                     {WEEKDAY.format(utc(day.date))}{" "}
                     <span className="text-muted-foreground font-normal">
                       {DATE.format(utc(day.date))}

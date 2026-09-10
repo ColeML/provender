@@ -44,10 +44,12 @@ function dishesOf(day: WeekPlanDay, potluck: boolean): Dish[] {
   }
 
   for (const extra of day.extras) {
-    dishes.push({ role: potluck ? "Bringing" : "Extra", recipe: extra });
+    dishes.push({ role: "Extra", recipe: extra });
   }
 
-  return dishes;
+  // On a potluck nothing is a main, a side or an afterthought — every dish is what you carry to
+  // someone else's table, so labeling one of them "Side" contradicts the heading above it.
+  return potluck ? dishes.map((dish) => ({ ...dish, role: "Bringing" })) : dishes;
 }
 
 function summarizeWeather({ high, low, precipChance, conditions }: DayWeather) {
@@ -72,6 +74,13 @@ export function DayView({ planId, day, weather }: Props) {
     return (
       <main className="mx-auto max-w-2xl p-4 pb-16">
         <DayHeading planId={planId} date={day.date} />
+
+        {/* The forecast still shows: on an unplanned day it is the input for what to plan. */}
+        {weather === null ? null : (
+          <dl className="mt-8">
+            <Fact label="Forecast">{summarizeWeather(weather)}</Fact>
+          </dl>
+        )}
 
         <p className="mt-8 text-base">
           Nothing is planned for this day.{" "}

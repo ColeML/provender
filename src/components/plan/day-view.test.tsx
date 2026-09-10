@@ -135,6 +135,24 @@ describe("the day view", () => {
     expect(screen.queryByText(/no dishes are chosen yet/)).not.toBeInTheDocument();
   });
 
+  it("calls a potluck's side a dish you are bringing, not a side to a main there is none of", () => {
+    renderDay({
+      main: null,
+      side: recipe("baked-beans", "Baked beans"),
+      extras: [recipe("key-lime-pie", "Key lime pie")],
+    });
+
+    expect(screen.getByRole("heading", { level: 2, name: "Potluck" })).toBeInTheDocument();
+    expect(screen.getAllByText("Bringing")).toHaveLength(2);
+    expect(screen.queryByText("Side")).not.toBeInTheDocument();
+  });
+
+  it("still shows the forecast on an unplanned day, since it is the input for planning it", () => {
+    renderDay({ planned: false, servings: null, status: "unplanned" }, weather);
+
+    expect(screen.getByText("88° / 61° · Mainly clear · 20% rain")).toBeInTheDocument();
+  });
+
   it("distinguishes a planned day with nothing chosen from an unplanned one", () => {
     renderDay({ planned: true });
 

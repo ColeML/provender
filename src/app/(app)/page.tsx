@@ -72,7 +72,10 @@ export default async function Home() {
                     {day.mealSlot === "dinner" ? (
                       // Only dinners: the day view is the dinner, so a lunch row linking there
                       // would show a meal the reader did not tap.
-                      <Link href={`/plan/${day.date}`}>
+                      <Link
+                        href={`/plan/${day.date}`}
+                        className="inline-flex min-h-11 items-center underline"
+                      >
                         {WEEKDAY.format(new Date(`${day.date}T00:00:00Z`))}
                       </Link>
                     ) : (

@@ -12,7 +12,25 @@ import { auth } from "../../../../../auth";
 /** Live data, and read at request time — see the note on the home page. */
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Day — Provender" };
+const TITLE_DATE = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+export async function generateMetadata({ params }: { params: Promise<{ date: string }> }) {
+  const { date } = await params;
+
+  if (!isCalendarDate(date)) {
+    return { title: "Day — Provender" };
+  }
+
+  return { title: `${TITLE_DATE.format(new Date(`${date}T00:00:00Z`))} — Provender` };
+}
+
+/** How far ahead Open-Meteo will forecast, and the most `getForecast` will return. */
+const FORECAST_DAYS = 16;
 
 function unplannedDay(date: string): WeekPlanDay {
   return {
@@ -27,10 +45,25 @@ function unplannedDay(date: string): WeekPlanDay {
   };
 }
 
-/** Never fails the page: a forecast is context for the day, not the point of it. */
+/**
+ * Never fails the page: a forecast is context for the day, not the point of it.
+ *
+ * A date outside the forecast window skips the request entirely. Open-Meteo only answers for today
+ * onward, so last Tuesday would otherwise pay a geocode and a forecast call — each with a 15s
+ * timeout — to render the same dash it renders for free.
+ */
 async function weatherOrNothing(householdId: string, date: string): Promise<DayWeather | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const horizon = new Date(`${today}T00:00:00Z`);
+
+  horizon.setUTCDate(horizon.getUTCDate() + FORECAST_DAYS - 1);
+
+  if (date < today || date > horizon.toISOString().slice(0, 10)) {
+    return null;
+  }
+
   try {
-    const { days } = await getForecast(householdId, { days: 16 });
+    const { days } = await getForecast(householdId, { days: FORECAST_DAYS });
 
     return days.find((day) => day.date === date) ?? null;
   } catch {
