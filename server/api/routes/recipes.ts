@@ -1,6 +1,7 @@
 import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
 import {
+  CategorySchema,
   IngredientInputSchema,
   IngredientSchema,
   ListRecipesResponseSchema,
@@ -18,12 +19,19 @@ import {
   addIngredient,
   getIngredient,
   InvalidPageTokenError,
+  scaleRecipe,
   RecipeExistsError,
   RecipeNotFoundError,
   type Ingredient,
   type IngredientInput,
   type Recipe,
 } from "@server/services/recipes";
+import {
+  NoRecipeFoundError,
+  PageUnavailableError,
+  scrapeRecipe,
+  UnsupportedUrlError,
+} from "@server/services/scrape";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 /**
@@ -456,5 +464,156 @@ recipesRoutes.openapi(
     }
 
     return c.json({}, 200);
+  },
+);
+
+recipesRoutes.openapi(
+  createRoute({
+    method: "post",
+    // AIP-136: a custom method, because scaling neither creates nor changes a resource. POST
+    // rather than GET because it is a computation over a body, and it deliberately writes nothing.
+    path: "/recipes:scale",
+    summary: "Scale a recipe's ingredients without changing it",
+    description:
+      "The mechanical half of scaling. Volume quantities snap to something a kitchen can " +
+      "measure, which may change the unit \u2014 4/9 cup becomes 7 1/8 tbsp. The judgment stays with " +
+      "the caller: spices and leavening do not scale linearly, eggs and cans round to whole " +
+      "numbers, and cook time and pan size need adjusting.\n\n" +
+      "The recipe is named in the body rather than the path. AIP-136 would put this on the " +
+      "resource (`recipes/{recipe}:scale`), but Hono reads a colon as a parameter marker, so a " +
+      "colon straight after a path parameter makes the parameter unbindable \u2014 verified, " +
+      "including with the colon escaped. A collection-level custom method is the same AIP-136 " +
+      "shape without the collision.",
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: z.object({
+              recipeId: z.string().min(1),
+              targetServings: z.number().int().positive().max(500),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "The scaled ingredients",
+        content: {
+          "application/json": {
+            schema: z.object({
+              recipeId: z.string(),
+              baseServings: z.number().int(),
+              targetServings: z.number().int(),
+              factor: z.number(),
+              ingredients: z.array(
+                z.object({
+                  ingredientName: z.string(),
+                  quantity: z.number().nullable(),
+                  unit: z.string().nullable(),
+                  category: CategorySchema,
+                  notes: z.string().nullable(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      404: { description: "No such recipe" },
+    },
+  }),
+  async (c) => {
+    const { recipeId, targetServings } = c.req.valid("json");
+
+    try {
+      const scaled = await scaleRecipe(c.get("householdId"), recipeId, targetServings);
+
+      return c.json(
+        {
+          ...scaled,
+          ingredients: scaled.ingredients.map((ingredient) => ({
+            ingredientName: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            category: ingredient.category,
+            notes: ingredient.notes,
+          })),
+        },
+        200,
+      );
+    } catch (error) {
+      if (error instanceof RecipeNotFoundError) {
+        return apiError(c, "NOT_FOUND", error.message);
+      }
+
+      throw error;
+    }
+  },
+);
+
+recipesRoutes.openapi(
+  createRoute({
+    method: "post",
+    // A collection-level custom method, for the same router reason as `:scale`.
+    path: "/recipes:scrape",
+    summary: "Read a recipe off a web page without saving it",
+    description:
+      "Returns a draft from the page's schema.org JSON-LD, which 19 of the 20 sites in the " +
+      "existing library publish. Nothing is written: ingredient lines come back raw, because " +
+      "turning '2 cloves garlic, minced' into fields is judgment, and the caller creates the " +
+      "recipe once it is happy.\n\n" +
+      "`baseServings` is the first number in the page's yield, so check `yieldText` before " +
+      "trusting it \u2014 '1 loaf' parses to 1, and scaling from that would multiply a whole " +
+      "recipe.",
+    request: {
+      body: {
+        content: {
+          "application/json": { schema: z.object({ url: z.string().url() }) },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "The draft recipe",
+        content: {
+          "application/json": {
+            schema: z.object({
+              title: z.string(),
+              sourceUrl: z.string(),
+              imageUrl: z.string().nullable(),
+              baseServings: z.number().int().nullable(),
+              yieldText: z.string().nullable(),
+              prepMin: z.number().int().nullable(),
+              cookMin: z.number().int().nullable(),
+              totalMin: z.number().int().nullable(),
+              ingredients: z.array(z.object({ text: z.string() })),
+              instructions: z.array(z.string()),
+            }),
+          },
+        },
+      },
+      400: { description: "The page carries no recipe, or the URL is not a public web address" },
+      503: { description: "The page could not be fetched" },
+    },
+  }),
+  async (c) => {
+    const { url } = c.req.valid("json");
+
+    try {
+      return c.json(await scrapeRecipe(url), 200);
+    } catch (error) {
+      if (error instanceof NoRecipeFoundError || error instanceof UnsupportedUrlError) {
+        // The request was wrong, not the world: this URL will never have a recipe on it.
+        return apiError(c, "INVALID_ARGUMENT", error.message);
+      }
+
+      if (error instanceof PageUnavailableError) {
+        // Includes the bot blocks a few sites answer with, where reading the page yourself is
+        // the fallback the spike settled on.
+        return apiError(c, "UNAVAILABLE", error.message);
+      }
+
+      throw error;
+    }
   },
 );

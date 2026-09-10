@@ -4,6 +4,7 @@ import { getConfig } from "@server/services/config";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, getPlan } from "@server/services/plans";
 import { listPrices } from "@server/services/prices";
+import { getForecast } from "@server/services/weather";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes } from "@server/services/recipes";
 
@@ -31,6 +32,13 @@ export const appRouter = router({
   }),
   prices: router({
     list: protectedProcedure.query(({ ctx }) => listPrices(ctx.householdId, ctx.db)),
+  }),
+  weather: router({
+    get: protectedProcedure
+      .input(
+        z.object({ location: z.string().optional(), days: z.number().int().optional() }).optional(),
+      )
+      .query(({ ctx, input }) => getForecast(ctx.householdId, input ?? {}, ctx.db)),
   }),
   shoppingList: router({
     get: protectedProcedure

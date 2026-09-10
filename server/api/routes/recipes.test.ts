@@ -283,3 +283,151 @@ describe("DELETE /v1/recipes/{recipe}", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("POST /v1/recipes/{recipe}:scale", () => {
+  beforeEach(async () => {
+    await post("/v1/recipes?recipeId=stirfry", {
+      title: "Stir fry",
+      baseServings: 6,
+      ingredients: [
+        { ingredientName: "soy sauce", quantity: 1 / 3, unit: "cup", category: "pantry" },
+        { ingredientName: "chicken", quantity: 1.5, unit: "lb", category: "meat" },
+      ],
+    });
+  });
+
+  it("returns measurable quantities without changing the recipe", async () => {
+    const response = await post("/v1/recipes:scale", { recipeId: "stirfry", targetServings: 8 });
+
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as {
+      factor: number;
+      ingredients: { ingredientName: string; quantity: number; unit: string }[];
+    };
+
+    expect(body.factor).toBeCloseTo(4 / 3, 4);
+    expect(body.ingredients).toEqual([
+      expect.objectContaining({ ingredientName: "soy sauce", quantity: 7.125, unit: "tbsp" }),
+      expect.objectContaining({ ingredientName: "chicken", quantity: 2, unit: "lb" }),
+    ]);
+
+    // Still 1/3 cup on the stored recipe.
+    const stored = (await (
+      await api.request("/v1/recipes/stirfry/ingredients", { headers: authed })
+    ).json()) as { ingredients: { quantity: number; unit: string }[] };
+
+    expect(stored.ingredients[0].unit).toBe("cup");
+  });
+
+  it("returns NOT_FOUND for a recipe that does not exist", async () => {
+    expect((await post("/v1/recipes:scale", { recipeId: "nope", targetServings: 4 })).status).toBe(
+      404,
+    );
+  });
+
+  it.each([0, -2])("rejects %i servings", async (targetServings) => {
+    expect((await post("/v1/recipes:scale", { recipeId: "stirfry", targetServings })).status).toBe(
+      400,
+    );
+  });
+});
+
+describe("POST /v1/units:convert", () => {
+  it("converts within a dimension", async () => {
+    const response = await post("/v1/units:convert", { quantity: 1, from: "cup", to: "tbsp" });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ quantity: 16, unit: "tbsp" });
+  });
+
+  it("refuses volume against mass", async () => {
+    const response = await post("/v1/units:convert", { quantity: 1, from: "cup", to: "gram" });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT", message: expect.stringContaining("volume") },
+    });
+  });
+
+  it("refuses a unit it does not know", async () => {
+    expect((await post("/v1/units:convert", { quantity: 1, from: "clove", to: "g" })).status).toBe(
+      400,
+    );
+  });
+});
+
+describe("POST /v1/recipes:scrape", () => {
+  it("returns a draft without saving it", async () => {
+    const jsonLd = {
+      "@type": "Recipe",
+      name: "Scraped Fajitas",
+      recipeYield: ["4", "4 (2 fajitas each)"],
+      totalTime: "PT40M",
+      recipeIngredient: ["2 lb chicken", "3 peppers"],
+      recipeInstructions: [{ "@type": "HowToStep", text: "Cook." }],
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: async () =>
+          `<html><head><script type="application/ld+json">${JSON.stringify(
+            jsonLd,
+          )}</script></head></html>`,
+      }),
+    );
+
+    const response = await post("/v1/recipes:scrape", { url: "https://example.test/fajitas" });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      title: "Scraped Fajitas",
+      baseServings: 4,
+      yieldText: "4 (2 fajitas each)",
+      totalMin: 40,
+      ingredients: [{ text: "2 lb chicken" }, { text: "3 peppers" }],
+    });
+
+    // Nothing was created.
+    const list = (await (await api.request("/v1/recipes", { headers: authed })).json()) as {
+      recipes: unknown[];
+    };
+
+    expect(list.recipes).toEqual([]);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("returns INVALID_ARGUMENT for a page with no recipe", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, text: async () => "<html><body>blog</body></html>" }),
+    );
+
+    const response = await post("/v1/recipes:scrape", { url: "https://example.test/blog" });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("returns UNAVAILABLE when the page refuses to load", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+
+    const response = await post("/v1/recipes:scrape", { url: "https://example.test/blocked" });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ error: { status: "UNAVAILABLE" } });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects something that is not a URL", async () => {
+    expect((await post("/v1/recipes:scrape", { url: "not a url" })).status).toBe(400);
+  });
+});

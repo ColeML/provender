@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database } from "@server/db";
+import { scaleFactor, snapToKitchenUnit, VOLUME_LADDER } from "@server/lib/units";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 /**
@@ -430,4 +431,78 @@ export async function deleteIngredient(
     .returning({ id: schema.ingredients.id });
 
   return deleted.length > 0;
+}
+
+export interface ScaledIngredient {
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  category: Ingredient["category"];
+  notes: string | null;
+}
+
+export interface ScaledRecipe {
+  recipeId: string;
+  baseServings: number;
+  targetServings: number;
+  factor: number;
+  ingredients: ScaledIngredient[];
+}
+
+/**
+ * A recipe's ingredients at a different serving count, without writing anything.
+ *
+ * The mechanical half of scaling only. The judgment — spices and leavening that do not scale
+ * linearly, rounding eggs and cans to whole numbers, adjusting cook time and pan size — stays with
+ * the caller, as `PLAN.md` intends and as v1's `scale-recipe` skill does.
+ *
+ * Volume quantities are snapped to something a kitchen can measure, which may change the unit
+ * (`4/9 cup` becomes `7⅛ tbsp`). Everything else scales linearly, and an ingredient with no
+ * quantity — "salt, to taste" — passes through untouched.
+ */
+export async function scaleRecipe(
+  householdId: string,
+  recipeId: string,
+  targetServings: number,
+  db: Database = defaultDb,
+): Promise<ScaledRecipe> {
+  const recipe = await getRecipe(householdId, recipeId, db);
+  const ingredients = await listIngredients(householdId, recipeId, db);
+  const factor = scaleFactor(recipe.baseServings, targetServings);
+
+  return {
+    recipeId,
+    baseServings: recipe.baseServings,
+    targetServings,
+    factor,
+    ingredients: ingredients.map((ingredient) => {
+      if (ingredient.quantity === null) {
+        return {
+          name: ingredient.name,
+          quantity: null,
+          unit: ingredient.unit,
+          category: ingredient.category,
+          notes: ingredient.notes,
+        };
+      }
+
+      const raw = Number(ingredient.quantity) * factor;
+      const unit = ingredient.unit ?? "";
+      const onLadder = (VOLUME_LADDER as readonly string[]).includes(unit.trim().toLowerCase());
+
+      // Only ladder units are snapped. A count like "3 cloves" has no fraction worth cleaning up,
+      // and snapping a mass would round away a real difference.
+      const scaled = onLadder
+        ? snapToKitchenUnit(raw, unit)
+        : { quantity: Number(raw.toFixed(3)), unit: ingredient.unit };
+
+      return {
+        name: ingredient.name,
+        quantity: scaled.quantity,
+        unit: scaled.unit ?? ingredient.unit,
+        category: ingredient.category,
+        notes: ingredient.notes,
+      };
+    }),
+  };
 }

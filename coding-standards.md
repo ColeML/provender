@@ -97,6 +97,11 @@ the Overview note; the rules a handler has to honor:
   `updateTime` (AIP-142).
 - Standard methods before custom ones. Custom methods take the `:verb` suffix (AIP-136) and are a
   last resort.
+- **A custom method goes on the collection, not the resource** — `POST /v1/recipes:scale` with the
+  id in the body, not `POST /v1/recipes/{recipe}:scale`. Hono reads `:` as a parameter marker, so a
+  colon straight after a path parameter leaves that parameter unbound and every request fails
+  validation on a field the caller did send. Verified, including with the colon escaped. This is a
+  router constraint, not a preference, so don't "fix" it back.
 - `PATCH` with `updateMask`, never `PUT` (AIP-134). Create takes a client-assigned id (AIP-133).
 - List returns `nextPageToken` and accepts `pageSize`/`pageToken`/`filter`/`orderBy`.
 - Errors use the AIP-193 shape via `server/api/errors.ts`. Never return a bare string or Hono's
