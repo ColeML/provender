@@ -118,8 +118,8 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
 
   function onHideBoughtChange(next: boolean) {
     setHideBought(next);
-    // Collapse the bought list when hiding is turned off, so the two controls cannot end up
-    // saying contradictory things.
+    // Collapsed on both transitions: turning hiding on should reveal a closed list rather than
+    // whatever it was left at, and turning it off unmounts the section anyway.
     setShowBought(false);
   }
 
