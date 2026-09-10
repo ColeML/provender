@@ -1,6 +1,7 @@
 import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
 import {
+  CategorySchema,
   IngredientInputSchema,
   IngredientSchema,
   ListRecipesResponseSchema,
@@ -18,6 +19,7 @@ import {
   addIngredient,
   getIngredient,
   InvalidPageTokenError,
+  scaleRecipe,
   RecipeExistsError,
   RecipeNotFoundError,
   type Ingredient,
@@ -456,5 +458,89 @@ recipesRoutes.openapi(
     }
 
     return c.json({}, 200);
+  },
+);
+
+recipesRoutes.openapi(
+  createRoute({
+    method: "post",
+    // AIP-136: a custom method, because scaling neither creates nor changes a resource. POST
+    // rather than GET because it is a computation over a body, and it deliberately writes nothing.
+    path: "/recipes:scale",
+    summary: "Scale a recipe's ingredients without changing it",
+    description:
+      "The mechanical half of scaling. Volume quantities snap to something a kitchen can " +
+      "measure, which may change the unit \u2014 4/9 cup becomes 7 1/8 tbsp. The judgment stays with " +
+      "the caller: spices and leavening do not scale linearly, eggs and cans round to whole " +
+      "numbers, and cook time and pan size need adjusting.\n\n" +
+      "The recipe is named in the body rather than the path. AIP-136 would put this on the " +
+      "resource (`recipes/{recipe}:scale`), but Hono reads a colon as a parameter marker, so a " +
+      "colon straight after a path parameter makes the parameter unbindable \u2014 verified, " +
+      "including with the colon escaped. A collection-level custom method is the same AIP-136 " +
+      "shape without the collision.",
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: z.object({
+              recipeId: z.string().min(1),
+              targetServings: z.number().int().positive().max(500),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "The scaled ingredients",
+        content: {
+          "application/json": {
+            schema: z.object({
+              recipeId: z.string(),
+              baseServings: z.number().int(),
+              targetServings: z.number().int(),
+              factor: z.number(),
+              ingredients: z.array(
+                z.object({
+                  ingredientName: z.string(),
+                  quantity: z.number().nullable(),
+                  unit: z.string().nullable(),
+                  category: CategorySchema,
+                  notes: z.string().nullable(),
+                }),
+              ),
+            }),
+          },
+        },
+      },
+      404: { description: "No such recipe" },
+    },
+  }),
+  async (c) => {
+    const { recipeId, targetServings } = c.req.valid("json");
+
+    try {
+      const scaled = await scaleRecipe(c.get("householdId"), recipeId, targetServings);
+
+      return c.json(
+        {
+          ...scaled,
+          ingredients: scaled.ingredients.map((ingredient) => ({
+            ingredientName: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            category: ingredient.category,
+            notes: ingredient.notes,
+          })),
+        },
+        200,
+      );
+    } catch (error) {
+      if (error instanceof RecipeNotFoundError) {
+        return apiError(c, "NOT_FOUND", error.message);
+      }
+
+      throw error;
+    }
   },
 );

@@ -17,6 +17,7 @@ import {
   listRecipes,
   RecipeExistsError,
   RecipeNotFoundError,
+  scaleRecipe,
   updateRecipe,
 } from "./recipes";
 
@@ -310,5 +311,74 @@ describe("deleteIngredient", () => {
 
     await expect(deleteIngredient(HOUSEHOLD, "other", "fajitas_salt", db)).resolves.toBe(false);
     expect(await listIngredients(HOUSEHOLD, "fajitas", db)).toHaveLength(3);
+  });
+});
+
+describe("scaleRecipe", () => {
+  beforeEach(async () => {
+    await createRecipe(
+      HOUSEHOLD,
+      "stirfry",
+      { title: "Stir fry", baseServings: 6 },
+      [
+        { name: "soy sauce", quantity: 1 / 3, unit: "cup", category: "pantry" },
+        { name: "chicken breast", quantity: 1.5, unit: "lb", category: "meat" },
+        { name: "garlic", quantity: 3, unit: "clove", category: "produce" },
+        { name: "salt", quantity: null, unit: null, category: "pantry", notes: "to taste" },
+      ],
+      db,
+    );
+  });
+
+  it("snaps a volume to something measurable, changing the unit if needed", async () => {
+    // 1/3 cup at 6 servings becomes 4/9 cup at 8 — which is 7 1/8 tbsp.
+    const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
+    const soy = scaled.ingredients.find((row) => row.name === "soy sauce");
+
+    expect(soy).toMatchObject({ quantity: 7.125, unit: "tbsp" });
+  });
+
+  it("scales a mass linearly and leaves its unit alone", async () => {
+    const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
+    const chicken = scaled.ingredients.find((row) => row.name === "chicken breast");
+
+    expect(chicken).toMatchObject({ quantity: 2, unit: "lb" });
+  });
+
+  it("scales a count without pretending it is a fraction", async () => {
+    const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
+    const garlic = scaled.ingredients.find((row) => row.name === "garlic");
+
+    // 4 cloves exactly; rounding to whole is the caller's judgment, not this function's.
+    expect(garlic).toMatchObject({ quantity: 4, unit: "clove" });
+  });
+
+  it("leaves a to-taste ingredient untouched", async () => {
+    const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
+    const salt = scaled.ingredients.find((row) => row.name === "salt");
+
+    expect(salt).toMatchObject({ quantity: null, notes: "to taste" });
+  });
+
+  it("writes nothing — the stored recipe is unchanged", async () => {
+    await scaleRecipe(HOUSEHOLD, "stirfry", 24, db);
+
+    const stored = await listIngredients(HOUSEHOLD, "stirfry", db);
+    const soy = stored.find((row) => row.name === "soy sauce");
+
+    expect(Number(soy?.quantity)).toBeCloseTo(1 / 3, 4);
+    expect((await getRecipe(HOUSEHOLD, "stirfry", db)).baseServings).toBe(6);
+  });
+
+  it("reports the factor it used", async () => {
+    await expect(scaleRecipe(HOUSEHOLD, "stirfry", 3, db)).resolves.toMatchObject({
+      baseServings: 6,
+      targetServings: 3,
+      factor: 0.5,
+    });
+  });
+
+  it("reports a recipe that does not exist", async () => {
+    await expect(scaleRecipe(HOUSEHOLD, "nope", 4, db)).rejects.toBeInstanceOf(RecipeNotFoundError);
   });
 });
