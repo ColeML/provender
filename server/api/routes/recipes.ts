@@ -472,26 +472,20 @@ recipesRoutes.openapi(
     method: "post",
     // AIP-136: a custom method, because scaling neither creates nor changes a resource. POST
     // rather than GET because it is a computation over a body, and it deliberately writes nothing.
-    path: "/recipes:scale",
+    // AIP-136 on the resource, which PatternRouter can route — see the note in `app.ts`.
+    path: "/recipes/{recipe}:scale",
     summary: "Scale a recipe's ingredients without changing it",
     description:
       "The mechanical half of scaling. Volume quantities snap to something a kitchen can " +
       "measure, which may change the unit \u2014 4/9 cup becomes 7 1/8 tbsp. The judgment stays with " +
       "the caller: spices and leavening do not scale linearly, eggs and cans round to whole " +
-      "numbers, and cook time and pan size need adjusting.\n\n" +
-      "The recipe is named in the body rather than the path. AIP-136 would put this on the " +
-      "resource (`recipes/{recipe}:scale`), but Hono reads a colon as a parameter marker, so a " +
-      "colon straight after a path parameter makes the parameter unbindable \u2014 verified, " +
-      "including with the colon escaped. A collection-level custom method is the same AIP-136 " +
-      "shape without the collision.",
+      "numbers, and cook time and pan size need adjusting.",
     request: {
+      params: RecipeIdParam,
       body: {
         content: {
           "application/json": {
-            schema: z.object({
-              recipeId: z.string().min(1),
-              targetServings: z.number().int().positive().max(500),
-            }),
+            schema: z.object({ targetServings: z.number().int().positive().max(500) }),
           },
         },
       },
@@ -523,10 +517,11 @@ recipesRoutes.openapi(
     },
   }),
   async (c) => {
-    const { recipeId, targetServings } = c.req.valid("json");
+    const { recipe } = c.req.valid("param");
+    const { targetServings } = c.req.valid("json");
 
     try {
-      const scaled = await scaleRecipe(c.get("householdId"), recipeId, targetServings);
+      const scaled = await scaleRecipe(c.get("householdId"), recipe, targetServings);
 
       return c.json(
         {
@@ -554,7 +549,6 @@ recipesRoutes.openapi(
 recipesRoutes.openapi(
   createRoute({
     method: "post",
-    // A collection-level custom method, for the same router reason as `:scale`.
     path: "/recipes:scrape",
     summary: "Read a recipe off a web page without saving it",
     description:
