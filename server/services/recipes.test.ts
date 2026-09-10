@@ -8,6 +8,7 @@ import type { Database } from "@server/db";
 
 import {
   addIngredient,
+  allRecipes,
   createRecipe,
   getIngredient,
   InvalidPageTokenError,
@@ -393,5 +394,27 @@ describe("scaleRecipe", () => {
 
   it("reports a recipe that does not exist", async () => {
     await expect(scaleRecipe(HOUSEHOLD, "nope", 4, db)).rejects.toBeInstanceOf(RecipeNotFoundError);
+  });
+});
+
+describe("allRecipes", () => {
+  it("follows the page token, so nothing past the first page is lost", async () => {
+    // MAX_PAGE_SIZE is 200, so this needs more than that to prove it pages rather than caps.
+    for (let index = 0; index < 205; index += 1) {
+      await createRecipe(HOUSEHOLD, `recipe-${String(index).padStart(3, "0")}`, fajitas, [], db);
+    }
+
+    const all = await allRecipes(HOUSEHOLD, db);
+
+    expect(all).toHaveLength(205);
+    expect(new Set(all.map((recipe) => recipe.id)).size).toBe(205);
+  });
+
+  it("keeps one household's library out of another's", async () => {
+    await db.insert(schema.households).values({ id: "elsewhere", name: "Elsewhere" });
+    await createRecipe("elsewhere", "theirs", fajitas, [], db);
+    await createRecipe(HOUSEHOLD, "ours", fajitas, [], db);
+
+    expect((await allRecipes(HOUSEHOLD, db)).map((recipe) => recipe.id)).toEqual(["ours"]);
   });
 });

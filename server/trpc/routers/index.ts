@@ -7,7 +7,7 @@ import { weekPlan } from "@server/services/week-plan";
 import { listPrices } from "@server/services/prices";
 import { getForecast } from "@server/services/weather";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
-import { getRecipe, listIngredients, listRecipes } from "@server/services/recipes";
+import { getRecipe, listIngredients, listRecipes, scaleRecipe } from "@server/services/recipes";
 
 import { z } from "zod";
 
@@ -130,6 +130,17 @@ export const appRouter = router({
     ingredients: protectedProcedure
       .input(z.object({ recipeId: z.string().min(1) }))
       .query(({ ctx, input }) => listIngredients(ctx.householdId, input.recipeId, ctx.db)),
+    /** The cook view's scale control. Writes nothing — the stored recipe keeps its servings. */
+    scale: protectedProcedure
+      .input(
+        z.object({
+          recipeId: z.string().min(1),
+          targetServings: z.number().int().positive().max(500),
+        }),
+      )
+      .query(({ ctx, input }) =>
+        scaleRecipe(ctx.householdId, input.recipeId, input.targetServings, ctx.db),
+      ),
   }),
 });
 
