@@ -1,61 +1,61 @@
 ---
 name: scale-recipe
-description: Scale a recipe up or down to a target number of servings, correcting for ingredients that don't scale linearly (spices, salt, leavening), rounding discrete items, and adjusting cook time and pan size. Use when the user says "scale this recipe", "double this", "make it for N people", or "halve this".
+description: Use when the user says "scale this recipe", "double this", "halve this", or "make it for N people".
 ---
 
-# Scale a recipe intelligently
+# Scale a recipe
 
-`uv run --project python prov scale` does the linear math; **you** correct the parts that don't
-scale linearly. Run from the project root.
+The API does the arithmetic. You correct what does not scale linearly.
 
-## 1. Get the recipe
-
-- If the user gives a URL: `uv run --project python prov scrape "<url>"` (then parse the raw
-  ingredient lines into qty/unit/name as in the **add-recipe** skill).
-- If it's already saved: `uv run --project python prov recipes` to find the id, then
-  `uv run --project python prov ingredients --recipe-id "<id>"`.
-- If they paste a recipe: build the JSON yourself.
-
-## 2. Linear baseline
+## 1. Scale
 
 ```bash
-echo '<recipe-json>' | uv run --project python prov scale - --to <target_servings>
+./scripts/prov GET /recipes/<recipe>/ingredients
+./scripts/prov POST '/recipes/<recipe>:scale' '{"targetServings":<n>}'
 ```
 
-This multiplies every numeric quantity by `target / base_servings` and preserves
-"to taste" items. Volume quantities (cup/tbsp/tsp) are also snapped to a clean
-kitchen fraction, stepping down a unit when that's cleaner (e.g. `0.444 cup` ->
-`7⅛ tbsp`), so you don't need to hand-round those yourself. If `base_servings`
-is unknown the factor is 1.0 — ask the user what the original yield was rather
-than mis-scaling.
+Read the base list too — step 2 is you overriding this arithmetic, so you need the numbers it
+started from. Scaling writes nothing. Volumes snap to measurable amounts and may change unit —
+`4/9 cup` comes back as `7⅛ tbsp`.
 
-## 3. Apply judgment (the important part)
+For a recipe not in the library, scale it by hand at the factor and apply the same corrections.
 
-Adjust the linear output:
+## 2. Correct the linear output
 
-- **Spices, salt, dried herbs, chili** — scale sublinearly. Doubling rarely means
-  double the cayenne; start ~1.5× and say "season to taste".
-- **Leavening** (baking soda/powder, yeast) — scales roughly linearly but round to
-  practical measures; flag that big batches can behave differently.
-- **Discrete items** — eggs, cans, cloves, slices: round to whole numbers and say
-  so (e.g. "1.5 eggs → use 2, or 1 egg + 1 yolk").
-- **Salt in baking / brines** — closer to linear than table seasoning; use context.
-- **Cook time** — does NOT scale with quantity, but **pan size and depth do**.
-  Note when a doubled batch needs a larger/second pan, longer roast time, or
-  cooking in batches.
-- **Liquids for reduction** — reductions don't scale linearly with time.
+Multiplying everything by the factor is wrong for:
 
-## 4. Convert units when it helps
+- **Spices, salt, dried herbs, extracts** — scale to roughly 60–75% of linear when doubling or
+  more. Doubling cayenne doubles the heat, not the seasoning.
+- **Leavening** (baking powder, soda, yeast) — under 1.5× linear, or the crumb collapses.
+- **Discrete items** (eggs, cans, cloves) — round to whole. 2.6 eggs is 3.
+- **"To taste"** — leave it alone.
+- **Cooking fat for a pan** — scales with the pan's area, so it is linear per batch. Three
+  skillet-loads need three times the butter; one wider pan needs far less than three times.
+- **An ingredient that is both the seasoning and the sauce** (soy sauce, stock, a marinade) keeps
+  its volume: the food needs the liquid to coat. Cut the salt by choosing a lower-sodium version,
+  not a smaller pour.
+- **Notes** were written against the base servings, so "start with 4-5 tbsp" is wrong the moment
+  the amount changes. Re-read every note and restate it at the new count.
 
-`scale` already cleans up cup/tbsp/tsp fractions. For anything else awkward
-(e.g. converting to a non-volume unit, or a unit outside that ladder):
+## 3. Adjust time and vessel
+
+- Baking: same temperature, different pan. Say which pan, and expect a longer bake in a deeper one.
+- Braising and slow cooking: a larger volume takes longer to come to temperature; time rises well
+  under linearly.
+- Searing and sautéing: cook in batches rather than crowding, and say so.
+
+## 4. Convert only where it helps
 
 ```bash
-uv run --project python prov convert <qty> <from_unit> <to_unit>
+./scripts/prov POST /units:convert '{"quantity":<n>,"from":"<unit>","to":"<unit>"}'
 ```
+
+Worth doing once an amount stops being measurable as given — 24 tbsp is 1½ cups, 48 oz is 3 lb.
+Round what you show: the conversion is exact, so `18 tbsp` comes back as `1.1249999999999998`.
+
+Volume and mass do not interconvert without a density.
 
 ## 5. Present
 
-Show the scaled ingredient list with any judgment notes inline, plus adjusted
-cook-time / pan-size guidance. Offer to save it (`recipe-save`) if it's a new
-variant the user wants to keep.
+Show the scaled list with every correction marked and its reason in a few words. State the factor,
+the new servings, and any time or pan change. Say plainly which lines you overrode and why.
