@@ -65,6 +65,39 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+// The meta line has no role of its own, so it is read as the paragraph following the title.
+function metaLine() {
+  const sibling = screen.getByRole("heading", { level: 1 }).nextElementSibling;
+
+  return sibling?.tagName === "P" ? sibling.textContent : null;
+}
+
+describe("the cook view meta line", () => {
+  it("separates the time from the source link when both are known", () => {
+    renderCook();
+
+    expect(metaLine()).toBe("30 min · source");
+  });
+
+  it("shows the time alone, with no dangling separator, when there is no source link", () => {
+    renderCook({ sourceUrl: null });
+
+    expect(metaLine()).toBe("30 min");
+  });
+
+  it("shows the source link alone, with no leading separator, when there is no time", () => {
+    renderCook({ totalMin: null });
+
+    expect(metaLine()).toBe("source");
+  });
+
+  it("shows nothing when there is neither a time nor a source link", () => {
+    renderCook({ totalMin: null, sourceUrl: null });
+
+    expect(metaLine()).toBeNull();
+  });
+});
+
 describe("the cook view", () => {
   it("renders quantities as fractions", () => {
     renderCook();

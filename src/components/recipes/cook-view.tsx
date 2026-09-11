@@ -50,23 +50,26 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
   // matters more here than anywhere else in the app: these are numbers someone measures by.
   const stale = servings !== recipe.baseServings && !scaled.isSuccess;
 
+  const time = recipe.totalMin === null ? null : `${recipe.totalMin} min`;
+
+  const source =
+    recipe.sourceUrl === null ? null : (
+      <a href={recipe.sourceUrl} rel="noreferrer noopener" target="_blank" className="underline">
+        source
+      </a>
+    );
+
   return (
     <main className="mx-auto max-w-2xl p-4">
       <h1 className="font-display text-3xl font-semibold">{recipe.title}</h1>
 
-      <p className="text-muted-foreground mt-1 text-sm">
-        {recipe.totalMin === null ? null : <>{recipe.totalMin} min · </>}
-        {recipe.sourceUrl === null ? null : (
-          <a
-            href={recipe.sourceUrl}
-            rel="noreferrer noopener"
-            target="_blank"
-            className="underline"
-          >
-            source
-          </a>
-        )}
-      </p>
+      {time === null && source === null ? null : (
+        <p className="text-muted-foreground mt-1 text-sm">
+          {time}
+          {time === null || source === null ? null : " · "}
+          {source}
+        </p>
+      )}
 
       <section aria-labelledby="servings" className="mt-6">
         <h2 id="servings" className="text-muted-foreground text-xs">
