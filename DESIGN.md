@@ -94,7 +94,7 @@ scale, focus rings, and dark-mode surface treatment come from.
 
 | Role | Face | Where |
 | ---- | ---- | ----- |
-| Display | Charter, published on Google Fonts as **Charis SIL** (`font-display`) | recipe titles, page `h1`, the wordmark |
+| Display | Charter, published on Google Fonts as **Charis SIL** (`font-display`) | page `h1`, the wordmark |
 | UI | the sans, which is the default | everything else, including recipe steps and all section labels |
 | Data | the mono (`font-mono`) | quantities, ids, costs |
 
@@ -104,9 +104,14 @@ Teriyaki Chicken and Rice" has to wrap inside 390px.
 
 - **The small `text-xs` section labels stay sans** — Servings, Ingredients, Method. The serif reads
   worse at that size, and those labels are chrome rather than titles.
+- **The recipe library's row titles stay sans.** They are links in a list, not headings. A recipe
+  title gets the serif on its own page, where it is the `h1`.
 - Charis SIL is not a variable font and ships 400 and 700 only. `next/font` self-hosts 700, the
-  weight every title resolves to, so a page view makes no request to Google and downloads one file.
-  A title that wants normal weight has to add 400 in `src/app/layout.tsx` first.
+  weight every title resolves to, so a page view makes no request to Google. The build emits five
+  subset files for that weight — latin, latin-ext, cyrillic, cyrillic-ext, vietnamese, 86KB in
+  total — because `subsets: ["latin"]` picks which subset gets a preload tag, not which ones ship.
+  A page load fetches only the preloaded latin file, 14KB. A title that wants normal weight has to
+  add 400 in `src/app/layout.tsx` first.
 - **Icons are `lucide-react`, exclusively.** No mixing sets, no inline SVG for something the
   library already has.
 
