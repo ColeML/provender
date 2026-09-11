@@ -48,7 +48,7 @@ export default async function Login({ searchParams }: Props) {
           type="password"
           autoComplete="current-password"
           required
-          className="border-border bg-background focus-visible:ring-ring h-11 rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none"
+          className="border-muted-foreground bg-background focus-visible:ring-ring h-11 rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none"
         />
 
         {error ? (

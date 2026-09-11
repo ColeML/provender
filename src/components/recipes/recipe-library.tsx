@@ -38,7 +38,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by name or tag"
-          className="border-border bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none"
+          className="border-muted-foreground bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none"
         />
       </label>
 
