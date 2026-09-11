@@ -1,3 +1,4 @@
+import { MealSlotSchema } from "@server/api/schemas";
 import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
 import { InvalidDateError, PlanDayNotFoundError } from "@server/services/plans";
@@ -35,7 +36,7 @@ const EntrySchema = z
     date: z.string(),
     recipeId: z.string().nullable(),
     title: z.string(),
-    mealSlot: z.enum(["dinner", "lunch"]),
+    mealSlot: MealSlotSchema,
     rating: z.number().int().nullable(),
     notes: z.string().nullable(),
     planId: z.string().nullable(),
@@ -111,7 +112,7 @@ historyRoutes.openapi(
               date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
               recipeId: z.string().min(1),
               title: z.string().min(1),
-              mealSlot: z.enum(["dinner", "lunch"]).optional(),
+              mealSlot: MealSlotSchema.optional(),
               rating: z.number().int().min(1).max(5).nullish(),
               notes: z.string().nullish(),
               planId: z.string().nullish(),

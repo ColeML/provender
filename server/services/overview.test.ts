@@ -128,10 +128,11 @@ describe("weekOverview", () => {
     );
     await setPlanDay(H, THIS_WEEK, mondayOfThisWeek(), "lunch", { servings: 4, main: "soup" }, db);
 
-    // Without a mealSlot in the key, both days would claim the same main.
+    // Without a mealSlot in the key, both days would claim the same main. Lunch comes first
+    // because the day reads in meal order, not in the order the enum happens to be stored in.
     expect((await weekOverview(H, db)).days.map((day) => [day.mealSlot, day.mainTitle])).toEqual([
-      ["dinner", "Chicken Fajitas"],
       ["lunch", "Tortilla Soup"],
+      ["dinner", "Chicken Fajitas"],
     ]);
   });
 

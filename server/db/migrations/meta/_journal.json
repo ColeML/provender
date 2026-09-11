@@ -64,6 +64,13 @@
       "when": 1788761527626,
       "tag": "0008_add_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789094424129,
+      "tag": "0009_add_breakfast_slot",
+      "breakpoints": true
     }
   ]
 }

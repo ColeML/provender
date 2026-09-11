@@ -76,7 +76,7 @@ export const ListRecipesResponseSchema = z
   })
   .openapi("ListRecipesResponse");
 
-export const MealSlotSchema = z.enum(["dinner", "lunch"]);
+export const MealSlotSchema = z.enum(["breakfast", "lunch", "dinner"]);
 
 export const PlanDaySchema = z
   .object({

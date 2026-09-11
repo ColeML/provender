@@ -11,9 +11,17 @@ export interface DayWeather {
 
 interface Props {
   planId: string;
-  day: WeekPlanDay;
+  date: string;
+  /** Every meal planned on this date, in the order they are eaten. Empty when nothing is. */
+  slots: WeekPlanDay[];
   weather: DayWeather | null;
 }
+
+const SLOT_LABELS: Record<string, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+};
 
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" });
 const FULL_DATE = new Intl.DateTimeFormat("en-US", {
@@ -61,11 +69,11 @@ function summarizeWeather({ high, low, precipChance, conditions }: DayWeather) {
     .join(" · ");
 }
 
-export function DayView({ planId, day, weather }: Props) {
-  if (!day.planned) {
+export function DayView({ planId, date, slots, weather }: Props) {
+  if (slots.length === 0) {
     return (
       <main className="mx-auto max-w-2xl p-4 pb-16">
-        <DayHeading planId={planId} date={day.date} />
+        <DayHeading planId={planId} date={date} />
 
         {weather === null ? null : (
           <dl className="mt-8">
@@ -84,22 +92,47 @@ export function DayView({ planId, day, weather }: Props) {
     );
   }
 
-  const dishes = dishesOf(day);
-  // A single dish and no main is a potluck whether it was stored as the side or as an extra.
-  const potluck = day.main === null && dishes.length > 0;
-  const timed = dishes.filter((dish) => dish.recipe.totalMin !== null);
-  const totalMin = timed.reduce((total, dish) => total + (dish.recipe.totalMin ?? 0), 0);
-
   return (
     <main className="mx-auto max-w-2xl p-4 pb-16">
-      <DayHeading planId={planId} date={day.date} />
+      <DayHeading planId={planId} date={date} />
 
-      <dl className="mt-8 grid grid-cols-2 gap-x-4 gap-y-6">
+      <dl className="mt-8">
+        <Fact label="Forecast">{weather === null ? "—" : summarizeWeather(weather)}</Fact>
+      </dl>
+
+      {slots.map((slot) => (
+        <Meal key={slot.mealSlot} slot={slot} />
+      ))}
+    </main>
+  );
+}
+
+/** One meal on the day. Named even when it is the only one, so a second is not a surprise. */
+function Meal({ slot }: { slot: WeekPlanDay }) {
+  const dishes = dishesOf(slot);
+  // A single dish and no main is a potluck whether it was stored as the side or as an extra.
+  const potluck = slot.main === null && dishes.length > 0;
+  const timed = dishes.filter((dish) => dish.recipe.totalMin !== null);
+  const totalMin = timed.reduce((total, dish) => total + (dish.recipe.totalMin ?? 0), 0);
+  const label = SLOT_LABELS[slot.mealSlot] ?? slot.mealSlot;
+
+  return (
+    <section aria-label={label} className="border-border mt-8 border-t pt-6">
+      <h2 className="text-xl font-semibold">
+        {label}
+        {potluck ? <span className="text-muted-foreground font-normal">{" · potluck"}</span> : null}
+      </h2>
+
+      {potluck ? (
+        <p className="mt-1 text-sm">No main — the meal is what you are bringing.</p>
+      ) : null}
+
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-6">
         <Fact label="Servings">
-          <span className="font-mono">{day.servings ?? "—"}</span>
+          <span className="font-mono">{slot.servings ?? "—"}</span>
         </Fact>
 
-        <Fact label="Status">{day.status}</Fact>
+        <Fact label="Status">{slot.status}</Fact>
 
         <Fact label="Total time">
           {timed.length === 0 ? (
@@ -110,8 +143,6 @@ export function DayView({ planId, day, weather }: Props) {
             </>
           )}
         </Fact>
-
-        <Fact label="Forecast">{weather === null ? "—" : summarizeWeather(weather)}</Fact>
       </dl>
 
       {timed.length === dishes.length ? null : (
@@ -120,55 +151,43 @@ export function DayView({ planId, day, weather }: Props) {
         </p>
       )}
 
-      {day.notes === null || day.notes.trim() === "" ? null : (
-        <section aria-labelledby="notes" className="mt-8">
-          <h2 id="notes" className="text-muted-foreground text-xs">
-            Notes
-          </h2>
+      {slot.notes === null || slot.notes.trim() === "" ? null : (
+        <section className="mt-6">
+          <h3 className="text-muted-foreground text-xs">Notes</h3>
 
-          <p className="mt-1 text-base whitespace-pre-line">{day.notes}</p>
+          <p className="mt-1 text-base whitespace-pre-line">{slot.notes}</p>
         </section>
       )}
 
-      <section aria-labelledby="menu" className="mt-8">
-        <h2 id="menu" className="text-muted-foreground text-xs">
-          {potluck ? "Potluck" : "Menu"}
-        </h2>
-
-        {potluck ? (
-          <p className="mt-1 text-sm">No main — the meal is what you are bringing.</p>
-        ) : null}
-
-        {dishes.length === 0 ? (
-          <p className="mt-1 text-base">This day is planned, but no dishes are chosen yet.</p>
-        ) : (
-          <ul className="divide-border mt-1 divide-y">
-            {dishes.map((dish, position) => (
-              // Keyed by position: nothing stops a day from listing the same recipe as its side
-              // and again as an extra, and the list is never reordered or edited in place.
-              <li key={`${position}-${dish.recipe.recipeId}`}>
-                <Link
-                  href={`/recipes/${dish.recipe.recipeId}`}
-                  className="flex min-h-11 items-center justify-between gap-3 py-3"
-                >
-                  <span className="min-w-0">
-                    <span className="text-muted-foreground block text-xs">
-                      {/* "Side" on a potluck contradicts the heading saying there is no main. */}
-                      {potluck ? "Bringing" : dish.role}
-                    </span>
-                    <span className="text-lg">{dish.recipe.title}</span>
+      {dishes.length === 0 ? (
+        <p className="mt-6 text-base">This meal is planned, but no dishes are chosen yet.</p>
+      ) : (
+        <ul className="divide-border mt-6 divide-y">
+          {dishes.map((dish, position) => (
+            // Keyed by position: nothing stops a meal from listing the same recipe as its side
+            // and again as an extra, and the list is never reordered or edited in place.
+            <li key={`${position}-${dish.recipe.recipeId}`}>
+              <Link
+                href={`/recipes/${dish.recipe.recipeId}`}
+                className="flex min-h-11 items-center justify-between gap-3 py-3"
+              >
+                <span className="min-w-0">
+                  <span className="text-muted-foreground block text-xs">
+                    {/* "Side" on a potluck contradicts the heading saying there is no main. */}
+                    {potluck ? "Bringing" : dish.role}
                   </span>
+                  <span className="text-lg">{dish.recipe.title}</span>
+                </span>
 
-                  <span className="text-muted-foreground shrink-0 font-mono text-xs">
-                    {dish.recipe.totalMin === null ? "" : `${dish.recipe.totalMin} min`}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+                <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                  {dish.recipe.totalMin === null ? "" : `${dish.recipe.totalMin} min`}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

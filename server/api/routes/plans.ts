@@ -1,6 +1,6 @@
 import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
-import { PlanDayInputSchema, PlanDaySchema, PlanSchema } from "@server/api/schemas";
+import { MealSlotSchema, PlanDayInputSchema, PlanDaySchema, PlanSchema } from "@server/api/schemas";
 import {
   createPlan,
   DateOutsidePlanError,
@@ -84,7 +84,7 @@ const DayParam = PlanParam.extend({
 });
 
 const MealSlotQuery = z.object({
-  mealSlot: z.enum(["dinner", "lunch"]).default("dinner"),
+  mealSlot: MealSlotSchema.default("dinner"),
 });
 
 const ERRORS = {

@@ -43,6 +43,38 @@ afterEach(() => {
 });
 
 describe("the home screen", () => {
+  it("names each meal that is not dinner, by its own name", async () => {
+    await renderHome({
+      planId: "2026-W37",
+      isCurrentWeek: true,
+      days: [
+        day({ date: "2026-09-07", mealSlot: "breakfast", mainRecipeId: "oats", mainTitle: "Oats" }),
+        day({ date: "2026-09-07", mealSlot: "lunch", mainRecipeId: "soup", mainTitle: "Soup" }),
+        day({ date: "2026-09-07", mealSlot: "dinner", mainRecipeId: "ziti", mainTitle: "Ziti" }),
+      ],
+    });
+
+    expect(screen.getByText("breakfast")).toBeInTheDocument();
+    expect(screen.getByText("lunch")).toBeInTheDocument();
+    // Dinner is the default, so naming it would be noise on every row of a normal week.
+    expect(screen.queryByText("dinner")).toBeNull();
+  });
+
+  it("links every meal to its day, not only the dinner", async () => {
+    await renderHome({
+      planId: "2026-W37",
+      isCurrentWeek: true,
+      days: [
+        day({ date: "2026-09-07", mealSlot: "lunch", mainRecipeId: "soup", mainTitle: "Soup" }),
+      ],
+    });
+
+    expect(screen.getByRole("link", { name: "Monday" })).toHaveAttribute(
+      "href",
+      "/plan/2026-09-07",
+    );
+  });
+
   it("treats an unplanned week as normal, and offers the way out", async () => {
     await renderHome({ planId: null });
 
@@ -100,23 +132,6 @@ describe("the home screen", () => {
     });
 
     expect(screen.getByText("potluck")).toBeInTheDocument();
-  });
-
-  it("links a dinner to its day view, but not a lunch — the day view is the dinner", async () => {
-    await renderHome({
-      planId: "2026-W37",
-      isCurrentWeek: true,
-      days: [
-        day({ date: "2026-09-07", mainRecipeId: "fajitas", mainTitle: "Chicken Fajitas" }),
-        day({ date: "2026-09-08", mealSlot: "lunch", mainRecipeId: "ziti", mainTitle: "Ziti" }),
-      ],
-    });
-
-    expect(screen.getByRole("link", { name: "Monday" })).toHaveAttribute(
-      "href",
-      "/plan/2026-09-07",
-    );
-    expect(screen.queryByRole("link", { name: "Tuesday" })).not.toBeInTheDocument();
   });
 
   it("falls back to the recipe id when a title is missing", async () => {
