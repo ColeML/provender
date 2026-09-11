@@ -149,9 +149,11 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
             Method
           </h2>
 
-          <ol aria-label="Method" className="mt-2 space-y-5">
+          <ol aria-labelledby="method" className="mt-2 space-y-5">
+            {/* Keyed on position, not text: steps repeat — `pizza` says "Rest" twice — and this
+                list is never reordered, so the index is the stable identity. */}
             {recipe.instructions.map((instruction, index) => (
-              <li key={instruction} className="flex gap-3">
+              <li key={index} className="flex gap-3">
                 <span
                   aria-hidden
                   className="text-muted-foreground w-6 shrink-0 pt-0.5 text-right font-mono text-base"

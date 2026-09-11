@@ -84,6 +84,29 @@ describe("the cook view", () => {
     ).toEqual(["1Slice the peppers.", "2Sear the chicken.", "3Warm the tortillas."]);
   });
 
+  it("renders a repeated step twice, without colliding keys", () => {
+    // `pizza` in the real library says "Rest" twice. Keying on the text renders identically, so
+    // React's duplicate-key warning is the only observable difference — without asserting on it,
+    // this test passes against the bug it exists to catch.
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    renderCook({ instructions: ["Rest", "Shape the dough.", "Rest"] });
+
+    const method = screen.getByRole("list", { name: "Method" });
+
+    expect(
+      within(method)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["1Rest", "2Shape the dough.", "3Rest"]);
+
+    const warnings = warn.mock.calls.map((call) => String(call[0])).join(" ");
+
+    warn.mockRestore();
+
+    expect(warnings).not.toContain("same key");
+  });
+
   it("does not call the API while the servings are the stored ones", () => {
     renderCook();
 
