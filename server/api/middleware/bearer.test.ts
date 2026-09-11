@@ -93,7 +93,7 @@ describe("requireBearerToken", () => {
       expect(warn).toHaveBeenCalledTimes(1);
       expect(error).not.toHaveBeenCalled();
       expect(loggedJson(warn)[0]).toEqual({
-        level: "warn",
+        severity: "warn",
         event: "auth.bearer_rejected",
         method: "GET",
         path: "/thing",
@@ -120,7 +120,7 @@ describe("requireBearerToken", () => {
       expect(warn).not.toHaveBeenCalled();
       expect(error).toHaveBeenCalledTimes(1);
       expect(loggedJson(error)[0]).toEqual({
-        level: "error",
+        severity: "error",
         event: "auth.api_token_unset",
         method: "GET",
         path: "/thing",
