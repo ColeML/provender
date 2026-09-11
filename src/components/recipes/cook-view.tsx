@@ -29,7 +29,6 @@ export interface CookRecipe {
 export function CookView({ recipe }: { recipe: CookRecipe }) {
   const trpc = useTRPC();
   const [servings, setServings] = useState(recipe.baseServings);
-  const [step, setStep] = useState(0);
 
   useWakeLock(true);
 
@@ -51,10 +50,8 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
   // matters more here than anywhere else in the app: these are numbers someone measures by.
   const stale = servings !== recipe.baseServings && !scaled.isSuccess;
 
-  const last = Math.max(recipe.instructions.length - 1, 0);
-
   return (
-    <main className="mx-auto max-w-2xl p-4 pb-28">
+    <main className="mx-auto max-w-2xl p-4">
       <h1 className="text-3xl font-semibold">{recipe.title}</h1>
 
       <p className="text-muted-foreground mt-1 text-sm">
@@ -124,7 +121,11 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
           ) : null}
         </h2>
 
-        <ul aria-busy={stale} className={cn("divide-border mt-1 divide-y", stale && "opacity-40")}>
+        <ul
+          aria-busy={stale}
+          aria-label="Ingredients"
+          className={cn("divide-border mt-1 divide-y", stale && "opacity-40")}
+        >
           {ingredients.map((ingredient) => (
             <li key={ingredient.id} className="flex justify-between gap-4 py-2 text-lg">
               <span>
@@ -145,35 +146,23 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
       {recipe.instructions.length === 0 ? null : (
         <section aria-labelledby="method" className="mt-8">
           <h2 id="method" className="text-muted-foreground text-xs">
-            Step {step + 1} of {recipe.instructions.length}
+            Method
           </h2>
 
-          <p className="mt-2 text-2xl leading-snug">{recipe.instructions[step]}</p>
+          <ol aria-label="Method" className="mt-2 space-y-5">
+            {recipe.instructions.map((instruction, index) => (
+              <li key={instruction} className="flex gap-3">
+                <span
+                  aria-hidden
+                  className="text-muted-foreground w-6 shrink-0 pt-0.5 text-right font-mono text-base"
+                >
+                  {index + 1}
+                </span>
 
-          {/* Fixed, because the point of one-step-at-a-time is not having to find the control
-              with your hands full. */}
-          <div className="border-border bg-background fixed inset-x-0 bottom-0 flex gap-3 border-t p-3">
-            <button
-              type="button"
-              disabled={step === 0}
-              onClick={() => setStep((current) => Math.max(current - 1, 0))}
-              className="border-border h-14 flex-1 rounded-lg border text-lg disabled:opacity-40"
-            >
-              Back
-            </button>
-
-            <button
-              type="button"
-              disabled={step === last}
-              onClick={() => setStep((current) => Math.min(current + 1, last))}
-              className={cn(
-                "bg-primary text-primary-foreground h-14 flex-1 rounded-lg text-lg",
-                step === last && "opacity-40",
-              )}
-            >
-              Next
-            </button>
-          </div>
+                <span className="text-xl leading-snug">{instruction}</span>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
     </main>

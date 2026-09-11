@@ -64,7 +64,7 @@ function renderList(items: ShopItem[], budgetTarget: number | null = 120) {
   return user;
 }
 
-describe("hiding what is already in the trolley", () => {
+describe("hiding what is already purchased", () => {
   beforeEach(() => window.localStorage.clear());
 
   function twoItemsOneBought() {
@@ -74,10 +74,10 @@ describe("hiding what is already in the trolley", () => {
     ]);
   }
 
-  it("offers the toggle only once something is in the trolley", () => {
+  it("offers the toggle only once something is purchased", () => {
     renderList([item({ id: "onion", name: "onion" })]);
 
-    expect(screen.queryByRole("checkbox", { name: /already in the trolley/ })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /Hide the \d+ purchased/ })).toBeNull();
   });
 
   it("takes bought items out of the aisles", async () => {
@@ -85,7 +85,7 @@ describe("hiding what is already in the trolley", () => {
 
     expect(screen.getByRole("checkbox", { name: /beef/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ }));
 
     expect(screen.queryByRole("checkbox", { name: /beef/ })).toBeNull();
     expect(screen.getByRole("checkbox", { name: /onion/ })).toBeInTheDocument();
@@ -94,8 +94,8 @@ describe("hiding what is already in the trolley", () => {
   it("keeps a mis-tap recoverable, without turning hiding off", async () => {
     const user = twoItemsOneBought();
 
-    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
-    await user.click(screen.getByRole("button", { name: /Show the 1 in the trolley/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ }));
+    await user.click(screen.getByRole("button", { name: /Show the 1 purchased/ }));
 
     const beef = screen.getByRole("checkbox", { name: /beef/ });
 
@@ -103,7 +103,7 @@ describe("hiding what is already in the trolley", () => {
 
     await user.click(beef);
 
-    // Back in its aisle, and out of the trolley list.
+    // Back in its aisle, and out of the purchased list.
     expect(screen.getByRole("checkbox", { name: /beef/ })).not.toBeChecked();
   });
 
@@ -113,7 +113,7 @@ describe("hiding what is already in the trolley", () => {
     expect(screen.getByLabelText("Still to buy: $4.00")).toBeInTheDocument();
     expect(screen.getByText(/1 left of 2/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ }));
 
     expect(screen.getByLabelText("Still to buy: $4.00")).toBeInTheDocument();
     expect(screen.getByText(/1 left of 2/)).toBeInTheDocument();
@@ -122,14 +122,14 @@ describe("hiding what is already in the trolley", () => {
   it("remembers the choice, so it is not re-set mid-aisle", async () => {
     const user = twoItemsOneBought();
 
-    await user.click(screen.getByRole("checkbox", { name: /already in the trolley/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ }));
 
     expect(window.localStorage.getItem("provender.shop.hideBought")).toBe("true");
 
     cleanup();
     twoItemsOneBought();
 
-    expect(screen.getByRole("checkbox", { name: /already in the trolley/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ })).toBeChecked();
     expect(screen.queryByRole("checkbox", { name: /beef/ })).toBeNull();
   });
 });
@@ -265,8 +265,8 @@ describe("the shopping list", () => {
     ]);
 
     // Reveal the bought list too, so all three call sites are on screen at once.
-    await user.click(screen.getByRole("checkbox", { name: /trolley/ }));
-    await user.click(screen.getByRole("button", { name: /Show the 1 in the trolley/ }));
+    await user.click(screen.getByRole("checkbox", { name: /purchased/ }));
+    await user.click(screen.getByRole("button", { name: /Show the 1 purchased/ }));
 
     const boxes = screen.getAllByRole("checkbox");
 

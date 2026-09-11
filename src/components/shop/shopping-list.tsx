@@ -211,7 +211,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
         {bought.length > 0 ? (
           <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
             <TickBox size="sm" checked={hideBought} onChange={onHideBoughtChange} />
-            Hide the {bought.length} already in the trolley
+            Hide the {bought.length} purchased
           </label>
         ) : null}
       </header>
@@ -244,7 +244,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
                   {/*
                     A real checkbox in a label, not a button with role="checkbox": the input
                     carries the semantics for free, and the label makes the whole row the target
-                    rather than a small box inside it. Used one-handed while pushing a trolley, so
+                    rather than a small box inside it. Used one-handed while shopping, so
                     it is 56px tall — well over the 44px floor.
                   */}
                   <label
@@ -303,7 +303,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
             aria-expanded={showBought}
             className="focus-visible:ring-ring text-muted-foreground min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
           >
-            {showBought ? "Hide" : "Show"} the {bought.length} in the trolley
+            {showBought ? "Hide" : "Show"} the {bought.length} purchased
           </button>
 
           {showBought ? (

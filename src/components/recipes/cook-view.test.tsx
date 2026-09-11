@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -72,27 +72,16 @@ describe("the cook view", () => {
     expect(screen.getByText("1½ lb")).toBeInTheDocument();
   });
 
-  it("shows one step at a time, and moves through them", async () => {
-    const user = renderCook();
+  it("shows every step at once, numbered in order", () => {
+    renderCook();
 
-    expect(screen.getByText("Slice the peppers.")).toBeInTheDocument();
-    expect(screen.queryByText("Sear the chicken.")).toBeNull();
+    const method = screen.getByRole("list", { name: "Method" });
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-
-    expect(screen.getByText("Sear the chicken.")).toBeInTheDocument();
-    expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
-  });
-
-  it("cannot step past either end", async () => {
-    const user = renderCook();
-
-    expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
-
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Next" }));
-
-    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    expect(
+      within(method)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["1Slice the peppers.", "2Sear the chicken.", "3Warm the tortillas."]);
   });
 
   it("does not call the API while the servings are the stored ones", () => {
@@ -124,7 +113,7 @@ describe("the cook view", () => {
     await user.click(screen.getByRole("button", { name: "More servings" }));
 
     expect(screen.getByText(/still for 8, scaling/)).toBeInTheDocument();
-    expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("list", { name: "Ingredients" })).toHaveAttribute("aria-busy", "true");
   });
 
   it("drops the warning once the scaled amounts arrive", async () => {
@@ -140,7 +129,7 @@ describe("the cook view", () => {
       expect(screen.queryByText(/still for 8, scaling/)).toBeNull();
     });
 
-    expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("list", { name: "Ingredients" })).toHaveAttribute("aria-busy", "false");
   });
 
   it("keeps the stored amounts when scaling fails, and says so", async () => {
@@ -199,7 +188,7 @@ describe("the cook view", () => {
   it("renders a recipe with no steps at all", () => {
     renderCook({ instructions: [] });
 
-    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Method" })).toBeNull();
     expect(screen.getByText("chicken breast")).toBeInTheDocument();
   });
 });
