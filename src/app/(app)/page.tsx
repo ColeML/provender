@@ -36,7 +36,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <h1 className="text-2xl font-semibold">This week</h1>
+      <h1 className="font-display text-2xl font-semibold">This week</h1>
 
       {planId === null ? (
         <p className="text-muted-foreground mt-2 text-sm">

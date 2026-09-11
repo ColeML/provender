@@ -52,7 +52,7 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
 
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <h1 className="text-3xl font-semibold">{recipe.title}</h1>
+      <h1 className="font-display text-3xl font-semibold">{recipe.title}</h1>
 
       <p className="text-muted-foreground mt-1 text-sm">
         {recipe.totalMin === null ? null : <>{recipe.totalMin} min · </>}

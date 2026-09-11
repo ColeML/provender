@@ -123,7 +123,7 @@ export function ShoppingList(props: Props) {
   if (!props.planId) {
     return (
       <main className="mx-auto max-w-2xl p-6">
-        <h1 className="text-2xl font-semibold">Shopping list</h1>
+        <h1 className="font-display text-2xl font-semibold">Shopping list</h1>
         <p className="text-muted-foreground mt-2 text-sm">
           No week has been planned yet, so there is nothing to buy.
         </p>
@@ -203,7 +203,7 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
     // Padded at the bottom so the sticky total never covers the last row.
     <main className="mx-auto max-w-2xl pb-28">
       <header className="border-border border-b px-4 py-4">
-        <h1 className="text-xl font-semibold">Shopping list</h1>
+        <h1 className="font-display text-xl font-semibold">Shopping list</h1>
         <p className="text-muted-foreground mt-0.5 text-sm">
           Week of {planId} · {left} left of {toBuy.length}
         </p>

@@ -198,7 +198,7 @@ function DayHeading({ planId, date }: { planId: string; date: string }) {
         {planId}
       </Link>
 
-      <h1 className="mt-2 text-3xl font-semibold">{WEEKDAY.format(utc(date))}</h1>
+      <h1 className="font-display mt-2 text-3xl font-semibold">{WEEKDAY.format(utc(date))}</h1>
 
       <p className="text-muted-foreground mt-1 text-sm">{FULL_DATE.format(utc(date))}</p>
     </>

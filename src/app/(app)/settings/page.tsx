@@ -20,7 +20,7 @@ export default async function Settings() {
 
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <h1 className="font-display text-2xl font-semibold">Settings</h1>
       <p className="text-muted-foreground mt-1 text-sm">
         What the planner assumes about the household. Edit them with{" "}
         <code className="font-mono">PATCH /v1/config</code>.
