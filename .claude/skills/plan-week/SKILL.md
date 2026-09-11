@@ -74,6 +74,10 @@ Store every recipe at the servings that will be cooked, so the shopping list nev
 The plan id is the ISO week (`2026-W37`); each day's date must fall inside it. A day carries
 `servings`, `status`, `notes`, `main`, `side`, `extras`.
 
+`mealSlot` defaults to `dinner`, which is what a week of planning writes — lunches here are
+leftovers. Pass `breakfast` or `lunch` only when the user asks for that meal specifically; a date
+holds one of each, so a second dinner overwrites the first.
+
 **Every side and dessert is a saved recipe, linked by id.** A dish named only in prose is invisible
 to the shopping list.
 

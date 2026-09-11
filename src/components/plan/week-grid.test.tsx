@@ -33,6 +33,7 @@ const recipe = (recipeId: string, title: string, costEstimate = 10) => ({
 function day(date: string, overrides: Partial<WeekPlanDay> = {}): WeekPlanDay {
   return {
     date,
+    mealSlot: "dinner",
     planned: false,
     servings: null,
     status: "unplanned",

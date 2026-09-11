@@ -111,6 +111,11 @@ These hold for v2. Where v1 differs it is noted, because v1 still runs until #42
 - **Equipment honesty:** cite a device in a day's note only if that recipe uses it.
 - **An unplanned day is the absence of a row.** No blank slots to skip. (v1 kept seven fixed
   day-slots and blanked the unused ones, because AppSheet's sync needed stable keys.)
+- **A day holds a meal per slot — `breakfast`, `lunch`, `dinner` — and the slot is half its key.**
+  Planning writes dinners here, because lunches are leftovers, but the other two are storable and
+  `/plan/[date]` shows every one. The week grid is dinners only, since it has one column per date.
+  Never sort on the `meal_slot` column to get reading order: Postgres holds enum values in creation
+  order, which is `dinner, lunch, breakfast`. `MEAL_ORDER` in the schema is the meal order.
 - **Every side and dessert is a saved recipe, linked by id** in the day's `side` or `extras`. A
   dish named only in prose is invisible to the shopping list.
 - **A shopping list `PUT` replaces what the plan calls for and preserves the rest** — the shopper's

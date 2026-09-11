@@ -20,10 +20,17 @@ import { recipes } from "./recipes";
  * Which meal a day-slot is for.
  *
  * Every one of v1's 7 plan rows and 61 history rows is `dinner` — lunches are leftovers, per the
- * household's own preferences. It stays because it is half the day key: adding it later means
- * re-keying the table.
+ * household's own preferences. The slot is half the day key, so the values have to exist before
+ * anything can use them: adding one later means re-keying the table.
+ *
+ * Declared in the order Postgres holds them, which is creation order rather than meal order —
+ * `breakfast` was added last. Never sort on this column to get a day's reading order; use
+ * `MEAL_ORDER`, which says what the order actually is.
  */
-export const mealSlot = pgEnum("meal_slot", ["dinner", "lunch"]);
+export const mealSlot = pgEnum("meal_slot", ["dinner", "lunch", "breakfast"]);
+
+/** The order the meals are eaten, which is the order a day reads in. */
+export const MEAL_ORDER = ["breakfast", "lunch", "dinner"] as const;
 
 /** What a recipe is doing on a day. */
 export const planRecipeRole = pgEnum("plan_recipe_role", ["main", "side", "extra"]);

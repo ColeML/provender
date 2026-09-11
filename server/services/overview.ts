@@ -1,5 +1,6 @@
 import { type Database, db as defaultDb } from "@server/db";
 import * as schema from "@server/db/schema";
+import { MEAL_ORDER } from "@server/db/schema/plans";
 import { isoWeekFor } from "@server/lib/iso-week";
 import { currentOrLatestPlan, type MealSlot } from "@server/services/plans";
 import { recipesByIds } from "@server/services/recipes";
@@ -49,7 +50,7 @@ export async function weekOverview(
       })
       .from(schema.planDays)
       .where(and(eq(schema.planDays.householdId, householdId), eq(schema.planDays.planId, plan.id)))
-      .orderBy(asc(schema.planDays.date), asc(schema.planDays.mealSlot)),
+      .orderBy(asc(schema.planDays.date)),
     db
       .select({
         date: schema.planDayRecipes.date,
@@ -91,17 +92,23 @@ export async function weekOverview(
   return {
     planId: plan.id,
     isCurrentWeek: plan.id === isoWeekFor(new Date().toISOString().slice(0, 10)),
-    days: days.map((day) => {
-      const mainRecipeId = mainFor.get(dayKey(day.date, day.mealSlot)) ?? null;
+    days: [...days]
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          MEAL_ORDER.indexOf(a.mealSlot) - MEAL_ORDER.indexOf(b.mealSlot),
+      )
+      .map((day) => {
+        const mainRecipeId = mainFor.get(dayKey(day.date, day.mealSlot)) ?? null;
 
-      return {
-        date: day.date,
-        mealSlot: day.mealSlot,
-        status: day.status,
-        mainRecipeId,
-        mainTitle: mainRecipeId === null ? null : (recipes.get(mainRecipeId)?.title ?? null),
-      };
-    }),
+        return {
+          date: day.date,
+          mealSlot: day.mealSlot,
+          status: day.status,
+          mainRecipeId,
+          mainTitle: mainRecipeId === null ? null : (recipes.get(mainRecipeId)?.title ?? null),
+        };
+      }),
     outstandingItems: items.filter((item) => !item.purchased && !item.haveAlready).length,
   };
 }

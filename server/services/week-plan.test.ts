@@ -9,7 +9,7 @@ import {
 import { createRecipe } from "@server/services/recipes";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { weekPlan } from "./week-plan";
+import { daySlots, weekPlan } from "./week-plan";
 
 const H = "loewer";
 const WEEK = "2026-W36";
@@ -144,5 +144,40 @@ describe("weekPlan", () => {
     await setPlanDay(H, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
 
     await expect(weekPlan("someone-else", WEEK, db)).rejects.toThrow(PlanNotFoundError);
+  });
+});
+
+describe("daySlots", () => {
+  it("returns every meal on the date, in the order they are eaten", async () => {
+    await createRecipe(H, "oatmeal", { title: "Baked Oatmeal", baseServings: 8 }, [], db);
+    await setPlanDay(H, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
+    await setPlanDay(H, WEEK, MONDAY, "lunch", { servings: 4, main: "rice" }, db);
+    await setPlanDay(H, WEEK, MONDAY, "breakfast", { servings: 4, main: "oatmeal" }, db);
+
+    const slots = await daySlots(H, MONDAY, db);
+
+    expect(slots.map((slot) => [slot.mealSlot, slot.main?.title])).toEqual([
+      ["breakfast", "Baked Oatmeal"],
+      ["lunch", "Cilantro Lime Rice"],
+      ["dinner", "Chicken Fajitas"],
+    ]);
+  });
+
+  it("returns a lunch that has no dinner beside it, which weekPlan drops", async () => {
+    await setPlanDay(H, WEEK, MONDAY, "lunch", { servings: 4, main: "rice" }, db);
+
+    expect((await daySlots(H, MONDAY, db)).map((slot) => slot.mealSlot)).toEqual(["lunch"]);
+    // The grid is dinners only, so the same date reads as unplanned there.
+    expect((await weekPlan(H, WEEK, db)).days[0].planned).toBe(false);
+  });
+
+  it("returns nothing for a date with no rows", async () => {
+    expect(await daySlots(H, TUESDAY, db)).toEqual([]);
+  });
+
+  it("keeps one household's day out of another's", async () => {
+    await setPlanDay(H, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
+
+    await expect(daySlots("someone-else", MONDAY, db)).rejects.toThrow(PlanNotFoundError);
   });
 });

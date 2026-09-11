@@ -14,6 +14,12 @@ import { auth } from "../../../auth";
  */
 export const dynamic = "force-dynamic";
 
+const SLOT_LABELS: Record<string, string> = {
+  breakfast: "breakfast",
+  lunch: "lunch",
+  dinner: "dinner",
+};
+
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" });
 const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
@@ -69,20 +75,19 @@ export default async function Home() {
               {days.map((day) => (
                 <li key={`${day.date}-${day.mealSlot}`} className="flex items-baseline gap-3 py-3">
                   <span className="w-24 shrink-0 text-sm font-medium">
-                    {day.mealSlot === "dinner" ? (
-                      // Only dinners: the day view is the dinner, so a lunch row linking there
-                      // would show a meal the reader did not tap.
-                      <Link
-                        href={`/plan/${day.date}`}
-                        className="inline-flex min-h-11 items-center underline"
-                      >
-                        {WEEKDAY.format(new Date(`${day.date}T00:00:00Z`))}
-                      </Link>
-                    ) : (
-                      <>
-                        {WEEKDAY.format(new Date(`${day.date}T00:00:00Z`))}
-                        <span className="text-muted-foreground font-normal"> lunch</span>
-                      </>
+                    <Link
+                      href={`/plan/${day.date}`}
+                      className="inline-flex min-h-11 items-center underline"
+                    >
+                      {WEEKDAY.format(new Date(`${day.date}T00:00:00Z`))}
+                    </Link>
+
+                    {/* The meal is named on every row but dinner, which is the default and the
+                        only one a week of planning writes. */}
+                    {day.mealSlot === "dinner" ? null : (
+                      <span className="text-muted-foreground font-normal">
+                        {` ${SLOT_LABELS[day.mealSlot] ?? day.mealSlot}`}
+                      </span>
                     )}
                   </span>
 

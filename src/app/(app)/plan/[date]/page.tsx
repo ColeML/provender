@@ -2,7 +2,7 @@ import { householdForSession } from "@server/auth/household";
 import { isCalendarDate, isoWeekFor } from "@server/lib/iso-week";
 import { InvalidPlanIdError, PlanNotFoundError } from "@server/services/plans";
 import { getForecast } from "@server/services/weather";
-import { weekPlan, type WeekPlanDay } from "@server/services/week-plan";
+import { daySlots } from "@server/services/week-plan";
 import { notFound, redirect } from "next/navigation";
 
 import { DayView, type DayWeather } from "@/components/plan/day-view";
@@ -31,19 +31,6 @@ export async function generateMetadata({ params }: { params: Promise<{ date: str
 
 /** How far ahead Open-Meteo will forecast, and the most `getForecast` will return. */
 const FORECAST_DAYS = 16;
-
-function unplannedDay(date: string): WeekPlanDay {
-  return {
-    date,
-    planned: false,
-    servings: null,
-    status: "unplanned",
-    notes: null,
-    main: null,
-    side: null,
-    extras: [],
-  };
-}
 
 function shiftDays(date: string, days: number) {
   const shifted = new Date(`${date}T00:00:00Z`);
@@ -98,11 +85,11 @@ export default async function Day({ params }: { params: Promise<{ date: string }
 
   const planId = isoWeekFor(date);
 
-  const [plan, weather] = await Promise.all([
+  const [slots, weather] = await Promise.all([
     // A week nobody has planned is not an error here — the day simply reads as unplanned.
-    weekPlan(householdId, planId).catch((error: unknown) => {
+    daySlots(householdId, date).catch((error: unknown) => {
       if (error instanceof PlanNotFoundError || error instanceof InvalidPlanIdError) {
-        return null;
+        return [];
       }
 
       throw error;
@@ -110,7 +97,5 @@ export default async function Day({ params }: { params: Promise<{ date: string }
     weatherOrNothing(householdId, date),
   ]);
 
-  const day = plan?.days.find((candidate) => candidate.date === date) ?? unplannedDay(date);
-
-  return <DayView planId={planId} day={day} weather={weather} />;
+  return <DayView planId={planId} date={date} slots={slots} weather={weather} />;
 }

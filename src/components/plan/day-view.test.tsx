@@ -16,6 +16,7 @@ const recipe = (recipeId: string, title: string, totalMin: number | null = 30) =
 function day(overrides: Partial<WeekPlanDay> = {}): WeekPlanDay {
   return {
     date: "2026-09-10",
+    mealSlot: "dinner",
     planned: true,
     servings: 8,
     status: "planned",
@@ -35,10 +36,44 @@ const weather: DayWeather = {
 };
 
 function renderDay(overrides: Partial<WeekPlanDay> = {}, forecast: DayWeather | null = null) {
-  render(<DayView planId="2026-W37" day={day(overrides)} weather={forecast} />);
+  render(
+    <DayView planId="2026-W37" date="2026-09-10" slots={[day(overrides)]} weather={forecast} />,
+  );
+}
+
+/** A date with no rows at all, which is how an unplanned day reaches the view. */
+function renderEmptyDay(forecast: DayWeather | null = null) {
+  render(<DayView planId="2026-W37" date="2026-09-10" slots={[]} weather={forecast} />);
 }
 
 describe("the day view", () => {
+  it("names every meal, in the order they are eaten", () => {
+    render(
+      <DayView
+        planId="2026-W37"
+        date="2026-09-10"
+        weather={null}
+        slots={[
+          day({ mealSlot: "breakfast", main: recipe("oatmeal", "Baked oatmeal") }),
+          day({ mealSlot: "lunch", main: recipe("leftovers", "Leftover fajitas") }),
+          day({ mealSlot: "dinner", main: recipe("pot-roast", "Pot roast") }),
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Breakfast",
+      "Lunch",
+      "Dinner",
+    ]);
+  });
+
+  it("names the meal even when it is the only one, so a second is not a surprise", () => {
+    renderDay({ main: recipe("pot-roast", "Pot roast") });
+
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Dinner");
+  });
+
   it("names the day and links back to its week", () => {
     renderDay();
 
@@ -129,7 +164,7 @@ describe("the day view", () => {
       extras: [recipe("baked-beans", "Baked beans"), recipe("key-lime-pie", "Key lime pie")],
     });
 
-    expect(screen.getByRole("heading", { level: 2, name: "Potluck" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Dinner · potluck");
     expect(screen.getByText(/the meal is what you are bringing/)).toBeInTheDocument();
     expect(screen.getAllByText("Bringing")).toHaveLength(2);
     expect(screen.queryByText(/no dishes are chosen yet/)).not.toBeInTheDocument();
@@ -142,7 +177,7 @@ describe("the day view", () => {
       extras: [recipe("key-lime-pie", "Key lime pie")],
     });
 
-    expect(screen.getByRole("heading", { level: 2, name: "Potluck" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Dinner · potluck");
     expect(screen.getAllByText("Bringing")).toHaveLength(2);
     expect(screen.queryByText("Side")).not.toBeInTheDocument();
   });
@@ -165,7 +200,7 @@ describe("the day view", () => {
   it("reads a day whose only dish is a side as a potluck too", () => {
     renderDay({ main: null, side: recipe("baked-beans", "Baked beans") });
 
-    expect(screen.getByRole("heading", { level: 2, name: "Potluck" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Dinner · potluck");
     expect(screen.getByText("Bringing")).toBeInTheDocument();
     expect(screen.queryByText("Side")).not.toBeInTheDocument();
   });
@@ -187,7 +222,7 @@ describe("the day view", () => {
   });
 
   it("still shows the forecast on an unplanned day, since it is the input for planning it", () => {
-    renderDay({ planned: false, servings: null, status: "unplanned" }, weather);
+    renderEmptyDay(weather);
 
     expect(screen.getByText("88° / 61° · Mainly clear · 20% rain")).toBeInTheDocument();
   });
@@ -199,7 +234,7 @@ describe("the day view", () => {
   });
 
   it("offers the way out on an unplanned day", () => {
-    renderDay({ planned: false, servings: null, status: "unplanned" });
+    renderEmptyDay();
 
     expect(screen.getByText(/Nothing is planned for this day/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Plan the week" })).toHaveAttribute(

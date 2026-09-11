@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import { PlanNotFoundError } from "@server/services/plans";
 import type { Forecast, ForecastOptions } from "@server/services/weather";
-import type { WeekPlan } from "@server/services/week-plan";
+import type { WeekPlanDay } from "@server/services/week-plan";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const plan = vi.fn<(householdId: string, planId: string) => Promise<WeekPlan>>();
+const plan = vi.fn<(householdId: string, date: string) => Promise<WeekPlanDay[]>>();
 const forecast = vi.fn<(householdId: string, options: ForecastOptions) => Promise<Forecast>>();
 
 // Passed through rather than swallowed: the household filter is the argument whose absence looks
 // entirely normal in review, so the mocks have to be able to see it.
 vi.mock("@server/services/week-plan", () => ({
-  weekPlan: (householdId: string, planId: string) => plan(householdId, planId),
+  daySlots: (householdId: string, date: string) => plan(householdId, date),
 }));
 vi.mock("@server/services/weather", () => ({
   getForecast: (householdId: string, options: ForecastOptions) => forecast(householdId, options),
@@ -21,49 +21,24 @@ vi.mock("../../../../../auth", () => ({ auth: async () => ({ user: { name: "loew
 
 const { default: Day, generateMetadata } = await import("./page");
 
-function week(date: string): WeekPlan {
-  return {
-    planId: "2026-W37",
-    budgetTarget: null,
-    estimatedCost: 0,
-    days: [
-      {
-        date,
-        planned: true,
-        servings: 8,
-        status: "planned",
-        notes: null,
-        main: { recipeId: "chili", title: "Chili", costEstimate: 12, totalMin: 60 },
-        side: null,
-        extras: [],
-      },
-    ],
-  };
-}
-
-/** What `weekPlan` returns for a date whose only row is a lunch: dinners are all it reports. */
-function weekWithoutDinner(date: string): WeekPlan {
-  return {
-    planId: "2026-W37",
-    budgetTarget: null,
-    estimatedCost: 0,
-    days: [
-      {
-        date,
-        planned: false,
-        servings: null,
-        status: "unplanned",
-        notes: null,
-        main: null,
-        side: null,
-        extras: [],
-      },
-    ],
-  };
+function dinner(date: string): WeekPlanDay[] {
+  return [
+    {
+      date,
+      mealSlot: "dinner",
+      planned: true,
+      servings: 8,
+      status: "planned",
+      notes: null,
+      main: { recipeId: "chili", title: "Chili", costEstimate: 12, totalMin: 60 },
+      side: null,
+      extras: [],
+    },
+  ];
 }
 
 async function renderDay(date: string) {
-  plan.mockResolvedValue(week(date));
+  plan.mockResolvedValue(dinner(date));
 
   render(await Day({ params: Promise.resolve({ date }) }));
 }
@@ -95,7 +70,7 @@ describe("the day page", () => {
   it("asks both services for this household's data", async () => {
     await renderDay("2026-09-10");
 
-    expect(plan).toHaveBeenCalledWith("loewer", "2026-W37");
+    expect(plan).toHaveBeenCalledWith("loewer", "2026-09-10");
     expect(forecast).toHaveBeenCalledWith("loewer", { days: 16 });
   });
 
@@ -150,12 +125,26 @@ describe("the day page", () => {
     expect(screen.getByText(/Nothing is planned for this day/)).toBeInTheDocument();
   });
 
-  it("reads a date whose only meal is a lunch as an unplanned day", async () => {
-    plan.mockResolvedValue(weekWithoutDinner("2026-09-10"));
+  it("shows a date whose only meal is a lunch, rather than calling it unplanned", async () => {
+    plan.mockResolvedValue([
+      {
+        date: "2026-09-10",
+        mealSlot: "lunch",
+        planned: true,
+        servings: 4,
+        status: "planned",
+        notes: null,
+        main: { recipeId: "soup", title: "Tortilla soup", costEstimate: 6, totalMin: 25 },
+        side: null,
+        extras: [],
+      },
+    ]);
 
     render(await Day({ params: Promise.resolve({ date: "2026-09-10" }) }));
 
-    expect(screen.getByText(/Nothing is planned for this day/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Lunch");
+    expect(screen.getByRole("link", { name: /Tortilla soup/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing is planned for this day/)).toBeNull();
   });
 
   it("answers 404 for a date that is not a real day", async () => {
