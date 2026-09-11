@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 import { getConfig, setConfigValue } from "@server/services/config";
-import { createPlan, getPlan, PlanNotFoundError, setPlanDay } from "@server/services/plans";
+import {
+  createPlan,
+  getPlan,
+  PlanDayNotFoundError,
+  PlanNotFoundError,
+  setPlanDay,
+} from "@server/services/plans";
 import {
   createRecipe,
   deleteRecipe,
@@ -12,6 +18,7 @@ import {
   listIngredients,
   listRecipes,
   RecipeNotFoundError,
+  recipesByIds,
   updateRecipe,
 } from "@server/services/recipes";
 import { clearTokenCache, NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
@@ -48,8 +55,8 @@ import { schema } from "@server/db";
  * Three services are absent deliberately. `scrape` reads a web page and touches no table.
  * `weather` reads only the household's `location` through `getConfig`, which the config cases
  * below already cover. `login-throttle` runs before a household is resolved, so its rows are keyed
- * on a client address and there is no household scope to leak. Every other service has a case
- * here.
+ * on a client address and there is no household scope to leak. Every other service has at least one
+ * case here; the roster is per service, not one case per exported function.
  */
 let db: Database;
 let close: () => Promise<void>;
@@ -116,6 +123,16 @@ describe("recipes", () => {
     await expect(deleteRecipe(B, "fajitas", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
 
     await expect(getRecipe(A, "fajitas", db)).resolves.toBeDefined();
+  });
+
+  // The lookup behind both plan views. Asking for an id only the other household holds is the
+  // deterministic form of the failure: a collision would return one of two rows in whichever order
+  // the database happened to produce them, and the map would keep the last.
+  it("resolves none of another household's ids to a title", async () => {
+    await expect(recipesByIds(A, ["fajitas"], db)).resolves.toMatchObject(
+      new Map([["fajitas", { title: "Fajitas" }]]),
+    );
+    await expect(recipesByIds(B, ["fajitas"], db)).resolves.toEqual(new Map());
   });
 });
 
@@ -245,6 +262,22 @@ describe("history", () => {
     );
 
     await expect(getHistoryEntry(A, `${MONDAY}-fajitas`, db)).resolves.toBeDefined();
+  });
+
+  // B owns a plan named `2026-W36` but no day under it, so the plan id alone does not identify
+  // the day. The composite foreign key stops the write either way; what the filter decides is
+  // whether the caller is told which day is missing or the driver raises a constraint error
+  // nothing can map to a 404.
+  it("will not let one household's day satisfy another's plan link", async () => {
+    await expect(
+      recordMeal(
+        B,
+        { date: MONDAY, recipeId: "fajitas", title: "Fajitas", planId: "2026-W36" },
+        db,
+      ),
+    ).rejects.toBeInstanceOf(PlanDayNotFoundError);
+
+    await expect(listHistory(B, { withinDays: 10_000 }, db)).resolves.toEqual([]);
   });
 
   // Both households name their weeks `2026-W36`, so the plan id alone does not identify the day.
