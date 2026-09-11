@@ -25,6 +25,9 @@ import { schema } from "@server/db";
  * Written from the outside rather than by inspecting queries, because the failure mode is a
  * *forgotten* filter — a query missing `where household_id = ?` looks entirely normal, and only a
  * test that asks the other household what it can see will catch it.
+ *
+ * `login-throttle` is absent deliberately: signing in happens before a household is resolved, so
+ * its rows are keyed on a client address and there is no household scope to leak.
  */
 let db: Database;
 let close: () => Promise<void>;

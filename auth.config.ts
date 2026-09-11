@@ -1,5 +1,11 @@
 import { verifyPassword } from "@server/auth/password";
+import type { Database } from "@server/db";
 import { logError, logWarn } from "@server/lib/log";
+import {
+  clearLoginAttempts,
+  clientAddress,
+  registerLoginAttempt,
+} from "@server/services/login-throttle";
 import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig, User } from "next-auth";
 
@@ -8,10 +14,14 @@ import type { NextAuthConfig, User } from "next-auth";
  *
  * Named and exported so a test can call it directly: `Credentials()` hides the callback it was
  * given inside an `options` field that Auth.js merges at request time, so reaching it through the
- * provider means asserting on that library's internals.
+ * provider means asserting on that library's internals. `db` is a parameter with a default for
+ * the same reason it is on every service — a test passes a stub instead of mocking the module
+ * graph.
  */
 export async function authorizeHousehold(
   credentials: Partial<Record<string, unknown>>,
+  request?: Request,
+  db?: Database,
 ): Promise<User | null> {
   const password = credentials?.password;
   const storedHash = process.env.AUTH_PASSWORD_HASH;
@@ -28,11 +38,29 @@ export async function authorizeHousehold(
     return null;
   }
 
-  if (!(await verifyPassword(password, storedHash))) {
+  const client = clientAddress(request);
+  const { throttled } = await registerLoginAttempt(client, new Date(), db);
+
+  // Verified even when the answer is already no. Skipping scrypt would return a throttled attempt
+  // in a fraction of the time a wrong password takes, and that difference is what a prober needs
+  // to find where the limit sits.
+  const correct = await verifyPassword(password, storedHash);
+
+  // Only the log distinguishes the two. The caller gets the same null, so the same redirect and
+  // the same message, whichever it was.
+  if (throttled) {
+    logWarn("auth.password_rejected", { reason: "throttled" });
+
+    return null;
+  }
+
+  if (!correct) {
     logWarn("auth.password_rejected", { reason: "wrong_password" });
 
     return null;
   }
+
+  await clearLoginAttempts(client, db);
 
   // A single shared identity, so the subject is a constant rather than anything derived from what
   // was typed.
