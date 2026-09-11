@@ -43,8 +43,8 @@ const AISLE_LABELS: Record<string, string> = {
 
 /** How big the box is, and the glyph inside it. */
 const TICK_SIZES = {
-  sm: { box: "size-5", radius: "rounded", tick: "size-3.5" },
-  lg: { box: "size-6", radius: "rounded-md", tick: "size-4" },
+  sm: { box: "size-5", tick: "size-3.5" },
+  lg: { box: "size-6", tick: "size-4" },
 } as const;
 
 interface TickBoxProps {
@@ -77,11 +77,10 @@ function TickBox({ checked, onChange, size, describedBy }: TickBoxProps) {
         onChange={(event) => onChange(event.target.checked)}
         aria-describedby={describedBy}
         className={cn(
-          "peer appearance-none border-2 focus-visible:outline-none",
+          "peer appearance-none rounded-md border-2 focus-visible:outline-none",
           "focus-visible:ring-ring focus-visible:ring-3",
           "border-muted-foreground checked:border-primary checked:bg-primary",
           sizing.box,
-          sizing.radius,
         )}
       />
       <Check
