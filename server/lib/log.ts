@@ -15,8 +15,11 @@ type LogFields = Record<string, string | number | boolean>;
  */
 function emit(severity: "warn" | "error", event: string, fields: LogFields) {
   // Fields first: `severity` and `event` are what a log search is built on, so a caller's field of
-  // the same name must not be able to replace them. A caller's `level` is dropped rather than
-  // kept, because a line carrying both invites a log drain to remap the wrong one.
+  // the same name must not replace them. `level` is the one name dropped — Vercel derives its own
+  // from the console method, so a line carrying both invites a drain to remap the wrong one.
+  // `path` collides too and is deliberately kept: Vercel's drain `path` is the route pattern,
+  // which is `/v1/[[...route]]` for every `/v1` request, where this app's is the concrete path.
+  // Decided in #91.
   const { level: _level, ...rest } = fields;
   const line = JSON.stringify({ ...rest, severity, event });
 

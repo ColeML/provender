@@ -43,6 +43,19 @@ describe("logWarn's reserved fields", () => {
       event: "auth.bearer_rejected",
     });
   });
+
+  it("keeps message and method, the other Vercel names, whose values do not answer wrong", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logWarn("auth.bearer_rejected", { message: "the token was rejected", method: "POST" });
+
+    expect(JSON.parse(String(warn.mock.calls[0]?.[0]))).toEqual({
+      severity: "warn",
+      event: "auth.bearer_rejected",
+      message: "the token was rejected",
+      method: "POST",
+    });
+  });
 });
 
 describe("logError", () => {
