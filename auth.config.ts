@@ -39,17 +39,23 @@ export async function authorizeHousehold(
   }
 
   const client = clientAddress(request);
-  const { throttled } = await registerLoginAttempt(client, new Date(), db);
+  const verdict = await registerLoginAttempt(client, new Date(), db);
 
   // Verified even when the answer is already no. Skipping scrypt would return a throttled attempt
   // in a fraction of the time a wrong password takes, and that difference is what a prober needs
   // to find where the limit sits.
   const correct = await verifyPassword(password, storedHash);
 
-  // Only the log distinguishes the two. The caller gets the same null, so the same redirect and
-  // the same message, whichever it was.
-  if (throttled) {
-    logWarn("auth.password_rejected", { reason: "throttled" });
+  // Refusals are enumerated by what is *not* `allowed`, so a verdict added later refuses until
+  // someone decides otherwise.
+  if (verdict !== "allowed") {
+    // Only `throttled` is the caller's doing. An `unavailable` verdict is the deployment's, and
+    // `auth.throttle_unavailable` has already recorded it at error level — a line here would be
+    // byte-for-byte a rate-limit hit, so a database outage would read as someone guessing the
+    // password.
+    if (verdict === "throttled") {
+      logWarn("auth.password_rejected", { reason: "throttled" });
+    }
 
     return null;
   }

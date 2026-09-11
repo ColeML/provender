@@ -20,6 +20,14 @@ export const MAX_ATTEMPTS = 10;
 export const WINDOW_MS = 15 * 60 * 1000;
 
 /**
+ * What one attempt is allowed to do.
+ *
+ * `throttled` and `unavailable` both refuse, and the caller answers both the same way. They are
+ * separate values because only one of them is the caller's doing, and the log has to say which.
+ */
+export type LoginVerdict = "allowed" | "throttled" | "unavailable";
+
+/**
  * Which client an attempt is counted against.
  *
  * On Vercel neither header is client-controlled and the two carry the same value: the platform
@@ -46,7 +54,7 @@ export function clientAddress(request: Request | undefined): string {
 }
 
 /**
- * Counts one attempt against `client` and says whether it is over the limit.
+ * Counts one attempt against `client` and says what it is allowed to do.
  *
  * Counting and deciding are the same statement, and it runs *before* the password is checked.
  * Reading a count, verifying, then writing would let every request that arrives during scrypt's
@@ -60,11 +68,11 @@ export async function registerLoginAttempt(
   client: string,
   now: Date = new Date(),
   db: Database = defaultDb,
-): Promise<{ throttled: boolean }> {
+): Promise<LoginVerdict> {
   const floor = new Date(now.getTime() - WINDOW_MS);
   const withinWindow = sql`${schema.loginAttempts.windowStart} > ${floor}`;
 
-  let throttled: boolean;
+  let verdict: LoginVerdict;
 
   try {
     const [row] = await db
@@ -79,12 +87,22 @@ export async function registerLoginAttempt(
       })
       .returning({ attemptCount: schema.loginAttempts.attemptCount });
 
-    throttled = (row?.attemptCount ?? MAX_ATTEMPTS + 1) > MAX_ATTEMPTS;
+    if (!row) {
+      // Also fail closed, and also as the deployment's doing: a counting upsert that returns
+      // nothing has not counted anything, whatever the client did.
+      logError("auth.throttle_unavailable", { operation: "count", message: "no row returned" });
+
+      return "unavailable";
+    }
+
+    verdict = row.attemptCount > MAX_ATTEMPTS ? "throttled" : "allowed";
   } catch (caught) {
     logError("auth.throttle_unavailable", { operation: "count", message: reason(caught) });
 
     // Fail closed: an attempt that could not be counted is not an attempt that may be answered.
-    return { throttled: true };
+    // Under its own verdict, though — a refusal the deployment caused must not reach the log as a
+    // client that ran out of guesses.
+    return "unavailable";
   }
 
   // Keeps the table bounded when an attacker rotates addresses, which would otherwise leave a row
@@ -97,7 +115,7 @@ export async function registerLoginAttempt(
     logError("auth.throttle_unavailable", { operation: "prune", message: reason(caught) });
   }
 
-  return { throttled };
+  return verdict;
 }
 
 /** Forget a client's attempts, so signing in restores its full allowance. */

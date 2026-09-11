@@ -11,6 +11,7 @@ import {
 } from "./login-throttle";
 
 import type { Database } from "@server/db";
+import type { LoginVerdict } from "./login-throttle";
 
 let db: Database;
 let close: () => Promise<void>;
@@ -29,10 +30,10 @@ afterEach(async () => {
 
 /** The verdict on each of `times` attempts, in order. */
 async function attempts(times: number, client = CLIENT, at: Date = NOW) {
-  const verdicts: boolean[] = [];
+  const verdicts: LoginVerdict[] = [];
 
   for (let attempt = 0; attempt < times; attempt += 1) {
-    verdicts.push((await registerLoginAttempt(client, at, db)).throttled);
+    verdicts.push(await registerLoginAttempt(client, at, db));
   }
 
   return verdicts;
@@ -42,16 +43,14 @@ describe("the login throttle", () => {
   it("allows attempts up to the limit and refuses the one after it", async () => {
     const verdicts = await attempts(MAX_ATTEMPTS + 1);
 
-    expect(verdicts.slice(0, MAX_ATTEMPTS)).not.toContain(true);
-    expect(verdicts[MAX_ATTEMPTS]).toBe(true);
+    expect(verdicts.slice(0, MAX_ATTEMPTS)).not.toContain("throttled");
+    expect(verdicts[MAX_ATTEMPTS]).toBe("throttled");
   });
 
   it("counts each address separately, so one attacker does not lock out the household", async () => {
     await attempts(MAX_ATTEMPTS + 1, CLIENT);
 
-    await expect(registerLoginAttempt("198.51.100.2", NOW, db)).resolves.toEqual({
-      throttled: false,
-    });
+    await expect(registerLoginAttempt("198.51.100.2", NOW, db)).resolves.toBe("allowed");
   });
 
   it("lets a throttled client back in once the window has passed", async () => {
@@ -59,7 +58,7 @@ describe("the login throttle", () => {
 
     const later = new Date(NOW.getTime() + WINDOW_MS + 1000);
 
-    await expect(registerLoginAttempt(CLIENT, later, db)).resolves.toEqual({ throttled: false });
+    await expect(registerLoginAttempt(CLIENT, later, db)).resolves.toBe("allowed");
   });
 
   it("does not let continued guessing extend a lockout", async () => {
@@ -71,7 +70,7 @@ describe("the login throttle", () => {
 
     const later = new Date(NOW.getTime() + WINDOW_MS + 1000);
 
-    await expect(registerLoginAttempt(CLIENT, later, db)).resolves.toEqual({ throttled: false });
+    await expect(registerLoginAttempt(CLIENT, later, db)).resolves.toBe("allowed");
   });
 
   it("forgets a client's attempts once it signs in", async () => {
@@ -79,7 +78,7 @@ describe("the login throttle", () => {
 
     await clearLoginAttempts(CLIENT, db);
 
-    await expect(registerLoginAttempt(CLIENT, NOW, db)).resolves.toEqual({ throttled: false });
+    await expect(registerLoginAttempt(CLIENT, NOW, db)).resolves.toBe("allowed");
   });
 
   it("drops rows whose window has expired, so rotated addresses do not accumulate", async () => {
@@ -101,7 +100,7 @@ describe("the login throttle", () => {
       throw new Error("canceling statement due to statement timeout");
     });
 
-    await expect(registerLoginAttempt(CLIENT, NOW, db)).resolves.toEqual({ throttled: false });
+    await expect(registerLoginAttempt(CLIENT, NOW, db)).resolves.toBe("allowed");
 
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
       severity: "error",
@@ -110,7 +109,7 @@ describe("the login throttle", () => {
     });
   });
 
-  it("refuses the attempt when it cannot be counted", async () => {
+  it("names the fail-closed refusal apart from a client that is over the limit", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const broken = {
       insert() {
@@ -118,7 +117,7 @@ describe("the login throttle", () => {
       },
     } as unknown as Database;
 
-    await expect(registerLoginAttempt(CLIENT, NOW, broken)).resolves.toEqual({ throttled: true });
+    await expect(registerLoginAttempt(CLIENT, NOW, broken)).resolves.toBe("unavailable");
 
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
       severity: "error",

@@ -52,14 +52,23 @@ afterEach(async () => {
 });
 
 /** The sign-in Auth.js would make, from one client address. */
-function authorize(credentials: Partial<Record<string, unknown>>) {
+function authorize(credentials: Partial<Record<string, unknown>>, database: Database = db) {
   return authorizeHousehold(
     credentials,
     new Request("https://provender.test/api/auth/callback/credentials", {
       headers: { "x-real-ip": CLIENT },
     }),
-    db,
+    database,
   );
+}
+
+/** A database that fails the throttle's counting upsert the way a dropped Neon connection does. */
+function unreachableDb() {
+  return {
+    insert() {
+      throw new Error("connection terminated");
+    },
+  } as unknown as Database;
 }
 
 function loggedText() {
@@ -167,6 +176,50 @@ describe("the sign-in throttle", () => {
     expect(loggedJson(warn)).toEqual([
       { severity: "warn", event: "auth.password_rejected", reason: "throttled" },
     ]);
+  });
+
+  it("does not report a throttle the database broke as a client over its limit", async () => {
+    vi.stubEnv("AUTH_PASSWORD_HASH", await hashPassword(PASSWORD));
+
+    await expect(authorize({ password: PASSWORD }, unreachableDb())).resolves.toBeNull();
+
+    expect(loggedJson(warn)).toEqual([]);
+    expect(loggedJson(error)).toEqual([
+      {
+        severity: "error",
+        event: "auth.throttle_unavailable",
+        operation: "count",
+        message: "connection terminated",
+      },
+    ]);
+  });
+
+  it("logs an outage and a genuine rate-limit hit as different events", async () => {
+    vi.stubEnv("AUTH_PASSWORD_HASH", await hashPassword(PASSWORD));
+
+    await authorize({ password: PASSWORD }, unreachableDb());
+
+    const outage = [...loggedJson(warn), ...loggedJson(error)];
+
+    warn.mockClear();
+    error.mockClear();
+    await spendAllowance();
+    await authorize({ password: PASSWORD });
+
+    const rateLimited = [...loggedJson(warn), ...loggedJson(error)];
+
+    expect(outage.map((line) => line.event)).toEqual(["auth.throttle_unavailable"]);
+    expect(rateLimited).toEqual([
+      { severity: "warn", event: "auth.password_rejected", reason: "throttled" },
+    ]);
+  });
+
+  it("never writes the password when the throttle itself is down", async () => {
+    vi.stubEnv("AUTH_PASSWORD_HASH", await hashPassword(PASSWORD));
+
+    await authorize({ password: "hunter2" }, unreachableDb());
+
+    expect(loggedText()).not.toContain("hunter2");
   });
 
   it("clears the count when the household signs in", async () => {
