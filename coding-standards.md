@@ -152,6 +152,26 @@ platform already does.
   varies goes in a field.
 - **One line per failure.** A rejection logged in both a middleware and the handler it guards
   doubles every count read off the log.
+- **Filter on `severity`, not on Vercel's Level.** The two levels do not separate in Vercel's own
+  Level filter for the functions this app runs. Vercel derives that facet from the console method,
+  and [documents](https://vercel.com/docs/logs/runtime#level) that `console.warn` maps to
+  `warning` only for streaming functions; in a non-streaming function it maps to `error`. The `/v1`
+  handlers, the bearer middleware and the Auth.js callbacks are all non-streaming, so
+  `auth.bearer_rejected` and `auth.api_token_unset` both land under Error there.
+- **The JSON field is `severity`, not `level`.** Vercel's own `level` filter reads the console
+  method rather than the JSON body — its knowledge base
+  [says so](https://vercel.com/kb/guide/add-structured-application-logs-to-vercel-functions) while
+  still using `level` as the field name in its examples. Two different things under one name is
+  the problem: someone filtering `level:warn` gets the console-derived value and would not know
+  which they had. `severity` is unambiguous, and `emit` drops a caller's `level` so a line never
+  carries both.
+
+  Two things are unverified against a real deployment. Whether a `severity` search resolves in
+  Vercel's log view: Vercel documents free-text search as limited to `message` and `requestPath`,
+  with other fields filtered from the sidebar, and documents no list of field names it reserves on
+  a parsed JSON line. And how a log drain reads the values: `severity` is a name GCP Cloud Logging
+  and Datadog both claim, and neither accepts `warn` — GCP's enum wants `WARNING`. Adding a drain
+  means checking that, and possibly widening the emitted values.
 
 ## Database
 

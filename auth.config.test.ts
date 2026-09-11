@@ -69,7 +69,7 @@ describe("the credentials provider", () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(error).not.toHaveBeenCalled();
     expect(loggedJson(warn)[0]).toEqual({
-      level: "warn",
+      severity: "warn",
       event: "auth.password_rejected",
       reason: "wrong_password",
     });
@@ -92,7 +92,7 @@ describe("the credentials provider", () => {
     await expect(authorizeHousehold({ password: PASSWORD })).resolves.toBeNull();
 
     expect(warn).not.toHaveBeenCalled();
-    expect(loggedJson(error)).toEqual([{ level: "error", event: "auth.password_hash_unset" }]);
+    expect(loggedJson(error)).toEqual([{ severity: "error", event: "auth.password_hash_unset" }]);
   });
 
   it("never writes the password or the stored hash", async () => {
@@ -122,7 +122,7 @@ describe("the Auth.js logger", () => {
 
     expect(loggedJson(error)).toEqual([
       {
-        level: "error",
+        severity: "error",
         event: "auth.internal_error",
         name: "CallbackRouteError",
         message: "Read more at https://errors.authjs.dev#callbackrouteerror",

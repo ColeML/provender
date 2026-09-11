@@ -14,7 +14,7 @@ describe("logWarn", () => {
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(warn.mock.calls[0]?.[0]))).toEqual({
-      level: "warn",
+      severity: "warn",
       event: "auth.bearer_rejected",
       reason: "wrong_token",
     });
@@ -22,20 +22,31 @@ describe("logWarn", () => {
 });
 
 describe("logWarn's reserved fields", () => {
-  it("keeps level and event when a caller passes fields of the same name", () => {
+  it("keeps severity and event when a caller passes fields of the same name", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    logWarn("auth.bearer_rejected", { level: "info", event: "something.else" });
+    logWarn("auth.bearer_rejected", { severity: "info", event: "something.else" });
 
     expect(JSON.parse(String(warn.mock.calls[0]?.[0]))).toEqual({
-      level: "warn",
+      severity: "warn",
+      event: "auth.bearer_rejected",
+    });
+  });
+
+  it("drops a caller's level, so one line never carries two severity fields", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logWarn("auth.bearer_rejected", { level: "info" });
+
+    expect(JSON.parse(String(warn.mock.calls[0]?.[0]))).toEqual({
+      severity: "warn",
       event: "auth.bearer_rejected",
     });
   });
 });
 
 describe("logError", () => {
-  it("writes to console.error, so the level survives into Vercel's log view", () => {
+  it("writes to console.error, which is what Vercel's own level facet reads", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -43,7 +54,7 @@ describe("logError", () => {
 
     expect(warn).not.toHaveBeenCalled();
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toEqual({
-      level: "error",
+      severity: "error",
       event: "auth.api_token_unset",
     });
   });
