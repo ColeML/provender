@@ -165,7 +165,7 @@ describe("the sign-in throttle", () => {
 
     expect(throttled).toEqual(wrong);
     expect(loggedJson(warn)).toEqual([
-      { level: "warn", event: "auth.password_rejected", reason: "throttled" },
+      { severity: "warn", event: "auth.password_rejected", reason: "throttled" },
     ]);
   });
 

@@ -105,7 +105,7 @@ describe("the login throttle", () => {
     await expect(registerLoginAttempt(CLIENT, NOW, broken)).resolves.toEqual({ throttled: true });
 
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
-      level: "error",
+      severity: "error",
       event: "auth.throttle_unavailable",
       operation: "count",
     });
