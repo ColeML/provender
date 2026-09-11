@@ -74,11 +74,8 @@ export default async function Home() {
             <ul className="divide-border mt-6 divide-y">
               {days.map((day) => (
                 <li key={`${day.date}-${day.mealSlot}`} className="flex items-baseline gap-3 py-3">
-                  {/* Stacked, not side by side: "Wednesday breakfast" is wider than this column
-                      at any phone width, so on one line it wrapped and pushed the slot name below
-                      the dish it labels. The tap target and the focus ring both move to the
-                      overlay covering the whole label box, which keeps the target at least 44px
-                      without the link itself setting the column's height. */}
+                  {/* Stacked because "Wednesday breakfast" overflows this column at any phone
+                      width, which wrapped the slot word below the dish it labels. */}
                   <span className="relative flex min-h-11 w-24 shrink-0 flex-col justify-center text-sm font-medium">
                     <Link
                       href={`/plan/${day.date}`}
