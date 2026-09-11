@@ -22,11 +22,16 @@ export const WINDOW_MS = 15 * 60 * 1000;
 /**
  * Which client an attempt is counted against.
  *
- * `x-real-ip` first: on Vercel both headers are set by the platform, but `x-forwarded-for` is a
- * list a client can prepend to behind some proxies, and a client that chooses its own key gets a
- * fresh allowance per guess. Anything unidentified shares the `unknown` bucket rather than going
- * uncounted — which does mean ten failures with no proxy header in front lock out every other
- * unidentified client for the window.
+ * On Vercel neither header is client-controlled and the two carry the same value: the platform
+ * overwrites `x-forwarded-for` and does not forward external IPs, to prevent spoofing, and
+ * documents `x-real-ip` as identical to it. So the order below decides nothing on this deployment.
+ * `x-real-ip` is read first because it is a single address, where the `x-forwarded-for` fallback
+ * takes the leftmost entry of a list — the client-supplied end, if this ever runs somewhere that
+ * forwards one. Putting a proxy on top of Vercel is the case that would break both, and Vercel
+ * documents `x-vercel-forwarded-for` as the header that survives it.
+ *
+ * Anything unidentified shares the `unknown` bucket rather than going uncounted — which does mean
+ * ten failures with no address header lock out every other unidentified client for the window.
  */
 export function clientAddress(request: Request | undefined): string {
   const realIp = request?.headers.get("x-real-ip")?.trim();
@@ -59,6 +64,8 @@ export async function registerLoginAttempt(
   const floor = new Date(now.getTime() - WINDOW_MS);
   const withinWindow = sql`${schema.loginAttempts.windowStart} > ${floor}`;
 
+  let throttled: boolean;
+
   try {
     const [row] = await db
       .insert(schema.loginAttempts)
@@ -72,17 +79,25 @@ export async function registerLoginAttempt(
       })
       .returning({ attemptCount: schema.loginAttempts.attemptCount });
 
-    // Keeps the table bounded when an attacker rotates addresses, which would otherwise leave a
-    // row per address forever.
-    await db.delete(schema.loginAttempts).where(lt(schema.loginAttempts.windowStart, floor));
-
-    return { throttled: (row?.attemptCount ?? MAX_ATTEMPTS + 1) > MAX_ATTEMPTS };
+    throttled = (row?.attemptCount ?? MAX_ATTEMPTS + 1) > MAX_ATTEMPTS;
   } catch (caught) {
     logError("auth.throttle_unavailable", { operation: "count", message: reason(caught) });
 
     // Fail closed: an attempt that could not be counted is not an attempt that may be answered.
     return { throttled: true };
   }
+
+  // Keeps the table bounded when an attacker rotates addresses, which would otherwise leave a row
+  // per address forever. Caught separately from the count, and after the verdict is decided,
+  // because housekeeping is not part of the decision: sharing the `try` above would let a failed
+  // delete refuse an attempt the count had just allowed.
+  try {
+    await db.delete(schema.loginAttempts).where(lt(schema.loginAttempts.windowStart, floor));
+  } catch (caught) {
+    logError("auth.throttle_unavailable", { operation: "prune", message: reason(caught) });
+  }
+
+  return { throttled };
 }
 
 /** Forget a client's attempts, so signing in restores its full allowance. */

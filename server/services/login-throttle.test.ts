@@ -94,6 +94,22 @@ describe("the login throttle", () => {
     expect(rows.map((row) => row.client)).toEqual(["198.51.100.2"]);
   });
 
+  it("still allows an attempt that was counted but whose cleanup failed", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    vi.spyOn(db, "delete").mockImplementation(() => {
+      throw new Error("canceling statement due to statement timeout");
+    });
+
+    await expect(registerLoginAttempt(CLIENT, NOW, db)).resolves.toEqual({ throttled: false });
+
+    expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+      severity: "error",
+      event: "auth.throttle_unavailable",
+      operation: "prune",
+    });
+  });
+
   it("refuses the attempt when it cannot be counted", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const broken = {
@@ -113,7 +129,7 @@ describe("the login throttle", () => {
 });
 
 describe("the client address", () => {
-  it("prefers x-real-ip, which a client cannot prepend to", () => {
+  it("prefers x-real-ip, the single-address header, over a forwarded list", () => {
     const request = new Request("https://example.test/", {
       headers: { "x-real-ip": CLIENT, "x-forwarded-for": `10.0.0.1, ${CLIENT}` },
     });
