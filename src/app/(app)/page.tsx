@@ -74,10 +74,12 @@ export default async function Home() {
             <ul className="divide-border mt-6 divide-y">
               {days.map((day) => (
                 <li key={`${day.date}-${day.mealSlot}`} className="flex items-baseline gap-3 py-3">
-                  <span className="w-24 shrink-0 text-sm font-medium">
+                  {/* Stacked because "Wednesday breakfast" overflows this column at any phone
+                      width, which wrapped the slot word below the dish it labels. */}
+                  <span className="relative flex min-h-11 w-24 shrink-0 flex-col justify-center text-sm font-medium">
                     <Link
                       href={`/plan/${day.date}`}
-                      className="inline-flex min-h-11 items-center underline"
+                      className="focus-visible:after:ring-ring underline after:absolute after:inset-0 after:rounded-sm focus-visible:outline-none focus-visible:after:ring-3"
                     >
                       {WEEKDAY.format(new Date(`${day.date}T00:00:00Z`))}
                     </Link>
@@ -86,7 +88,7 @@ export default async function Home() {
                         only one a week of planning writes. */}
                     {day.mealSlot === "dinner" ? null : (
                       <span className="text-muted-foreground font-normal">
-                        {` ${SLOT_LABELS[day.mealSlot] ?? day.mealSlot}`}
+                        {SLOT_LABELS[day.mealSlot] ?? day.mealSlot}
                       </span>
                     )}
                   </span>
