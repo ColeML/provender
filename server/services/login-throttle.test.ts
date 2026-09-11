@@ -125,6 +125,26 @@ describe("the login throttle", () => {
       operation: "count",
     });
   });
+
+  it("refuses under the same fail-closed name when the count returns no row", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const countedNothing = {
+      insert: () => ({
+        values: () => ({
+          onConflictDoUpdate: () => ({ returning: () => Promise.resolve([]) }),
+        }),
+      }),
+    } as unknown as Database;
+
+    await expect(registerLoginAttempt(CLIENT, NOW, countedNothing)).resolves.toBe("unavailable");
+
+    expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+      severity: "error",
+      event: "auth.throttle_unavailable",
+      operation: "count",
+      message: "no row returned",
+    });
+  });
 });
 
 describe("the client address", () => {
