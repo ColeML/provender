@@ -119,7 +119,7 @@ export function WeekGrid({ week, recipes, forecast, defaultServings }: Props) {
   return (
     <main className="mx-auto max-w-6xl p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{week.planId}</h1>
+        <h1 className="font-display text-2xl font-semibold">{week.planId}</h1>
 
         <p className="font-mono text-sm">
           <span className={cn(over && "text-destructive")}>{money(week.estimatedCost)}</span>

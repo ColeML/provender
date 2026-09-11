@@ -82,7 +82,7 @@ export default async function Plan({ searchParams }: { searchParams: Promise<{ w
 function NoWeek({ planId }: { planId?: string } = {}) {
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <h1 className="text-2xl font-semibold">
+      <h1 className="font-display text-2xl font-semibold">
         {planId ?? isoWeekFor(new Date().toISOString().slice(0, 10))}
       </h1>
       <p className="text-muted-foreground mt-2 text-sm">

@@ -18,7 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <>
       <header className="border-border border-b">
         <nav className="mx-auto flex max-w-2xl items-center gap-4 px-4 py-3">
-          <Link href="/" className="font-semibold tracking-tight">
+          <Link href="/" className="font-display font-semibold tracking-tight">
             Provender
           </Link>
 

@@ -90,9 +90,23 @@ scale, focus rings, and dark-mode surface treatment come from.
 
 ## Typography & icons
 
-- One UI typeface for everything, including headings.
-- A monospace face for anything that is data rather than prose: ids, quantities in a settings
-  dump, raw JSON.
+**A serif carries titles. Everything else stays sans or mono.** Three roles, three faces:
+
+| Role | Face | Where |
+| ---- | ---- | ----- |
+| Display | Charter, published on Google Fonts as **Charis SIL** (`font-display`) | recipe titles, page `h1`, the wordmark |
+| UI | the sans, which is the default | everything else, including recipe steps and all section labels |
+| Data | the mono (`font-mono`) | quantities, ids, costs |
+
+Charter was drawn to stay legible under poor rendering, which is the cook view read at arm's
+length with wet hands, and it is narrower than the alternatives, which matters when "Instant Pot
+Teriyaki Chicken and Rice" has to wrap inside 390px.
+
+- **The small `text-xs` section labels stay sans** — Servings, Ingredients, Method. The serif reads
+  worse at that size, and those labels are chrome rather than titles.
+- Charis SIL is not a variable font and ships 400 and 700 only. `next/font` self-hosts 700, the
+  weight every title resolves to, so a page view makes no request to Google and downloads one file.
+  A title that wants normal weight has to add 400 in `src/app/layout.tsx` first.
 - **Icons are `lucide-react`, exclusively.** No mixing sets, no inline SVG for something the
   library already has.
 
