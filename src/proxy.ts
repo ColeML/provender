@@ -16,11 +16,12 @@ const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"
 const PUBLIC_PATHS = ["/login", "/api/auth"];
 
 /**
- * `/v1` is absent on purpose: it authenticates with a bearer token, not a cookie, and a redirect
- * to an HTML login page is a useless answer for an API client. Its middleware refuses in the
- * AIP-193 shape instead.
+ * Paths that answer JSON, so a redirect to an HTML login page would be a useless answer — the
+ * caller is parsing a body, not following a `Location`. Both refuse on their own: `/v1` in the
+ * AIP-193 shape from its bearer middleware, `/api/trpc` as a tRPC `UNAUTHORIZED` from
+ * `protectedProcedure`.
  */
-const BEARER_PATHS = ["/v1"];
+const JSON_PATHS = ["/v1", "/api/trpc"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -28,7 +29,7 @@ export function proxy(request: NextRequest) {
   // Segment-wise, not a raw prefix: `startsWith("/login")` would also admit `/loginish`.
   const ungated = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
 
-  if ([...PUBLIC_PATHS, ...BEARER_PATHS].some(ungated)) {
+  if ([...PUBLIC_PATHS, ...JSON_PATHS].some(ungated)) {
     return NextResponse.next();
   }
 

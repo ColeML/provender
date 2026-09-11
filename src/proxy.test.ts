@@ -39,4 +39,8 @@ describe("proxy", () => {
   it("leaves /v1 alone, so an API client gets a 401 rather than an HTML login page", () => {
     expect(proxy(request("/v1/config")).headers.get("location")).toBeNull();
   });
+
+  it("leaves /api/trpc alone, so a signed-out browser call parses JSON rather than HTML", () => {
+    expect(proxy(request("/api/trpc/config.get")).headers.get("location")).toBeNull();
+  });
 });
