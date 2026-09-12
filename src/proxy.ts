@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { REQUESTED_PATH_HEADER } from "@/lib/login-url";
+
 /**
  * The app-wide gate — an optimistic one.
  *
@@ -35,12 +37,20 @@ export function proxy(request: NextRequest) {
 
   const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name));
 
+  const requested = pathname + request.nextUrl.search;
+
   if (hasSession) {
-    return NextResponse.next();
+    // Unverified, so the page's own `auth()` may still turn this visitor away. Pass the path on
+    // so that redirect can carry a `from` as well (#93).
+    const forwarded = new Headers(request.headers);
+
+    forwarded.set(REQUESTED_PATH_HEADER, requested);
+
+    return NextResponse.next({ request: { headers: forwarded } });
   }
 
   const url = new URL("/login", request.url);
-  url.searchParams.set("from", pathname + request.nextUrl.search);
+  url.searchParams.set("from", requested);
 
   return NextResponse.redirect(url);
 }

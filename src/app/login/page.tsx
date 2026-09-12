@@ -1,6 +1,8 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
+import { isInternalPath } from "@/lib/login-url";
+
 import { signIn } from "../../../auth";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +17,7 @@ export default async function Login({ searchParams }: Props) {
   async function authenticate(formData: FormData) {
     "use server";
 
-    const target = typeof from === "string" && from.startsWith("/") ? from : "/";
+    const target = typeof from === "string" && isInternalPath(from) ? from : "/";
 
     try {
       await signIn("credentials", {

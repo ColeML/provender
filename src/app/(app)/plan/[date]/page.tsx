@@ -6,6 +6,7 @@ import { daySlots } from "@server/services/week-plan";
 import { notFound, redirect } from "next/navigation";
 
 import { DayView, type DayWeather } from "@/components/plan/day-view";
+import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../../auth";
 
@@ -73,7 +74,7 @@ export default async function Day({ params }: { params: Promise<{ date: string }
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect(await loginUrl());
   }
 
   const householdId = householdForSession(session);

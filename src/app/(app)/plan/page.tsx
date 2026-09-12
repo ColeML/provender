@@ -8,6 +8,7 @@ import { weekPlan } from "@server/services/week-plan";
 import { redirect } from "next/navigation";
 
 import { WeekGrid, type DayForecast } from "@/components/plan/week-grid";
+import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../auth";
 
@@ -35,7 +36,7 @@ export default async function Plan({ searchParams }: { searchParams: Promise<{ w
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect(await loginUrl());
   }
 
   const householdId = householdForSession(session);

@@ -3,6 +3,7 @@ import { allRecipes } from "@server/services/recipes";
 import { redirect } from "next/navigation";
 
 import { RecipeLibrary } from "@/components/recipes/recipe-library";
+import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../auth";
 
@@ -15,7 +16,7 @@ export default async function Recipes() {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect(await loginUrl());
   }
 
   const recipes = await allRecipes(householdForSession(session));
