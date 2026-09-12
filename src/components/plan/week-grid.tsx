@@ -258,7 +258,7 @@ function RecipePicker({
         value={value ?? ""}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
-        className="border-border bg-background focus-visible:ring-ring mt-0.5 w-full rounded-md border px-2 py-1.5 text-sm focus-visible:ring-3 focus-visible:outline-none disabled:opacity-50"
+        className="border-muted-foreground bg-background focus-visible:ring-ring mt-0.5 w-full rounded-md border px-2 py-1.5 text-sm focus-visible:ring-3 focus-visible:outline-none disabled:opacity-50"
       >
         <option value="">None</option>
 
