@@ -1,4 +1,5 @@
 import { createContext } from "@server/trpc/context";
+import { logTrpcError } from "@server/trpc/init";
 import { appRouter } from "@server/trpc/routers";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
@@ -8,6 +9,7 @@ function handler(request: Request) {
     req: request,
     router: appRouter,
     createContext,
+    onError: logTrpcError,
   });
 }
 
