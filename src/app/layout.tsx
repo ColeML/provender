@@ -31,6 +31,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // client render disagree by design.
     <html lang="en" className={display.variable} suppressHydrationWarning>
       <body className="antialiased">
+        {/* The dev-only "Encountered a script tag" warning is next-themes' pre-paint theme script;
+            silencing it in 0.4.6 means stopping the script (pacocoursey/next-themes#385). */}
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <Providers>{children}</Providers>
         </ThemeProvider>
