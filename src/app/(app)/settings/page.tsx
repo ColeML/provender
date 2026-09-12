@@ -2,6 +2,8 @@ import { householdForSession } from "@server/auth/household";
 import { getConfig } from "@server/services/config";
 import { redirect } from "next/navigation";
 
+import { loginUrl } from "@/lib/login-url";
+
 import { auth } from "../../../../auth";
 
 /** Live data, and read at request time — see the note on the home page. */
@@ -13,7 +15,7 @@ export default async function Settings() {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect(await loginUrl());
   }
 
   const entries = Object.entries(await getConfig(householdForSession(session)));

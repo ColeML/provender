@@ -4,6 +4,7 @@ import { listItems } from "@server/services/shopping";
 import { redirect } from "next/navigation";
 
 import { ShoppingList } from "@/components/shop/shopping-list";
+import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../auth";
 
@@ -16,7 +17,7 @@ export default async function Shop() {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect(await loginUrl());
   }
 
   const householdId = householdForSession(session);

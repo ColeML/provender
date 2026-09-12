@@ -3,6 +3,7 @@ import { getRecipe, listIngredients, RecipeNotFoundError } from "@server/service
 import { notFound, redirect } from "next/navigation";
 
 import { CookView } from "@/components/recipes/cook-view";
+import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../../auth";
 
@@ -13,7 +14,7 @@ export default async function Recipe({ params }: { params: Promise<{ slug: strin
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/login");
+    redirect(await loginUrl());
   }
 
   const householdId = householdForSession(session);
