@@ -22,7 +22,12 @@ import {
   updateRecipe,
 } from "@server/services/recipes";
 import { clearTokenCache, NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
-import { listItems, replaceItems } from "@server/services/shopping";
+import {
+  listItems,
+  replaceItems,
+  ShoppingItemNotFoundError,
+  updateItem,
+} from "@server/services/shopping";
 import {
   deleteHistoryEntry,
   detachHistoryFromDay,
@@ -134,6 +139,22 @@ describe("recipes", () => {
     );
     await expect(recipesByIds(B, ["fajitas"], db)).resolves.toEqual(new Map());
   });
+
+  // The cursor is a second predicate on the same query, and only a paged call reaches it. B's page
+  // one ends on an id that sorts before A's `fajitas`, so a `gt` without the household filter hands
+  // B a recipe it does not own.
+  it("does not follow a page token into another household's recipes", async () => {
+    await createRecipe(B, "burgers", { ...recipe, title: "Burgers" }, [], db);
+    await createRecipe(B, "tacos", { ...recipe, title: "Tacos" }, [], db);
+
+    const first = await listRecipes(B, { pageSize: 1 }, db);
+
+    expect(first.recipes).toMatchObject([{ id: "burgers" }]);
+
+    await expect(
+      listRecipes(B, { pageSize: 1, pageToken: first.nextPageToken }, db),
+    ).resolves.toMatchObject({ recipes: [{ id: "tacos" }] });
+  });
 });
 
 describe("ingredients", () => {
@@ -186,6 +207,27 @@ describe("shopping lists", () => {
   it("hides another household's list", async () => {
     await expect(listItems(A, "2026-W36", db)).resolves.toHaveLength(1);
     await expect(listItems(B, "2026-W36", db)).resolves.toEqual([]);
+  });
+
+  // Item ids come from the name and unit alone, so nothing about A's row distinguishes it from a
+  // row B's rebuild would drop — the household filter on the delete is the whole of what saves it.
+  it("does not clear another household's list when rebuilding a week of the same name", async () => {
+    await replaceItems(
+      B,
+      "2026-W36",
+      [{ name: "bell peppers", quantity: 2, unit: "ea", category: "produce" }],
+      db,
+    );
+
+    await expect(listItems(A, "2026-W36", db)).resolves.toMatchObject([{ name: "chicken breast" }]);
+  });
+
+  it("will not let one household tick another's item", async () => {
+    await expect(
+      updateItem(B, "2026-W36", "chicken-breast_lb", { purchased: true }, ["purchased"], db),
+    ).rejects.toBeInstanceOf(ShoppingItemNotFoundError);
+
+    await expect(listItems(A, "2026-W36", db)).resolves.toMatchObject([{ purchased: false }]);
   });
 });
 
