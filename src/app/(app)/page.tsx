@@ -77,6 +77,8 @@ export default async function Home() {
                   {/* Stacked because "Wednesday breakfast" overflows this column at any phone
                       width, which wrapped the slot word below the dish it labels. */}
                   <span className="relative flex min-h-11 w-24 shrink-0 flex-col justify-center text-sm font-medium">
+                    {/* The overlay stretches the link's hit area over the span's full height, at
+                        the cost of making the slot word part of the link rather than selectable. */}
                     <Link
                       href={`/plan/${day.date}`}
                       className="focus-visible:after:ring-ring underline after:absolute after:inset-0 after:rounded-sm focus-visible:outline-none focus-visible:after:ring-3"
@@ -93,13 +95,18 @@ export default async function Home() {
                     )}
                   </span>
 
+                  {/* The title link needs `box-decoration-clone`: a title that wraps splits an
+                      inline element into fragments, and the default slice leaves the ring open. */}
                   <span className="min-w-0 flex-1">
                     {day.mainRecipeId === null ? (
                       <span className="text-muted-foreground text-sm">
                         {day.status === "planned" ? "No main" : day.status}
                       </span>
                     ) : (
-                      <Link href={`/recipes/${day.mainRecipeId}`} className="text-base">
+                      <Link
+                        href={`/recipes/${day.mainRecipeId}`}
+                        className="focus-visible:ring-ring box-decoration-clone rounded-sm text-base focus-visible:ring-3 focus-visible:outline-none"
+                      >
                         {day.mainTitle ?? day.mainRecipeId}
                       </Link>
                     )}
