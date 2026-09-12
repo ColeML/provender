@@ -14,6 +14,14 @@ export default defineConfig({
       PROVENDER_API_TOKEN: "test-token",
     },
     unstubEnvs: true,
+    // Sixteen files build a fresh PGlite Postgres and replay every migration in a `beforeEach` —
+    // 428ms warm, which blows the default 10s hook timeout on a loaded machine (#128). The same
+    // build runs inside one test body, so `testTimeout` needs the same room. 67% of cores measured
+    // fastest of the caps tried (8 on a 12-core machine, against a default of cores-1); it is a
+    // percentage so that a smaller runner scales with its core count rather than oversubscribing.
+    maxWorkers: "67%",
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     // Node by default, because most of the suite is services and SQL. A component test opts into
     // a DOM with `// @vitest-environment jsdom` at the top of the file — `environmentMatchGlobs`
     // was removed in Vitest 4 — so a database test never pays for jsdom.
