@@ -74,6 +74,54 @@ export async function authorizeHousehold(
 }
 
 /**
+ * What kind of error Auth.js raised, in a form a production build cannot mangle.
+ *
+ * `AuthError` sets `name` from `this.constructor.name`, which SWC minifies to a single letter, so
+ * matching on the name works in dev and silently fails in production (#113). `type` is a static
+ * string literal on the class and survives intact. `instanceof` is not an option: importing the
+ * error class from `next-auth` pulls its Next server entry into every module that reads this
+ * config.
+ */
+function authErrorType(error: Error): string | undefined {
+  if ("type" in error && typeof error.type === "string") {
+    return error.type;
+  }
+
+  return undefined;
+}
+
+/** Every environment variable whose value must never reach a log line. */
+const SECRETS = [
+  "AUTH_SECRET",
+  "AUTH_PASSWORD_HASH",
+  "DATABASE_URL",
+  "DATABASE_URL_UNPOOLED",
+  "PROVENDER_API_TOKEN",
+  "KROGER_CLIENT_SECRET",
+] as const;
+
+/**
+ * Strips configured secrets out of third-party text.
+ *
+ * What Auth.js wrapped is whatever threw inside it, and a driver error can quote the connection
+ * string it failed to open, password and all. Only a whole configured value is matched, so this
+ * is a floor under the message and stack, not a promise about text this app never wrote.
+ */
+function redactSecrets(text: string): string {
+  let safe = text;
+
+  for (const variable of SECRETS) {
+    const secret = process.env[variable];
+
+    if (secret) {
+      safe = safe.replaceAll(secret, "[redacted]");
+    }
+  }
+
+  return safe;
+}
+
+/**
  * The error Auth.js wrapped, if it wrapped one.
  *
  * An `AuthError`'s own message is only a link to the docs; whatever actually failed inside
@@ -115,21 +163,23 @@ export const authConfig = {
      * caller's. `authorizeHousehold` has already recorded it.
      */
     error(error) {
-      // Matched by name rather than `instanceof`: importing the error class from `next-auth`
-      // pulls its Next server entry into every module that reads this config.
-      if (error.name === "CredentialsSignin") {
+      const type = authErrorType(error);
+
+      if (type === "CredentialsSignin") {
         return;
       }
 
       const cause = wrappedCause(error);
 
       logError("auth.internal_error", {
-        name: error.name,
-        message: error.message,
+        // The type, so the field a search is built on stays the same string a production build
+        // mangles `name` away from.
+        name: type ?? error.name,
+        message: redactSecrets(error.message),
         ...(cause && {
           causeName: cause.name,
-          causeMessage: cause.message,
-          causeStack: cause.stack ?? "",
+          causeMessage: redactSecrets(cause.message),
+          causeStack: redactSecrets(cause.stack ?? ""),
         }),
       });
     },

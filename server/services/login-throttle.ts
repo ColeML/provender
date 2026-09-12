@@ -15,6 +15,10 @@ import { eq, lt, sql } from "drizzle-orm";
  *
  * Neither function throws. A limiter that answered a database error by propagating it would
  * become a way to bypass itself, so a failure logs and refuses.
+ *
+ * Only a failure that refused someone is `auth.throttle_unavailable`. The deletes below run after
+ * the verdict and change nobody's answer, so they log `auth.throttle_cleanup_failed` — otherwise
+ * an alert on the first event pages someone for a sign-in that worked.
  */
 export const MAX_ATTEMPTS = 10;
 export const WINDOW_MS = 15 * 60 * 1000;
@@ -112,7 +116,7 @@ export async function registerLoginAttempt(
   try {
     await db.delete(schema.loginAttempts).where(lt(schema.loginAttempts.windowStart, floor));
   } catch (caught) {
-    logError("auth.throttle_unavailable", { operation: "prune", message: reason(caught) });
+    logError("auth.throttle_cleanup_failed", { operation: "prune", message: reason(caught) });
   }
 
   return verdict;
@@ -123,7 +127,7 @@ export async function clearLoginAttempts(client: string, db: Database = defaultD
   try {
     await db.delete(schema.loginAttempts).where(eq(schema.loginAttempts.client, client));
   } catch (caught) {
-    logError("auth.throttle_unavailable", { operation: "clear", message: reason(caught) });
+    logError("auth.throttle_cleanup_failed", { operation: "clear", message: reason(caught) });
   }
 }
 

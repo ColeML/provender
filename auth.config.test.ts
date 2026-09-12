@@ -12,12 +12,15 @@ const PASSWORD = "correct horse battery staple";
 const CLIENT = "203.0.113.7";
 
 /**
- * What Auth.js hands its logger when `authorize` returns null. The real class comes from
- * `next-auth`, whose root entry drags Next's server runtime into a plain Node test; it sets
- * `name` from the constructor, which is what the config matches on.
+ * What Auth.js hands its logger when `authorize` returns null, shaped the way a production build
+ * leaves it. The real class comes from `next-auth`, whose root entry drags Next's server runtime
+ * into a plain Node test. `AuthError` sets `name` from `this.constructor.name`, which SWC mangles
+ * to a single letter, so these fakes carry the mangled name the deployed bundle would have and
+ * the static `type` string literal that survives minification (#113).
  */
 class CredentialsSignin extends Error {
-  override name = "CredentialsSignin";
+  override name = "_";
+  readonly type = "CredentialsSignin";
 }
 
 /**
@@ -25,7 +28,8 @@ class CredentialsSignin extends Error {
  * to the docs, and the error that actually failed is at `cause.err`.
  */
 class CallbackRouteError extends Error {
-  override name = "CallbackRouteError";
+  override name = "g";
+  readonly type = "CallbackRouteError";
 
   constructor(err: Error) {
     super("Read more at https://errors.authjs.dev#callbackrouteerror", {
@@ -214,6 +218,23 @@ describe("the sign-in throttle", () => {
     ]);
   });
 
+  it("does not call the throttle unavailable when a sign-in worked and only the tidying failed", async () => {
+    vi.stubEnv("AUTH_PASSWORD_HASH", await hashPassword(PASSWORD));
+    vi.spyOn(db, "delete").mockImplementation(() => {
+      throw new Error("canceling statement due to statement timeout");
+    });
+
+    await expect(authorize({ password: PASSWORD })).resolves.toEqual({
+      id: "household",
+      name: "Household",
+    });
+
+    expect(loggedJson(error).map((line) => line.event)).toEqual([
+      "auth.throttle_cleanup_failed",
+      "auth.throttle_cleanup_failed",
+    ]);
+  });
+
   it("never writes the password when the throttle itself is down", async () => {
     vi.stubEnv("AUTH_PASSWORD_HASH", await hashPassword(PASSWORD));
 
@@ -285,5 +306,24 @@ describe("the Auth.js logger", () => {
         causeStack: cause.stack,
       },
     ]);
+  });
+
+  it("falls back to the name of an error that carries no Auth.js type", () => {
+    authConfig.logger.error(new Error("something else entirely"));
+
+    expect(loggedJson(error)[0]).toMatchObject({ name: "Error" });
+  });
+
+  it("keeps a secret out of the log when a third-party error quotes one", () => {
+    vi.stubEnv("DATABASE_URL", "postgres://user:hunter2@db.example/provender");
+
+    authConfig.logger.error(
+      new CallbackRouteError(
+        new Error("could not connect to postgres://user:hunter2@db.example/provender"),
+      ),
+    );
+
+    expect(loggedText()).not.toContain("hunter2");
+    expect(loggedJson(error)[0].causeMessage).toBe("could not connect to [redacted]");
   });
 });

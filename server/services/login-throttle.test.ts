@@ -104,8 +104,24 @@ describe("the login throttle", () => {
 
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
       severity: "error",
-      event: "auth.throttle_unavailable",
+      event: "auth.throttle_cleanup_failed",
       operation: "prune",
+    });
+  });
+
+  it("names a failed forget as housekeeping, since it refused nobody", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    vi.spyOn(db, "delete").mockImplementation(() => {
+      throw new Error("canceling statement due to statement timeout");
+    });
+
+    await clearLoginAttempts(CLIENT, db);
+
+    expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+      severity: "error",
+      event: "auth.throttle_cleanup_failed",
+      operation: "clear",
     });
   });
 
