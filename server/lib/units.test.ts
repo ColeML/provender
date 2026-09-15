@@ -10,7 +10,8 @@ import {
 } from "./units";
 
 /**
- * The cases in this file are ported from v1's `python/tests/test_scale.py`.
+ * The cases in this file are ported from v1's `tests/test_scale.py`, on the
+ * `legacy/python-cli` branch.
  *
  * The fraction snapping was a deliberate fix there (f8a20b4), and the tolerance is tight enough
  * that the conversion factors have to agree — so these are the regression tests that prove the
