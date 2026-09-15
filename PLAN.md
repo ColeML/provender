@@ -1,5 +1,9 @@
 # Provender — Plan
 
+> **Archived.** This describes v1, the Python CLI over Google Sheets, retired in #42. It is
+> kept for the design history. The app is documented in [`README.md`](README.md) and
+> [`AGENTS.md`](AGENTS.md).
+
 A Claude Code–driven weekly meal planner. **Claude Code is the AI brain**; a small
 Python CLI provides deterministic tools (scrape, unit math, weather, Google Sheets
 read/write). All data lives in **Google Sheets** so it's freely accessible from your

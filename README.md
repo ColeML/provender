@@ -4,180 +4,59 @@
 > — Genesis 24:25 (KJV)
 
 **Provision for the week.** An AI-driven weekly meal planner. **The AI agent
-(Claude Code, Codex, Antigravity, …) is the brain**; a small, deterministic CLI
-(`prov`) is the engine that
-scrapes recipes, does unit math, fetches weather, and reads/writes a **Google
-Sheet** that doubles as the phone-facing UI.
+(Claude Code, Codex, Antigravity, …) is the brain**; a Next.js app with an HTTP API is
+the deterministic engine that scrapes recipes, does unit math, fetches weather, and
+stores the week in Postgres. The app itself is the phone-facing UI.
 
-You talk to the agent in plain language ("plan next week — $120, 5 dinners, quick
-on Monday"); it checks the weather and your history, proposes a menu with sides,
-scrapes real recipes, fits your budget, and writes the week + a combined shopping
-list to your Google Sheet. You shop from your phone, ticking items off.
+You talk to the agent in plain language ("plan next week — $120, 5 dinners, quick on
+Monday"); it checks the weather and your history, proposes a menu with sides, scrapes
+real recipes, fits your budget, and writes the week plus a combined shopping list. You
+shop from your phone at `/shop`, ticking items off.
 
-- **Full design:** [`PLAN.md`](PLAN.md)
-- **Optional phone app (AppSheet):** [`APPSHEET.md`](APPSHEET.md)
-- **Using other AI agents:** [`AGENTS.md`](AGENTS.md)
-
----
-
-## Contents
-
-1. [How it works](#how-it-works)
-2. [Prerequisites](#prerequisites)
-3. [Setup](#setup) — install · Google credentials · the Sheet · configure household
-4. [Using it](#using-it) — the weekly workflow
-5. [Command reference](#command-reference)
-6. [Phone GUI](#phone-gui)
-7. [Other AI agents](#other-ai-agents)
-8. [Troubleshooting](#troubleshooting)
-9. [Development](#development)
+- **How the code is written:** [`coding-standards.md`](coding-standards.md)
+- **How the app looks and behaves:** [`DESIGN.md`](DESIGN.md)
+- **Using AI agents with it:** [`AGENTS.md`](AGENTS.md)
 
 ---
 
 ## How it works
 
 ```
-You ──talk to──► AI agent ──runs──► prov CLI ──read/write──► Google Sheet ◄── your phone
+You ──talk to──► AI agent ──calls──► /v1 API ──► Postgres ──► the app on your phone
                     │                    │
              (judgment: menu,      (deterministic: scrape,
               cost, scaling,        unit math, weather,
-              merging)              Sheets I/O)
+              merging)              storage)
 ```
 
-The split is deliberate: **judgment stays with the agent; anything exact and
-repeatable is a CLI command.** The Google Sheet is the single source of truth, so
-the agent writes it and your phone reads/edits it — always in sync.
+The split is deliberate: **judgment stays with the agent; anything exact and repeatable
+is an endpoint.** The database is the single source of truth, and the same pages the
+agent writes to are the ones you read in the supermarket.
 
-The Sheet has these tabs (created by `prov init`): `Config`, `WeekPlan`,
-`Recipes`, `Ingredients`, `ShoppingList`, `History`, `Prices`.
+## The app
 
-## Prerequisites
+Next.js (App Router) on Vercel, with a Neon Postgres database. Its pages:
 
-- **Python 3.11+** and [uv](https://docs.astral.sh/uv/) (`brew install uv` on macOS).
-- A **Google account** (for the Sheet + a free service account).
-- An AI coding agent — **Claude Code** (native skills) or any agent that reads
-  `AGENTS.md` (Codex, Antigravity `agy`, …).
+| Page              | What it is                                           |
+| ----------------- | ---------------------------------------------------- |
+| `/`               | This week at a glance                                |
+| `/plan`           | The week grid — dinners, one column per date         |
+| `/plan/[date]`    | One day: breakfast, lunch, dinner, sides and extras  |
+| `/recipes`        | The recipe library                                   |
+| `/recipes/[slug]` | A recipe, rendered from the database for cooking     |
+| `/shop`           | The shopping list, built for one hand in an aisle    |
+| `/settings`       | Household settings the agent reads on every plan     |
 
-## Setup
-
-### 1. Install
-
-```bash
-uv sync --project python  # create the venv and install everything
-uv run --project python prov --help  # confirm the CLI runs
-```
-
-### 2. Google credentials (one-time, ~5–10 min)
-
-A *service account* is a robot Google identity the CLI logs in as.
-
-1. Go to **https://console.cloud.google.com** → create a project (e.g.
-   `meal-planner`) and select it.
-2. **Enable two APIs** — search each in the top bar, open it, click **Enable**:
-   - **Google Sheets API**
-   - **Google Drive API**
-3. **APIs & Services → Credentials → Create Credentials → Service account.** Name
-   it (e.g. `meal-planner-bot`), **Create and Continue**, skip the optional grants,
-   **Done**.
-4. Open the service account → **Keys → Add Key → Create new key → JSON → Create.**
-   A `.json` file downloads.
-5. Move the key to the expected path and lock it down:
-
-   ```bash
-   mkdir -p "$HOME/Library/Application Support/provender"          # macOS
-   mv ~/Downloads/<your-project>-*.json \
-      "$HOME/Library/Application Support/provender/credentials.json"
-   chmod 600 "$HOME/Library/Application Support/provender/credentials.json"
-   ```
-
-   (Or put it anywhere and set `PROVENDER_CREDENTIALS=/path/to/key.json`.)
-6. Print the service-account email — you'll share the Sheet with it:
-
-   ```bash
-   python3 -c "import json,os; p=os.path.expanduser('~/Library/Application Support/provender/credentials.json'); print(json.load(open(p))['client_email'])"
-   ```
-
-   It looks like `meal-planner-bot@<project>.iam.gserviceaccount.com`.
-
-> **Never commit `credentials.json`** — it holds a private key. It's gitignored.
-
-### 3. Create and share the Sheet
-
-1. Open **https://sheets.new**, name it (e.g. `Meal Planner`).
-2. Click **Share**, paste the **service-account email** from step 6, give it
-   **Editor**, untick "notify", **Share**. *(This step is the one everyone forgets —
-   the bot can't see the Sheet until you share it.)*
-3. Copy the Sheet **ID** from the URL — the part between `/d/` and `/edit`:
-   `https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`
-4. Point the CLI at your Sheet. Either save it to the local config (simplest,
-   no shell editing):
-
-   ```bash
-   uv run --project python prov set-spreadsheet "<sheet-id-or-url>"
-   ```
-
-   …or use an environment variable (handy for CI or switching sheets):
-
-   ```bash
-   echo 'export PROVENDER_SPREADSHEET="<sheet-id>"' >> ~/.zshrc && source ~/.zshrc
-   ```
-
-   Resolution at runtime is **env var → saved config → error**, so the env var
-   wins if both are set.
-
-### 4. Bootstrap the tabs
-
-```bash
-uv run --project python prov init     # creates Config, WeekPlan, Recipes, Ingredients, ShoppingList, History, Prices
-```
-
-If it prints `{"created_tabs": [...]}`, the whole chain works. ✅
-
-### 5. Configure your household
-
-Set your defaults (the agent reads these every plan). Either edit the **Config** tab
-directly (key/value rows) or use the CLI:
-
-```bash
-uv run --project python prov config-set people 4
-uv run --project python prov config-set location "Edmond, OK"      # for the weather forecast
-uv run --project python prov config-set default_budget 120
-uv run --project python prov config-set default_meals 5
-uv run --project python prov config-set allergies "none"
-uv run --project python prov config-set dislikes "mushrooms"
-uv run --project python prov config-set pantry_staples "salt, pepper, olive oil"
-uv run --project python prov config-set equipment "oven, stovetop, Instant Pot, slow cooker, griddle"
-uv run --project python prov config-set no_repeat_days 30           # don't repeat a main within N days
-```
-
-Useful keys: `people`, `location`, `default_budget`, `default_meals`,
-`dietary_restrictions`, `allergies`, `dislikes`, `pantry_staples`, `equipment`,
-`stores`, `theme_nights`, `no_repeat_days`, `preferences`.
-
-### Optional: real prices via Kroger
-
-Budget estimates default to your **learned prices** (`price-set`) → AI estimate.
-If you live near a **Kroger-family store** (Kroger, Dillons, Fry's, …) whose prices
-track your local stores, you can opt in to real store prices:
-
-1. Register a free app at **developer.kroger.com** (enable **Products** +
-   **Locations**) → get a Client ID + Secret.
-2. Save them (gitignored, never committed):
-   `~/Library/Application Support/provender/kroger.json` →
-   `{"client_id": "...", "client_secret": "..."}`
-3. Pick a store: `uv run --project python prov kroger-locations <zip> --chain DILLONS --save`
-   (saves a `kroger_location_id`). Then `uv run --project python prov kroger-price "ground beef"`.
-
-The price tier becomes **learned → Kroger → estimate**. Without creds, it's
-inert — nothing changes.
+Browsers sign in with one shared household password. Agents send
+`Authorization: Bearer $PROVENDER_API_TOKEN` to `/v1` and never get a cookie.
 
 ## Using it
 
-Day to day you just talk to your agent from the repo directory. The four workflows:
+Day to day you talk to your agent from the repo directory. The four workflows:
 
 | You say… | Workflow | What happens |
 |---|---|---|
-| "plan my week / next week, $120, 5 dinners, quick Monday" | **plan-week** | Reads Config + weather + recent history → proposes mains & sides → **stops for your approval** → scrapes recipes, fits budget → writes the calendar |
+| "plan my week / next week, $120, 5 dinners, quick Monday" | **plan-week** | Reads settings + weather + recent history → proposes mains & sides → **stops for your approval** → scrapes recipes, fits budget → writes the week |
 | "build my shopping list" | **build-shopping-list** | Combines the week's ingredients, merges duplicates, drops pantry staples → writes an aisle-by-aisle checklist |
 | "scale the baked ziti to 12" / "double this" | **scale-recipe** | Scales quantities with judgment (spices, eggs, cook time) |
 | "save this recipe <url>" | **add-recipe** | Scrapes, parses, costs, and stores it |
@@ -185,108 +64,66 @@ Day to day you just talk to your agent from the repo directory. The four workflo
 **In Claude Code:** these are slash commands — `/plan-week`, `/build-shopping-list`,
 `/scale-recipe`, `/add-recipe`.
 
-**In other agents:** just describe the task; the agent reads [`AGENTS.md`](AGENTS.md)
-and follows the matching playbook in `.claude/skills/`.
+**In other agents:** describe the task; the agent reads [`AGENTS.md`](AGENTS.md) and
+follows the matching playbook in `.claude/skills/`.
 
 A typical week:
 
 1. **`/plan-week`** → review the proposed menu → approve → it writes the week.
 2. **`/build-shopping-list`** → review → it writes the checklist.
-3. Open the Google Sheets app (or AppSheet) on your phone → **tick items off** while
-   shopping.
-4. Cook from the recipe pages (link, ingredients, numbered steps).
+3. Open `/shop` on your phone → **tick items off** while shopping.
+4. Cook from `/recipes/[slug]` (ingredients, numbered steps, screen stays awake).
 
-## Command reference
+## The API
 
-Every command emits JSON to stdout; commands read JSON from a file argument or
-stdin (`-`). Run from the repo root.
+`/v1` is a REST API following Google's API design guide. `./scripts/prov METHOD PATH
+[json|@file]` calls it and prints JSON, reading the token and base URL from `.env`:
 
-| Command | What it does |
-|---|---|
-| `prov set-spreadsheet <id-or-url>` | Save your target Sheet to local config |
-| `prov init` | Create the tabs (safe to re-run) |
-| `prov config` / `config-set KEY VALUE` | Read / upsert household settings |
-| `prov prices` / `price-set ITEM PRICE [--unit] [--store]` | Read / record learned grocery prices |
-| `prov kroger-locations <zip>` / `kroger-price "<item>"` | Optional: real store prices via the Kroger API |
-| `prov weather [--location] [--days]` | Forecast for the configured location |
-| `prov scrape <url>` | Scrape a recipe to JSON (no save) |
-| `prov recipe-save [file]` | Save (append) a recipe + ingredients (auto-renders its page) |
-| `prov recipe-update [file]` | Edit an existing recipe in place (upsert by `recipe_id`; no duplicate) |
-| `prov recipe-render <id>` / `--all` | (Re)render shareable recipe page(s) to `docs/recipes/` |
-| `prov recipes` / `ingredients [--recipe-id]` | Read the library |
-| `prov scale [file] --to N` | Scale a recipe to N servings |
-| `prov convert QTY FROM TO` | Unit conversion, e.g. `convert 2 cup ml` |
-| `prov plan-read` / `plan-write [file]` | Read / replace the week calendar |
-| `prov plan-clear DAY [--keep-history]` | Blank one day-slot when a planned day gets missed (also drops its History row) |
-| `prov history-recent [--days]` / `history-add [file]` | Repeat-avoidance (mains) |
-| `prov history` / `rate RECIPE_ID 1-5 [--notes]` | Read full history / rate a cooked main (taste-learning) |
-| `prov shopping-write [file]` / `shopping-clear` | Rebuild / clear the shopping list (keeps ticks on surviving items) |
-| `prov shopping-add [file]` | Merge one more day's items into the existing list |
+```bash
+./scripts/prov GET  /config
+./scripts/prov POST /recipes:scrape '{"url":"https://..."}'
+./scripts/prov PUT  /plans/2026-W37/days/2026-09-08 @day.json
+```
 
-## Phone GUI
+The endpoint reference is the API's own spec, generated from the zod schemas that
+validate every request:
 
-The Google Sheets mobile app is enough day to day (tap the `bought` checkboxes to
-shop). For a nicer calendar / recipe cards / shopping checklist, layer a free
-**Google AppSheet** app on the same Sheet — see [`APPSHEET.md`](APPSHEET.md).
+```bash
+./scripts/prov GET /openapi.json
+```
 
-## Recipe pages (shareable, AppSheet-friendly)
+With no `PROVENDER_BASE_URL` set, `prov` talks to the production app.
 
-Each recipe also renders to a clean, self-contained HTML page you can open on your
-phone or share as a link — handy when AppSheet feels fiddly. The page is a
-**derived view**, overwritten on every render; the Sheet stays the source of truth.
+### Optional: real prices via Kroger
 
-`recipe-save` renders automatically; re-render the whole library with
-`prov recipe-render --all`. Pages are written to a configurable output dir (Config
-`render_dir`, default `docs/recipes`) and each recipe's URL is stored in its
-`doc_url` column (link it from AppSheet to open the page). Set the public base so
-`doc_url` is a real link: `prov config-set render_base_url "https://<user>.github.io/<repo>"`
-(without it, `doc_url` is a repo-relative path).
-
-Two ways to publish for free via **GitHub Pages**:
-
-- **Single repo (simplest):** leave `render_dir` at `docs/recipes`, commit the files,
-  and enable **Settings → Pages → `main` / `/docs`**.
-- **Dedicated content repo (recommended for ongoing use):** keep generated HTML out
-  of this code repo. Create e.g. `provender-recipes`, enable Pages on `main` / root,
-  then point the CLI at a local clone:
-  ```bash
-  prov config-set render_dir "/path/to/provender-recipes/recipes"
-  prov config-set render_base_url "https://<user>.github.io/provender-recipes"
-  ```
-  Render, then publish with a direct push (it's generated content — no PR needed):
-  ```bash
-  prov recipe-render --all
-  git -C /path/to/provender-recipes commit -am pages && git -C /path/to/provender-recipes push
-  ```
-  A `.nojekyll` file in the content repo makes Pages serve the static HTML directly.
-
-**Existing sheet?** `doc_url` is a new `Recipes` column. Run `prov recipe-render --all`
-once to render every page and backfill the column, then (if you use AppSheet)
-**Regenerate Structure** on the `Recipes` table.
-
-## Other AI agents
-
-The CLI is the engine and the playbooks are plain Markdown, so any agent can drive
-this. [`AGENTS.md`](AGENTS.md) is the cross-agent entry point (read by Codex,
-Antigravity `agy`, Cursor, Gemini CLI, Copilot, …); Claude Code uses the native
-skills in `.claude/skills/`. All of them share the same Sheet.
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| `Credentials file not found …` | The key isn't at the default path. Move it there or set `PROVENDER_CREDENTIALS`. |
-| `No spreadsheet configured` | Run `prov set-spreadsheet "<id>"` (or `export PROVENDER_SPREADSHEET="<id>"`). |
-| `Could not open spreadsheet … Is it shared…?` | Share the Sheet with the service-account email (Editor). |
-| `Could not geocode location` | Use `City, ST` or just the city; the geocoder matches city names. |
-| A recipe fails to scrape (403) | Some sites block bots (Allrecipes, BBC Good Food). Try another source; Budget Bytes works reliably. |
-| AppSheet: "table has N columns but schema has M" | The Sheet gained a column. In AppSheet: **Regenerate Structure** on that table → **Save** (reload the editor if it's stubborn). |
+Budget estimates default to your learned prices, then an AI estimate. If you live near
+a Kroger-family store (Kroger, Dillons, Fry's, …), set `KROGER_CLIENT_ID` and
+`KROGER_CLIENT_SECRET` from a free app registered at **developer.kroger.com** (Products
+and Locations APIs enabled), then pick a store with
+`GET /v1/kroger/locations?zipCode=<zip>` and save the chosen `locationId` as the
+`kroger_location_id` household setting. The price tier becomes **learned → Kroger →
+estimate**. Without the credentials the feature is inert.
 
 ## Development
 
+Copy `.env.example` to `.env` and fill it in — it explains each value. Then:
+
 ```bash
-uv run --project python ruff check python     # lint
-uv run --project python ruff format python    # format (Google docstring convention)
-uv run --project python ty check python       # type check
-uv run --project python pytest python         # tests
+pnpm install
+pnpm dev          # http://localhost:3000
+pnpm lint         # oxlint
+pnpm fmt:check    # oxfmt
+pnpm typecheck    # next typegen && tsc --noEmit
+pnpm vitest run   # vitest, once
+pnpm build        # catches prerender failures the others miss
+pnpm db:generate  # generate a migration after a schema change
 ```
+
+Use `pnpm`, never `npm` or `yarn`.
+
+## History
+
+v1 was a Python CLI over a Google Sheet, retired in #42. Its design is in
+[`PLAN.md`](PLAN.md) and its optional phone front end in [`APPSHEET.md`](APPSHEET.md),
+both archived. The code is on the `legacy/python-cli` branch and the `v1-python-sheets`
+tag.

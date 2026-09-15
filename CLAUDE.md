@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Project guidance is shared across all agents in **@AGENTS.md** — read it for the
-overview, CLI reference, workflow playbooks, and invariants.
+overview, API reference, workflow playbooks, and invariants.
 
 Claude Code additionally invokes the workflows in `.claude/skills/` as native
 skills (`/plan-week`, `/build-shopping-list`, `/scale-recipe`, `/add-recipe`).

@@ -1,5 +1,8 @@
 # Optional: a phone GUI with Google AppSheet
 
+> **Archived.** This describes v1's optional phone front end over Google Sheets, retired in #42.
+> The app's own pages are the phone UI now.
+
 The planner works fine straight from the Google Sheets mobile app, but if you want
 a nicer phone experience (calendar, recipe cards, a real shopping checklist) you
 can layer **Google AppSheet** on top of the *same* spreadsheet for free (personal

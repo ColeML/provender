@@ -12,18 +12,13 @@ engine. The agent supplies judgment (menu selection, cost estimates, ingredient 
 merging, non-linear scaling); the API does the exact, repeatable work (scrape, unit math, weather,
 storage). The phone-facing UI is the app itself — `/shop` is live.
 
-v1 is the same design over a Python CLI and Google Sheets, and still runs until #42 retires it.
-See `PLAN.md` for the original design and `APPSHEET.md` for v1's optional phone GUI.
-
 ## Where the code lives
 
-Two apps live here during the rewrite.
-
-**v2, the TypeScript app** — at the repo root (`src/`, `server/`). Next.js on Vercel with a
-Neon Postgres database. This is where new work goes. Read
-[`coding-standards.md`](coding-standards.md) and [`DESIGN.md`](DESIGN.md) before writing any
-of it, and note the architecture rule: all logic lives in `server/services/*`, and the tRPC
-procedures, the REST handlers under `/v1`, and Server Components are all thin callers of it.
+The app is at the repo root (`src/`, `server/`): Next.js on Vercel with a Neon Postgres
+database. Read [`coding-standards.md`](coding-standards.md) and [`DESIGN.md`](DESIGN.md)
+before writing any of it, and note the architecture rule: all logic lives in
+`server/services/*`, and the tRPC procedures, the REST handlers under `/v1`, and Server
+Components are all thin callers of it.
 
 ```bash
 pnpm install
@@ -35,25 +30,6 @@ pnpm vitest run   # vitest, once
 pnpm build        # catches prerender failures the others miss
 pnpm db:generate  # generate a migration after a schema change
 ```
-
-**v1, the Python CLI** — in `python/`. The working meal planner, backed by Google Sheets. It
-stays there and stays working until v2 reaches parity; run it from the repo root with
-`uv run --project python prov <cmd>`, as every command below shows. The tag `v1-python-sheets`
-and the branch `legacy/python-cli` are fixed points to return to.
-
-## Setup (once per machine)
-
-- Python 3.11+ and [uv](https://docs.astral.sh/uv/).
-- `uv sync --project python` to install.
-- Google service-account JSON key at
-  `~/Library/Application Support/provender/credentials.json` (or point
-  `PROVENDER_CREDENTIALS` at it). The Sheet must be shared with the service-account
-  email.
-- Point at the Sheet: `uv run --project python prov set-spreadsheet "<id or url>"` (saved to a
-  local `config.json`), or set `PROVENDER_SPREADSHEET`. Resolution is **env var →
-  saved config → error**. Nothing is hardcoded — each user points at their own
-  Sheet + key.
-- **Run every CLI command from the repo root:** `uv run --project python prov <cmd>`.
 
 ## The API (deterministic tools — no AI inside)
 
@@ -77,10 +53,9 @@ data by default. Set it to `http://localhost:3000` to work against a dev server.
 It is generated from the zod schemas that validate every request, so it cannot drift from the code.
 A table in this file would.
 
-The split from `PLAN.md` still holds: fuzzy judgment — menu selection, cost estimates, ingredient
+The split holds both ways: fuzzy judgment — menu selection, cost estimates, ingredient
 parsing and merging, non-linear scaling — stays in the conversation, and anything that must be
 exact and repeatable is an endpoint.
-
 
 ## Workflows (the "skills")
 
@@ -97,8 +72,6 @@ agents read them as instructions):
 
 ## Invariants (don't break these)
 
-These hold for v2. Where v1 differs it is noted, because v1 still runs until #42 retires it.
-
 - **Recipes are stored at the servings you'll cook**, not the source's yield. The shopping step
   reads quantities as-is and never re-scales. Single-batch dishes (a sheet-pan pizza, a whole
   roast) keep their natural yield.
@@ -109,8 +82,7 @@ These hold for v2. Where v1 differs it is noted, because v1 still runs until #42
   exclusion. Clearing a day removes its history entry for that reason; pass `keepHistory=true` when
   the meal happened anyway.
 - **Equipment honesty:** cite a device in a day's note only if that recipe uses it.
-- **An unplanned day is the absence of a row.** No blank slots to skip. (v1 kept seven fixed
-  day-slots and blanked the unused ones, because AppSheet's sync needed stable keys.)
+- **An unplanned day is the absence of a row.** No blank slots to skip.
 - **A day holds a meal per slot — `breakfast`, `lunch`, `dinner` — and the slot is half its key.**
   Planning writes dinners here, because lunches are leftovers, but the other two are storable and
   `/plan/[date]` shows every one. The week grid is dinners only, since it has one column per date.
@@ -120,26 +92,15 @@ These hold for v2. Where v1 differs it is noted, because v1 still runs until #42
   dish named only in prose is invisible to the shopping list.
 - **A shopping list `PUT` replaces what the plan calls for and preserves the rest** — the shopper's
   ticks, their `haveAlready` flags, and anything they added by hand. Rebuilding after a
-  late-planned day is safe, and needs no separate merge call. (v1 needed `shopping-add` for this.)
+  late-planned day is safe, and needs no separate merge call.
 - **Deleting a shopping item is for manual items only.** A plan item comes back on the next
   rebuild, so set `haveAlready` instead.
 - **Ids are unique per household, not globally.** Two households can each have a
   `chicken-fajitas`. Every service function takes a `householdId` and filters on it — a query
   missing that filter returns everyone's rows and looks entirely normal in review.
-- **Recipe pages are a derived view.** `/recipes/[slug]` renders from the database. (v1 generated
-  HTML into a separate repo via `recipe-render`; never hand-edit those files.)
+- **Recipe pages are a derived view.** `/recipes/[slug]` renders from the database.
 - **Formatting is the UI's job.** Quantities are stored as a number and a unit, and rendered as
-  fractions where they are shown. (v1 stored pre-formatted `display` columns because AppSheet could
-  not format.)
-
-## Dev
-
-```bash
-uv run --project python ruff check python     # lint
-uv run --project python ruff format python    # format (Google docstring convention)
-uv run --project python ty check python       # type check (Astral ty)
-uv run --project python pytest python         # tests
-```
+  fractions where they are shown.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

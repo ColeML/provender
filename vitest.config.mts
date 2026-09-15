@@ -28,7 +28,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     // Extends rather than replaces: assigning `exclude` outright drops vitest's own defaults,
     // including **/dist/**.
-    exclude: [...configDefaults.exclude, "python/**", ".next/**"],
+    exclude: [...configDefaults.exclude, ".next/**"],
   },
   resolve: {
     // Mirrors tsconfig `paths`. Anchored regexes rather than bare string prefixes, so a plain "@"
