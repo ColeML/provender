@@ -74,8 +74,9 @@ One spreadsheet, shared with the service-account email. Tabs:
 ## CLI surface (`prov`)
 
 Deterministic tools the skills call. No AI inside these. A representative subset
-below; **see [`AGENTS.md`](AGENTS.md) for the full command reference** (init,
-config, prices, kroger-*, history/rate, convert, …).
+below. The full command reference (init, config, prices, kroger-*, history/rate,
+convert, …) is in the `AGENTS.md` on the `legacy/python-cli` branch. The `AGENTS.md`
+in this branch documents v2 and no longer describes these subcommands.
 
 - `prov scrape <url>` — scrape → JSON (title, servings, times, ingredients, steps)
 - `prov recipe-save [file]` — write a recipe + its ingredients to Sheets (JSON in)
@@ -90,6 +91,8 @@ config, prices, kroger-*, history/rate, convert, …).
 ## Claude Code skills (the actual UX)
 
 Markdown skills in `.claude/skills/` that orchestrate the CLI + supply AI judgment.
+That directory still exists in this branch, but it now holds the v2 API playbooks; the
+v1 versions are on `legacy/python-cli`.
 
 - **`plan-week`** — the headline skill. Inputs: budget, # people, # meals, per-day prefs.
   Steps: read Config → `prov weather` → propose a menu fitted to budget/weather/prefs

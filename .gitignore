@@ -1,5 +1,8 @@
 # Secrets
 .env
+# The v1 Google service-account key is still valid — keep it out of this public repo.
+credentials.json
+*.credentials.json
 
 # OS / IDE
 .DS_Store
