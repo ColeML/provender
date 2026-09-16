@@ -2,6 +2,7 @@ import { Pool } from "@neondatabase/serverless";
 import { getEnv } from "@server/lib/env";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
+import { useLocalWsProxy } from "./local-proxy";
 import * as schema from "./schema";
 
 /**
@@ -32,6 +33,9 @@ function connect(): Db {
   // Through getEnv rather than reading process.env here, so there is one place that decides what
   // a valid environment is and one error message when it is not.
   const { DATABASE_URL } = getEnv();
+
+  // No-op unless DATABASE_WS_PROXY is set, which only a local machine does.
+  useLocalWsProxy();
 
   return drizzle({ client: new Pool({ connectionString: DATABASE_URL }), schema });
 }

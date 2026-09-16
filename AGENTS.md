@@ -22,13 +22,16 @@ Components are all thin callers of it.
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:3000
-pnpm lint         # oxlint
-pnpm fmt:check    # oxfmt
-pnpm typecheck    # next typegen && tsc --noEmit
-pnpm vitest run   # vitest, once
-pnpm build        # catches prerender failures the others miss
-pnpm db:generate  # generate a migration after a schema change
+docker compose up -d  # local Postgres, plus the wsproxy the Neon driver needs to reach it
+pnpm db:migrate       # apply migrations to it
+pnpm dev              # http://localhost:3000
+pnpm lint             # oxlint
+pnpm fmt:check        # oxfmt
+pnpm typecheck        # next typegen && tsc --noEmit
+pnpm vitest run       # vitest, once
+pnpm test:e2e         # playwright, needs the compose stack and a migrated database
+pnpm build            # catches prerender failures the others miss
+pnpm db:generate      # generate a migration after a schema change
 ```
 
 ## The API (deterministic tools — no AI inside)

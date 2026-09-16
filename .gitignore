@@ -18,3 +18,8 @@ next-env.d.ts
 .vercel/
 .env.local
 *.tsbuildinfo
+
+# Playwright
+/test-results/
+/playwright-report/
+e2e/.auth/
