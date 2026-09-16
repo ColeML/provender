@@ -8,6 +8,7 @@ import { weekPlan } from "@server/services/week-plan";
 import { redirect } from "next/navigation";
 
 import { WeekGrid, type DayForecast } from "@/components/plan/week-grid";
+import { EmptyState } from "@/components/ui/empty-state";
 import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../auth";
@@ -86,10 +87,9 @@ function NoWeek({ planId }: { planId?: string } = {}) {
       <h1 className="font-display text-2xl font-semibold">
         {planId ?? isoWeekFor(new Date().toISOString().slice(0, 10))}
       </h1>
-      <p className="text-muted-foreground mt-2 text-sm">
-        This week is not planned yet. Ask Claude Code to plan it — the grid edits a week that
-        exists, and choosing a menu is the agent&rsquo;s job.
-      </p>
+      <EmptyState hint="Ask Claude Code to plan it — the grid edits a week that exists, and choosing a menu is the agent’s job.">
+        This week is not planned yet.
+      </EmptyState>
     </main>
   );
 }

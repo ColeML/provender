@@ -1,6 +1,7 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
+import { Wordmark } from "@/components/ui/wordmark";
 import { isInternalPath } from "@/lib/login-url";
 
 import { signIn } from "../../../auth";
@@ -37,7 +38,9 @@ export default async function Login({ searchParams }: Props) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-8">
-      <h1 className="font-display text-2xl font-semibold">Provender</h1>
+      <h1 className="text-2xl">
+        <Wordmark />
+      </h1>
       <p className="text-muted-foreground mt-1 text-sm">Enter the household password.</p>
 
       <form action={authenticate} className="mt-8 flex flex-col gap-3">

@@ -1,0 +1,45 @@
+# A local Postgres for development, and the WebSocket proxy the app needs to reach it.
+#
+# The app connects with @neondatabase/serverless, which speaks Neon's WebSocket protocol rather
+# than plain TCP, so a Postgres on this machine is unreachable without a proxy in front of it.
+# `wsproxy` is Neon's own image for that. Production talks to Neon directly and uses neither.
+#
+#   docker compose up -d
+#   pnpm db:migrate
+#
+# Ports are off the default on purpose: 5432, 5433, 5437 and 5499 are taken by other projects, and
+# both bind to 127.0.0.1 rather than every interface: this repo is public, so the credentials below
+# are too, and an unbound port would let anyone on a shared network read and write this database.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: provender
+      POSTGRES_PASSWORD: provender
+      POSTGRES_DB: provender
+    ports:
+      - "127.0.0.1:5440:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U provender -d provender"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - provender-pgdata:/var/lib/postgresql/data
+
+  # The allow-regex pins the backend, so the proxy cannot be asked to dial anything else. Note
+  # APPEND_PORT is not that mechanism: it appends to the requested address rather than replacing
+  # it, which yields "db:5432db:5432".
+  wsproxy:
+    image: ghcr.io/neondatabase/wsproxy:latest
+    environment:
+      ALLOW_ADDR_REGEX: "^db:5432$$"
+      LOG_TRAFFIC: "false"
+    ports:
+      - "127.0.0.1:5441:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  provender-pgdata:

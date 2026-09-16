@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { useState } from "react";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { useStoredFlag } from "@/hooks/use-stored-flag";
 import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
@@ -123,9 +124,7 @@ export function ShoppingList(props: Props) {
     return (
       <main className="mx-auto max-w-2xl p-6">
         <h1 className="font-display text-2xl font-semibold">Shopping list</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          No week has been planned yet, so there is nothing to buy.
-        </p>
+        <EmptyState>No week has been planned yet, so there is nothing to buy.</EmptyState>
       </main>
     );
   }

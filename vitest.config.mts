@@ -28,7 +28,8 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     // Extends rather than replaces: assigning `exclude` outright drops vitest's own defaults,
     // including **/dist/**.
-    exclude: [...configDefaults.exclude, ".next/**"],
+    // e2e/** too: those are Playwright specs, which need a running server and a database.
+    exclude: [...configDefaults.exclude, ".next/**", "e2e/**"],
   },
   resolve: {
     // Mirrors tsconfig `paths`. Anchored regexes rather than bare string prefixes, so a plain "@"

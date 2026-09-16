@@ -80,6 +80,13 @@ describe("the recipe library", () => {
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 
+  it("tells an empty library apart from a search that found nothing", () => {
+    render(<RecipeLibrary recipes={[]} />);
+
+    expect(screen.getByText(/No recipes saved yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing matches/)).toBeNull();
+  });
+
   it("says so when nothing matches", async () => {
     const user = renderLibrary();
 

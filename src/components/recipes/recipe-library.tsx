@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/ui/empty-state";
+
 export interface LibraryRecipe {
   recipeId: string;
   title: string;
@@ -20,6 +22,19 @@ function matches(recipe: LibraryRecipe, query: string) {
     .split(/\s+/)
     .filter(Boolean)
     .every((term) => haystack.includes(term));
+}
+
+/** An empty library and a search with no hits are different absences, and read differently. */
+function NothingToList({ query }: { query?: string }) {
+  if (query === undefined) {
+    return (
+      <EmptyState hint="Paste a recipe link and ask Claude Code to save it.">
+        No recipes saved yet.
+      </EmptyState>
+    );
+  }
+
+  return <EmptyState>Nothing matches “{query}”.</EmptyState>;
 }
 
 export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
@@ -49,7 +64,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
       </p>
 
       {found.length === 0 ? (
-        <p className="mt-8 text-sm">Nothing matches “{query}”.</p>
+        <NothingToList query={recipes.length === 0 ? undefined : query} />
       ) : (
         <ul className="divide-border mt-4 divide-y">
           {found.map((recipe) => (

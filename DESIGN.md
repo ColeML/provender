@@ -114,6 +114,27 @@ Teriyaki Chicken and Rice" has to wrap inside 390px.
   add 400 in `src/app/layout.tsx` first.
 - **Icons are `lucide-react`, exclusively.** No mixing sets, no inline SVG for something the
   library already has.
+- **The wordmark is capitals with `tracking-wide`, not small caps.** Google Fonts' Charis SIL
+  build carries no `smcp` feature, so `font-variant-caps: small-caps` leaves the browser to
+  synthesise it by scaling capitals, which reads thin against the 700 weight. `Wordmark` in
+  `src/components/ui/wordmark.tsx` is the one place the treatment lives, and both the header and
+  `/login` use it.
+
+## The manuscript reference
+
+**Borders and rules carry it. Nothing else does.** A hairline `border-border` rule above an empty
+state or under the header is the whole vocabulary — it reads as a ruled page without asking for
+artwork the icon set has no equivalent for.
+
+- **No parchment or vellum texture**, as an image or a CSS pattern. The palette already carries
+  the manuscript reference; a texture behind text costs contrast, and decorative textures are
+  rejected outright below.
+- **No drop-capital on recipe titles.** It was considered and declined: the cook view is read at
+  arm's length with wet hands, and an oversized first letter competes with the title it opens.
+- **Empty states are a blank page, not an error.** `EmptyState` in
+  `src/components/ui/empty-state.tsx` is the shared treatment — a rule, the message at `text-base`
+  in the UI face, an optional next step in muted `text-sm`, and a footer slot for marginalia. The
+  message stays sans because the display face is for an `h1` and the wordmark.
 
 ## Cooking and shopping specifics
 
@@ -137,6 +158,7 @@ The defaults a model reaches for when asked to "make it look nice", and why they
 - Nested cards to imply grouping — use spacing and one border.
 - Mixed border radii on one view — pick one step on the scale per surface.
 - Emoji in UI copy or empty states.
+- Parchment or vellum textures behind text — see "The manuscript reference" above.
 - Arbitrary one-off spacing (`mt-[13px]`) where a scale step would do.
 
 ## Accessibility
