@@ -24,6 +24,19 @@ function matches(recipe: LibraryRecipe, query: string) {
     .every((term) => haystack.includes(term));
 }
 
+/** An empty library and a search with no hits are different absences, and read differently. */
+function NothingToList({ query }: { query?: string }) {
+  if (query === undefined) {
+    return (
+      <EmptyState hint="Paste a recipe link and ask Claude Code to save it.">
+        No recipes saved yet.
+      </EmptyState>
+    );
+  }
+
+  return <EmptyState>Nothing matches “{query}”.</EmptyState>;
+}
+
 export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
   const [query, setQuery] = useState("");
   const found = useMemo(() => recipes.filter((recipe) => matches(recipe, query)), [recipes, query]);
@@ -51,7 +64,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
       </p>
 
       {found.length === 0 ? (
-        <EmptyState>Nothing matches “{query}”.</EmptyState>
+        <NothingToList query={recipes.length === 0 ? undefined : query} />
       ) : (
         <ul className="divide-border mt-4 divide-y">
           {found.map((recipe) => (
