@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/ui/empty-state";
+
 export interface LibraryRecipe {
   recipeId: string;
   title: string;
@@ -49,7 +51,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
       </p>
 
       {found.length === 0 ? (
-        <p className="mt-8 text-sm">Nothing matches “{query}”.</p>
+        <EmptyState>Nothing matches “{query}”.</EmptyState>
       ) : (
         <ul className="divide-border mt-4 divide-y">
           {found.map((recipe) => (
