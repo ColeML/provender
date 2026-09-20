@@ -55,7 +55,7 @@ const DATES = [
   "2026-09-06",
 ];
 
-function renderGrid(week: Partial<WeekPlan> = {}) {
+function renderGrid(week: Partial<WeekPlan> = {}, atDefault = true) {
   const user = userEvent.setup();
 
   render(
@@ -76,6 +76,7 @@ function renderGrid(week: Partial<WeekPlan> = {}) {
         ]}
         forecast={[{ date: "2026-08-31", high: 91.4, low: 70, conditions: "sunny" }]}
         defaultServings={8}
+        atDefault={atDefault}
       />
     </QueryClientProvider>,
   );
@@ -252,5 +253,37 @@ describe("the week grid", () => {
       "href",
       "/recipes/fajitas",
     );
+  });
+});
+
+describe("week navigation", () => {
+  it("steps to the weeks either side of the grid", () => {
+    renderGrid({ planId: "2026-W39" });
+
+    expect(screen.getByRole("link", { name: /next week/i })).toHaveAttribute(
+      "href",
+      "/plan?week=2026-W40",
+    );
+    expect(screen.getByRole("link", { name: /previous week/i })).toHaveAttribute(
+      "href",
+      "/plan?week=2026-W38",
+    );
+  });
+
+  it("offers a way back once the reader is off the default view", () => {
+    renderGrid({ planId: "2026-W41" }, false);
+
+    expect(screen.getByRole("link", { name: /this week/i })).toHaveAttribute("href", "/plan");
+  });
+
+  // The h1 still owns the week id in the display face; the nav must not duplicate it there.
+  it("leaves the page heading as the only display-face week id", () => {
+    renderGrid({ planId: "2026-W39" });
+
+    const inDisplayFace = screen
+      .getAllByText("2026-W39")
+      .filter((node) => node.className.includes("font-display"));
+
+    expect(inDisplayFace).toHaveLength(1);
   });
 });

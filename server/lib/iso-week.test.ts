@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates, weeksInYear } from "./iso-week";
+import {
+  isCalendarDate,
+  isoWeekFor,
+  parseIsoWeek,
+  shiftIsoWeek,
+  weekDates,
+  weeksInYear,
+} from "./iso-week";
 
 describe("weekDates", () => {
   it("matches the week v1 is currently planning", () => {
@@ -93,5 +100,39 @@ describe("isCalendarDate", () => {
     ["not-a-date", "not a date at all"],
   ])("rejects %s (%s)", (date) => {
     expect(isCalendarDate(date)).toBe(false);
+  });
+});
+
+describe("shiftIsoWeek", () => {
+  it("steps forward and back within a year", () => {
+    expect(shiftIsoWeek("2026-W39", 1)).toBe("2026-W40");
+    expect(shiftIsoWeek("2026-W39", -1)).toBe("2026-W38");
+  });
+
+  it("pads the week number back to two digits", () => {
+    expect(shiftIsoWeek("2026-W10", -1)).toBe("2026-W09");
+  });
+
+  it("rolls into the next year past the last week", () => {
+    // 2026 starts on a Thursday, so it is a 53-week year.
+    expect(weeksInYear(2026)).toBe(53);
+    expect(shiftIsoWeek("2026-W53", 1)).toBe("2027-W01");
+  });
+
+  it("rolls back into the previous year's last week", () => {
+    // 2025 is a 52-week year, so stepping back from its first week lands on 2024-W52.
+    expect(shiftIsoWeek("2026-W01", -1)).toBe("2025-W52");
+    expect(shiftIsoWeek("2025-W01", -1)).toBe("2024-W52");
+  });
+
+  it("agrees with weekDates seven days on", () => {
+    const next = shiftIsoWeek("2026-W52", 1)!;
+
+    expect(weekDates(parseIsoWeek(next)!)[0]).toBe("2026-12-28");
+  });
+
+  it("returns undefined for an id that is not an ISO week", () => {
+    expect(shiftIsoWeek("2026-W99", 1)).toBeUndefined();
+    expect(shiftIsoWeek("not-a-week", 1)).toBeUndefined();
   });
 });

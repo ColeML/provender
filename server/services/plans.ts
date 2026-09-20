@@ -210,6 +210,26 @@ export async function getPlan(householdId: string, planId: string, db: Database 
 }
 
 /**
+ * A household's plan for one week, or `undefined` when that week is unplanned.
+ *
+ * Unlike `getPlan`, this reads the plan row alone and never throws: `/shop` and `/plan` take the
+ * week from a user-editable query string, where a week nobody has planned is an empty state rather
+ * than an error. An id that is not an ISO week returns `undefined` for the same reason.
+ */
+export async function findPlan(householdId: string, planId: string, db: Database = defaultDb) {
+  if (!parseIsoWeek(planId)) {
+    return undefined;
+  }
+
+  const [plan] = await db
+    .select()
+    .from(schema.plans)
+    .where(and(eq(schema.plans.householdId, householdId), eq(schema.plans.id, planId)));
+
+  return plan;
+}
+
+/**
  * The plan the shopper is shopping for: this week's if it exists, otherwise the most recent.
  *
  * A screen that resolved the current ISO week and stopped would be blank every Monday before the

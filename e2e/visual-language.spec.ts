@@ -14,14 +14,14 @@ test("sets the header wordmark in capitals, in the display face", async ({ page 
 test("draws an unplanned week as a blank page, not an error", async ({ page }) => {
   await page.goto("/plan");
 
-  await expect(page.getByText("This week is not planned yet.")).toBeVisible();
+  await expect(page.getByText("That week is not planned yet.")).toBeVisible();
   await expect(page.getByText(/Ask Claude Code to plan it/)).toBeVisible();
 });
 
 test("says there is nothing to buy when no week is planned", async ({ page }) => {
   await page.goto("/shop");
 
-  await expect(page.getByText(/No week has been planned yet/)).toBeVisible();
+  await expect(page.getByText(/That week is not planned yet/)).toBeVisible();
 });
 
 /**
