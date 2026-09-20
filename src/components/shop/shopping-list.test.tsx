@@ -357,3 +357,49 @@ describe("week navigation", () => {
     expect(screen.queryByText(/not planned yet/i)).toBeNull();
   });
 });
+
+describe("switching weeks", () => {
+  function renderWeek(planId: string, items: ShopItem[]) {
+    return render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}
+      >
+        <ShoppingList
+          planId={planId}
+          atDefault={false}
+          planned
+          budgetTarget={120}
+          initialItems={items}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  /**
+   * A soft navigation between two planned weeks re-renders the same `List` instance, so state
+   * seeded from props at mount goes stale. Only reproducible between two *planned* weeks: an
+   * unplanned week renders the other branch and remounts the list on the way back.
+   */
+  it("replaces the items when the week changes", () => {
+    const { rerender } = renderWeek("2026-W39", [item({ id: "a", name: "Tuna" })]);
+
+    expect(screen.getByText("Tuna")).toBeInTheDocument();
+
+    rerender(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}
+      >
+        <ShoppingList
+          planId="2026-W40"
+          atDefault={false}
+          planned
+          budgetTarget={120}
+          initialItems={[item({ id: "b", name: "Bacon" })]}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("Bacon")).toBeInTheDocument();
+    expect(screen.queryByText("Tuna")).toBeNull();
+  });
+});

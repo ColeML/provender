@@ -1,13 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
+import { SurfaceLinks } from "@/components/ui/surface-links";
 import { Wordmark } from "@/components/ui/wordmark";
-
-const SURFACES = [
-  { href: "/plan", label: "Plan" },
-  { href: "/shop", label: "Shop" },
-  { href: "/recipes", label: "Recipes" },
-  { href: "/settings", label: "Settings" },
-];
 
 /**
  * The signed-in shell. `/login` sits outside this group, so it never renders the nav.
@@ -29,15 +24,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <span className="flex-1" />
 
-          {SURFACES.map((surface) => (
-            <Link
-              key={surface.href}
-              href={surface.href}
-              className="text-muted-foreground hover:text-foreground text-sm"
-            >
-              {surface.label}
-            </Link>
-          ))}
+          {/* `SurfaceLinks` reads the query string, which Next requires a boundary around so a
+              statically rendered route can still ship its shell. */}
+          <Suspense fallback={null}>
+            <SurfaceLinks />
+          </Suspense>
         </nav>
       </header>
 

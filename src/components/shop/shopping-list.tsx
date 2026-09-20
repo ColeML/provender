@@ -135,7 +135,9 @@ export function ShoppingList(props: Props) {
     );
   }
 
-  return <List {...props} />;
+  // Keyed on the week: `List` seeds its state from props at mount, and a soft navigation between
+  // two planned weeks would otherwise reuse the instance and keep the previous week's rows.
+  return <List key={props.planId} {...props} />;
 }
 
 /** Where the hide-bought preference lives, so it is not re-set mid-aisle after a reload. */
