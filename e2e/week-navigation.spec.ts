@@ -46,3 +46,29 @@ for (const path of ["/plan", "/shop"] as const) {
     await expect(page.getByRole("link", { name: "This week" })).toBeHidden();
   });
 }
+
+/**
+ * A week picked on one surface is the week meant on the other: you plan Thursday, then shop for
+ * it. The header carries it, so the two never disagree.
+ */
+test("carries the selected week from the shopping list to the plan", async ({ page }) => {
+  await page.goto("/shop?week=2026-W40");
+
+  await page.getByRole("link", { name: "Plan" }).click();
+
+  await expect(page).toHaveURL("/plan?week=2026-W40");
+});
+
+test("carries the selected week from the plan to the shopping list", async ({ page }) => {
+  await page.goto("/plan?week=2026-W40");
+
+  await page.getByRole("link", { name: "Shop" }).click();
+
+  await expect(page).toHaveURL("/shop?week=2026-W40");
+});
+
+test("leaves the header bare on the default view", async ({ page }) => {
+  await page.goto("/shop");
+
+  await expect(page.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+});
