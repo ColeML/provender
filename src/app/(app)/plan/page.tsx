@@ -1,5 +1,5 @@
 import { householdForSession } from "@server/auth/household";
-import { isoWeekFor } from "@server/lib/iso-week";
+import { isoWeekFor, parseIsoWeek } from "@server/lib/iso-week";
 import { getConfig } from "@server/services/config";
 import { currentOrLatestPlan, InvalidPlanIdError, PlanNotFoundError } from "@server/services/plans";
 import { listRecipes } from "@server/services/recipes";
@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 
 import { WeekGrid, type DayForecast } from "@/components/plan/week-grid";
 import { EmptyState } from "@/components/ui/empty-state";
+import { WeekNav } from "@/components/ui/week-nav";
 import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../auth";
@@ -42,14 +43,15 @@ export default async function Plan({ searchParams }: { searchParams: Promise<{ w
 
   const householdId = householdForSession(session);
   const { week } = await searchParams;
-  const planId = week ?? (await currentOrLatestPlan(householdId))?.id;
-
-  if (planId === undefined) {
-    return <NoWeek />;
-  }
+  const currentPlanId = isoWeekFor(new Date().toISOString().slice(0, 10));
+  // `?week=` is user-editable, so a typo falls back to the default view rather than stranding the
+  // reader on a week the nav cannot step out of.
+  const asked = week !== undefined && parseIsoWeek(week) !== undefined ? week : undefined;
+  const planId = asked ?? (await currentOrLatestPlan(householdId))?.id ?? currentPlanId;
 
   const [plan, config, library, forecast] = await Promise.all([
-    // `?week=` is user-editable, so a typo is an empty state rather than a 500.
+    // An unplanned week is an empty state, not a 500. `planId` is a valid ISO week by here, so
+    // `InvalidPlanIdError` can only fire if that stops being true.
     weekPlan(householdId, planId).catch((error: unknown) => {
       if (error instanceof PlanNotFoundError || error instanceof InvalidPlanIdError) {
         return null;
@@ -63,7 +65,7 @@ export default async function Plan({ searchParams }: { searchParams: Promise<{ w
   ]);
 
   if (plan === null) {
-    return <NoWeek planId={planId} />;
+    return <NoWeek planId={planId} atDefault={asked === undefined} />;
   }
 
   const people = Number(config.people);
@@ -77,18 +79,20 @@ export default async function Plan({ searchParams }: { searchParams: Promise<{ w
       }))}
       forecast={forecast}
       defaultServings={Number.isFinite(people) && people > 0 ? people * 2 : FALLBACK_SERVINGS}
+      atDefault={asked === undefined}
     />
   );
 }
 
-function NoWeek({ planId }: { planId?: string } = {}) {
+function NoWeek({ planId, atDefault }: { planId: string; atDefault: boolean }) {
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <h1 className="font-display text-2xl font-semibold">
-        {planId ?? isoWeekFor(new Date().toISOString().slice(0, 10))}
-      </h1>
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h1 className="font-display text-2xl font-semibold">{planId}</h1>
+        <WeekNav basePath="/plan" planId={planId} atDefault={atDefault} showWeek={false} />
+      </div>
       <EmptyState hint="Ask Claude Code to plan it — the grid edits a week that exists, and choosing a menu is the agent’s job.">
-        This week is not planned yet.
+        That week is not planned yet.
       </EmptyState>
     </main>
   );

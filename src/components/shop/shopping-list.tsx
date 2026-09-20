@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { WeekNav } from "@/components/ui/week-nav";
 import { useStoredFlag } from "@/hooks/use-stored-flag";
 import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
@@ -24,7 +25,12 @@ export interface ShopItem {
 }
 
 interface Props {
-  planId: string | null;
+  /** The week on screen, which may be one nobody has planned. */
+  planId: string;
+  /** True when `/shop` with no query string already shows this week. */
+  atDefault: boolean;
+  /** False for a week with no plan row — a different state from a plan whose list is empty. */
+  planned: boolean;
   budgetTarget: number | null;
   initialItems: ShopItem[];
 }
@@ -118,24 +124,24 @@ function ItemSubtitle({ item, failed }: { item: ShopItem; failed: boolean }) {
 }
 
 export function ShoppingList(props: Props) {
-  // Narrowed before the interactive component, so the tap handler has a plan id without a guard
-  // for a state that cannot happen.
-  if (!props.planId) {
+  // Narrowed before the interactive component, so the tap handler acts on a week that exists.
+  if (!props.planned) {
     return (
       <main className="mx-auto max-w-2xl p-6">
         <h1 className="font-display text-2xl font-semibold">Shopping list</h1>
-        <EmptyState>No week has been planned yet, so there is nothing to buy.</EmptyState>
+        <WeekNav basePath="/shop" planId={props.planId} atDefault={props.atDefault} />
+        <EmptyState>That week is not planned yet, so there is nothing to buy.</EmptyState>
       </main>
     );
   }
 
-  return <List {...props} planId={props.planId} />;
+  return <List {...props} />;
 }
 
 /** Where the hide-bought preference lives, so it is not re-set mid-aisle after a reload. */
 const HIDE_BOUGHT_KEY = "provender.shop.hideBought";
 
-function List({ planId, budgetTarget, initialItems }: Props & { planId: string }) {
+function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
   const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
@@ -202,8 +208,9 @@ function List({ planId, budgetTarget, initialItems }: Props & { planId: string }
     <main className="mx-auto max-w-2xl pb-28">
       <header className="border-border border-b px-4 py-4">
         <h1 className="font-display text-xl font-semibold">Shopping list</h1>
+        <WeekNav basePath="/shop" planId={planId} atDefault={atDefault} />
         <p className="text-muted-foreground mt-0.5 text-sm">
-          Week of {planId} · {left} left of {toBuy.length}
+          {left} left of {toBuy.length}
         </p>
 
         {bought.length > 0 ? (

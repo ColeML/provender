@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { WeekNav } from "@/components/ui/week-nav";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,8 @@ interface Props {
   forecast: DayForecast[];
   /** Used when a swap turns an unplanned day into a planned one, since a day must have servings. */
   defaultServings: number;
+  /** True when `/plan` with no query string already shows this week. */
+  atDefault: boolean;
 }
 
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
@@ -47,7 +50,7 @@ function utc(date: string) {
 /** A pending choice, keyed `<date>:<role>`, so one day's edit does not touch another's. */
 type Pending = Record<string, string | null>;
 
-export function WeekGrid({ week, recipes, forecast, defaultServings }: Props) {
+export function WeekGrid({ week, recipes, forecast, defaultServings, atDefault }: Props) {
   const trpc = useTRPC();
   const router = useRouter();
   const [failed, setFailed] = useState<string | null>(null);
@@ -119,7 +122,10 @@ export function WeekGrid({ week, recipes, forecast, defaultServings }: Props) {
   return (
     <main className="mx-auto max-w-6xl p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-display text-2xl font-semibold">{week.planId}</h1>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className="font-display text-2xl font-semibold">{week.planId}</h1>
+          <WeekNav basePath="/plan" planId={week.planId} atDefault={atDefault} showWeek={false} />
+        </div>
 
         <p className="font-mono text-sm">
           <span className={cn(over && "text-destructive")}>{money(week.estimatedCost)}</span>

@@ -114,3 +114,43 @@ export function isoWeekFor(date: string): string {
 
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
+
+function formatIsoWeek({ year, week }: IsoWeek): string {
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+/**
+ * The ISO week `delta` weeks away, or `undefined` when `id` is not one.
+ *
+ * Stepping past either end of a year lands on the adjacent year's first or last week, which is
+ * why this cannot be arithmetic on the week number alone: a year has 52 or 53 of them.
+ */
+export function shiftIsoWeek(id: string, delta: number): string | undefined {
+  const parsed = parseIsoWeek(id);
+
+  if (!parsed) {
+    return undefined;
+  }
+
+  let { year, week } = parsed;
+
+  for (let step = 0; step < Math.abs(delta); step += 1) {
+    if (delta > 0) {
+      week += 1;
+
+      if (week > weeksInYear(year)) {
+        year += 1;
+        week = 1;
+      }
+    } else {
+      week -= 1;
+
+      if (week < 1) {
+        year -= 1;
+        week = weeksInYear(year);
+      }
+    }
+  }
+
+  return formatIsoWeek({ year, week });
+}

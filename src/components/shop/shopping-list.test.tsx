@@ -50,14 +50,24 @@ function item(overrides: Partial<ShopItem> & { id: string; name: string }): Shop
   };
 }
 
-function renderList(items: ShopItem[], budgetTarget: number | null = 120) {
+function renderList(
+  items: ShopItem[],
+  budgetTarget: number | null = 120,
+  week: { planId?: string; atDefault?: boolean; planned?: boolean } = {},
+) {
   const user = userEvent.setup();
 
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}
     >
-      <ShoppingList planId="2026-W36" budgetTarget={budgetTarget} initialItems={items} />
+      <ShoppingList
+        planId={week.planId ?? "2026-W36"}
+        atDefault={week.atDefault ?? true}
+        planned={week.planned ?? true}
+        budgetTarget={budgetTarget}
+        initialItems={items}
+      />
     </QueryClientProvider>,
   );
 
@@ -307,13 +317,43 @@ describe("the shopping list", () => {
     expect(screen.getByText("of $120.00")).toHaveClass("text-destructive");
   });
 
-  it("explains itself when no week is planned", () => {
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <ShoppingList planId={null} budgetTarget={null} initialItems={[]} />
-      </QueryClientProvider>,
-    );
+  it("explains itself when the week on screen is not planned", () => {
+    renderList([], null, { planned: false });
 
-    expect(screen.getByText(/No week has been planned/)).toBeInTheDocument();
+    expect(screen.getByText(/not planned yet/i)).toBeInTheDocument();
+  });
+});
+
+describe("week navigation", () => {
+  it("steps to the weeks either side of the list", () => {
+    renderList([], 120, { planId: "2026-W39" });
+
+    expect(screen.getByRole("link", { name: /next week/i })).toHaveAttribute(
+      "href",
+      "/shop?week=2026-W40",
+    );
+    expect(screen.getByRole("link", { name: /previous week/i })).toHaveAttribute(
+      "href",
+      "/shop?week=2026-W38",
+    );
+  });
+
+  // Without this the reader who steps onto an unplanned week has no way back but the URL bar.
+  it("keeps the navigation on a week that has no plan", () => {
+    renderList([], null, { planId: "2026-W44", atDefault: false, planned: false });
+
+    expect(screen.getByText(/not planned yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /previous week/i })).toHaveAttribute(
+      "href",
+      "/shop?week=2026-W43",
+    );
+    expect(screen.getByRole("link", { name: /this week/i })).toHaveAttribute("href", "/shop");
+  });
+
+  // A planned week whose list is empty is a different state from an unplanned one.
+  it("tells an empty list apart from an unplanned week", () => {
+    renderList([], 120, { planId: "2026-W39" });
+
+    expect(screen.queryByText(/not planned yet/i)).toBeNull();
   });
 });
