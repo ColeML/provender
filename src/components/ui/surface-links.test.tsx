@@ -7,7 +7,7 @@ const params = { current: new URLSearchParams() };
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => params.current }));
 
-const { SurfaceLinks } = await import("./surface-links");
+const { BareSurfaceLinks, SurfaceLinks } = await import("./surface-links");
 
 afterEach(cleanup);
 
@@ -51,5 +51,17 @@ describe("SurfaceLinks", () => {
     renderAt("week=not-a-week");
 
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+  });
+});
+
+describe("BareSurfaceLinks", () => {
+  // The Suspense fallback: a route that stops being dynamic should lose the week, not the nav.
+  it("renders every surface with no week on it", () => {
+    render(<BareSurfaceLinks />);
+
+    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+    expect(screen.getByRole("link", { name: "Shop" })).toHaveAttribute("href", "/shop");
+    expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute("href", "/recipes");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 });

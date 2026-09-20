@@ -12,6 +12,27 @@ const SURFACES = [
   { href: "/settings", label: "Settings", carriesWeek: false },
 ];
 
+const CLASS = "text-muted-foreground hover:text-foreground text-sm";
+
+/**
+ * The same links with no week on them, for the Suspense fallback.
+ *
+ * `useSearchParams` makes its boundary fall back while a route is prerendered, and every page in
+ * this group is `force-dynamic` today. Falling back to the links rather than to nothing means a
+ * page that stops being dynamic loses the carried week, not the whole navigation.
+ */
+export function BareSurfaceLinks() {
+  return (
+    <>
+      {SURFACES.map((surface) => (
+        <Link key={surface.href} href={surface.href} className={CLASS}>
+          {surface.label}
+        </Link>
+      ))}
+    </>
+  );
+}
+
 /**
  * The header's surface links, carrying the selected week between `/plan` and `/shop`.
  *
@@ -34,7 +55,7 @@ export function SurfaceLinks() {
               ? `${surface.href}?week=${carried}`
               : surface.href
           }
-          className="text-muted-foreground hover:text-foreground text-sm"
+          className={CLASS}
         >
           {surface.label}
         </Link>

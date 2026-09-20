@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { SurfaceLinks } from "@/components/ui/surface-links";
+import { BareSurfaceLinks, SurfaceLinks } from "@/components/ui/surface-links";
 import { Wordmark } from "@/components/ui/wordmark";
 
 /**
@@ -24,9 +24,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <span className="flex-1" />
 
-          {/* `SurfaceLinks` reads the query string, which Next requires a boundary around so a
-              statically rendered route can still ship its shell. */}
-          <Suspense fallback={null}>
+          {/* `SurfaceLinks` reads the query string, which Next requires a boundary around. The
+              fallback is the same links without the week, so a route that is not dynamic loses
+              the carried week rather than the whole nav. */}
+          <Suspense fallback={<BareSurfaceLinks />}>
             <SurfaceLinks />
           </Suspense>
         </nav>
