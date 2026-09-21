@@ -1,8 +1,11 @@
 import { householdForSession } from "@server/auth/household";
 import { getRecipe, listIngredients, RecipeNotFoundError } from "@server/services/recipes";
+import { getShare } from "@server/services/shares";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { CookView } from "@/components/recipes/cook-view";
+import { ShareRecipe } from "@/components/recipes/share-recipe";
 import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../../auth";
@@ -32,25 +35,39 @@ export default async function Recipe({ params }: { params: Promise<{ slug: strin
     notFound();
   }
 
-  const ingredients = await listIngredients(householdId, slug);
+  const [ingredients, share, requestHeaders] = await Promise.all([
+    listIngredients(householdId, slug),
+    getShare(householdId, slug),
+    headers(),
+  ]);
+
+  // Built here rather than in the client component: that one is server-rendered before it reaches
+  // a browser, so reading `window.location` there throws and 500s this page.
+  const origin = `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${requestHeaders.get("host") ?? ""}`;
 
   return (
-    <CookView
-      recipe={{
-        recipeId: recipe.id,
-        title: recipe.title,
-        baseServings: recipe.baseServings,
-        totalMin: recipe.totalMin,
-        sourceUrl: recipe.sourceUrl,
-        instructions: recipe.instructions,
-        ingredients: ingredients.map((ingredient) => ({
-          id: ingredient.id,
-          name: ingredient.name,
-          quantity: ingredient.quantity === null ? null : Number(ingredient.quantity),
-          unit: ingredient.unit,
-          notes: ingredient.notes,
-        })),
-      }}
-    />
+    <>
+      <div className="mx-auto max-w-2xl px-4 pt-4">
+        <ShareRecipe recipeId={slug} token={share?.token ?? null} origin={origin} />
+      </div>
+
+      <CookView
+        recipe={{
+          recipeId: recipe.id,
+          title: recipe.title,
+          baseServings: recipe.baseServings,
+          totalMin: recipe.totalMin,
+          sourceUrl: recipe.sourceUrl,
+          instructions: recipe.instructions,
+          ingredients: ingredients.map((ingredient) => ({
+            id: ingredient.id,
+            name: ingredient.name,
+            quantity: ingredient.quantity === null ? null : Number(ingredient.quantity),
+            unit: ingredient.unit,
+            notes: ingredient.notes,
+          })),
+        }}
+      />
+    </>
   );
 }

@@ -76,6 +76,24 @@ export const ListRecipesResponseSchema = z
   })
   .openapi("ListRecipesResponse");
 
+export const ShareSchema = z
+  .object({
+    name: z.string().openapi({ example: "recipes/chicken-fajitas/shares/9xK2...q7" }),
+    // The token is the id in the resource name, and the whole key `/r/{token}` resolves by.
+    token: z.string().openapi({ example: "9xK2...q7" }),
+    recipeId: z.string().openapi({ example: "chicken-fajitas" }),
+    createTime: z.string().openapi({ example: "2026-09-21T14:00:00.000Z" }),
+  })
+  // No `updateTime`: a share is minted and revoked, never changed.
+  .openapi("Share");
+
+// No `nextPageToken`, and the route takes no `pageSize`/`pageToken` — the deliberate exception to
+// the List convention in `coding-standards.md`. The unique index on (household_id, recipe_id) caps
+// this collection at one row, so there is never a second page to ask for.
+export const ListSharesResponseSchema = z
+  .object({ shares: z.array(ShareSchema) })
+  .openapi("ListSharesResponse");
+
 export const MealSlotSchema = z.enum(["breakfast", "lunch", "dinner"]);
 
 export const PlanDaySchema = z

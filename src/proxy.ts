@@ -14,8 +14,15 @@ import { REQUESTED_PATH_HEADER } from "@/lib/login-url";
  */
 const SESSION_COOKIES = ["authjs.session-token", "__Secure-authjs.session-token"];
 
-/** Paths that must answer before anyone has a session. */
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+/**
+ * Paths that must answer before anyone has a session.
+ *
+ * `/r` is the shared-recipe link, and the only page here that serves data. It is safe because the
+ * token in the path is the entire lookup key — the page takes no recipe id and no household, so
+ * there is nothing to enumerate. Making `/recipes/[slug]` public instead would not be: the slugs
+ * are words like `ziti` and `potroast`.
+ */
+const PUBLIC_PATHS = ["/login", "/api/auth", "/r"];
 
 /**
  * Paths that answer JSON, so a redirect to an HTML login page would be a useless answer — the

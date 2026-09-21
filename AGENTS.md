@@ -100,7 +100,18 @@ agents read them as instructions):
   rebuild, so set `haveAlready` instead.
 - **Ids are unique per household, not globally.** Two households can each have a
   `chicken-fajitas`. Every service function takes a `householdId` and filters on it — a query
-  missing that filter returns everyone's rows and looks entirely normal in review.
+  missing that filter returns everyone's rows and looks entirely normal in review. The single
+  exception is `getSharedRecipe`, below, and it is the only one that may ever exist.
+- **A share token is the only way into `getSharedRecipe`, and nothing else may be.** `/r/{token}`
+  answers before anyone has a session, so there is no caller to resolve a household from: the
+  function takes a token and reads the household *off the row it finds*. Giving it a
+  `householdId` parameter to match every other service function breaks the page outright — there
+  is no session there, so no caller has a value to pass. Never let the page or the query take a
+  recipe id in the token's place either: a token is 32 random bytes, but an id is the recipe's
+  slug, a word like `ziti`, so an id-addressed public page would let a stranger walk the library
+  by guessing. The two households that both own a `fajitas` in
+  `server/services/isolation.test.ts` fail if the lookup ever resolves by anything but the
+  token's own row.
 - **Recipe pages are a derived view.** `/recipes/[slug]` renders from the database.
 - **Formatting is the UI's job.** Quantities are stored as a number and a unit, and rendered as
   fractions where they are shown.

@@ -65,4 +65,14 @@ describe("proxy", () => {
 
     expect(requestHeader(response, REQUESTED_PATH_HEADER)).toBe("/recipes?q=stew");
   });
+
+  it("lets a shared recipe link through without a session", () => {
+    expect(proxy(request("/r/9xK2q7")).headers.get("location")).toBeNull();
+  });
+
+  // The reason the match is segment-wise. A raw `startsWith("/r")` would open the whole app to
+  // anyone who prefixed a path with the letter, and these are the shapes that would slip through.
+  it.each(["/rogue", "/recipes", "/recipes/ziti", "/r-something"])("still gates %s", (path) => {
+    expect(proxy(request(path)).headers.get("location")).toContain("/login");
+  });
 });
