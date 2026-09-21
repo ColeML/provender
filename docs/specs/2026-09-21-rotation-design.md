@@ -90,8 +90,15 @@ Step 1 drops `GET '/recipes?pageSize=200'` and `GET /mealHistory` in favour of
   list.
 - Rotation becomes: fill from `unplanned`, then `eligible` oldest-first.
 - The novelty quota (`new_mains_per_week`, shipped in #147) now counts anything in `unplanned`,
-  whether it came from the library or the web. The planner works through the household's own 46
-  unused recipes before scraping, and scrapes when that tier runs dry or the user asks.
+  whether it came from the library or the web. The planner takes from `unplanned` before
+  scraping, and scrapes when that tier runs dry or the user asks.
+
+  **The tier is shallow for mains.** Of the 46 unplanned recipes, 33 are tagged `side` or
+  `dessert`, and of the remaining 13 only three are arguably mains. Measured over five fixture
+  reps, a five-dinner week draws one main from the library and scrapes the second, which is the
+  rule working rather than failing. The library-first benefit is real for sides and small for
+  mains; the variety win for mains comes from ordering the 26 `eligible` ones, not from
+  `unplanned`.
 
 No prose in the skill performs date arithmetic or set arithmetic over history.
 
