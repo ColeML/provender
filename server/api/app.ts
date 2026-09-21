@@ -1,6 +1,7 @@
 import { requireBearerToken, type ApiEnv } from "@server/api/middleware/bearer";
 import { historyRoutes } from "@server/api/routes/history";
 import { krogerRoutes } from "@server/api/routes/kroger";
+import { planningRoutes } from "@server/api/routes/planning";
 import { plansRoutes } from "@server/api/routes/plans";
 import { pricesRoutes } from "@server/api/routes/prices";
 import { shoppingRoutes } from "@server/api/routes/shopping";
@@ -127,6 +128,7 @@ api.openapi(
 // generated document and asserts each one is gated.
 api.route("/", recipesRoutes);
 api.route("/", plansRoutes);
+api.route("/", planningRoutes);
 api.route("/", historyRoutes);
 api.route("/", shoppingRoutes);
 api.route("/", pricesRoutes);
