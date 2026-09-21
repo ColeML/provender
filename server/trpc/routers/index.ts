@@ -8,6 +8,7 @@ import { listPrices } from "@server/services/prices";
 import { getForecast } from "@server/services/weather";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes, scaleRecipe } from "@server/services/recipes";
+import { createShare, deleteShare } from "@server/services/shares";
 
 import { z } from "zod";
 
@@ -140,6 +141,14 @@ export const appRouter = router({
       )
       .query(({ ctx, input }) =>
         scaleRecipe(ctx.householdId, input.recipeId, input.targetServings, ctx.db),
+      ),
+    share: protectedProcedure
+      .input(z.object({ recipeId: z.string().min(1) }))
+      .mutation(({ ctx, input }) => createShare(ctx.householdId, input.recipeId, ctx.db)),
+    revokeShare: protectedProcedure
+      .input(z.object({ recipeId: z.string().min(1), token: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteShare(ctx.householdId, input.recipeId, input.token, ctx.db),
       ),
   }),
 });

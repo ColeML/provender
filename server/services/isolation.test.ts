@@ -47,6 +47,7 @@ import {
 import { planningRotation } from "@server/services/planning";
 import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
+import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { isoWeekFor } from "@server/lib/iso-week";
 import { schema } from "@server/db";
 
@@ -63,6 +64,11 @@ import { schema } from "@server/db";
  * below already cover. `login-throttle` runs before a household is resolved, so its rows are keyed
  * on a client address and there is no household scope to leak. Every other service has at least one
  * case here; the roster is per service, not one case per exported function.
+ *
+ * `getSharedRecipe` is the one function that takes no `householdId`, because `/r/{token}` answers
+ * without a session. It is not outside the claim — it is the sharpest case of it, since no later
+ * check can catch a wrong answer. The `shares` cases below pin the household to the token's own
+ * row.
  */
 let db: Database;
 let close: () => Promise<void>;
@@ -476,5 +482,41 @@ describe("week plan", () => {
       main: null,
     });
     await expect(daySlots(B, MONDAY, db)).resolves.toMatchObject([{ main: null }]);
+  });
+});
+
+describe("shares", () => {
+  it("hides another household's share token", async () => {
+    await createShare(A, "fajitas", db);
+
+    await expect(getShare(B, "fajitas", db)).resolves.toBeNull();
+  });
+
+  it("will not let one household revoke another's share", async () => {
+    const { token } = await createShare(A, "fajitas", db);
+
+    await expect(deleteShare(B, "fajitas", token, db)).resolves.toBe(false);
+    await expect(getSharedRecipe(token, db)).resolves.not.toBeNull();
+  });
+
+  it("will not let one household share a recipe it cannot see", async () => {
+    await expect(createShare(B, "fajitas", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
+  });
+
+  // The case the unscoped lookup exists for. Both households hold a `fajitas`, so a token that
+  // resolved by recipe id rather than by the household on its own row would return the wrong
+  // recipe — and `/r/{token}` has no session for a later check to catch it.
+  it("resolves each token to its own household's recipe", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    const mine = await createShare(A, "fajitas", db);
+    const theirs = await createShare(B, "fajitas", db);
+
+    await expect(getSharedRecipe(mine.token, db)).resolves.toMatchObject({
+      recipe: { householdId: A, title: "Fajitas" },
+    });
+    await expect(getSharedRecipe(theirs.token, db)).resolves.toMatchObject({
+      recipe: { householdId: B, title: "Their Fajitas" },
+    });
   });
 });

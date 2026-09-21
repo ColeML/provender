@@ -8,6 +8,7 @@ import { shoppingRoutes } from "@server/api/routes/shopping";
 import { unitsRoutes } from "@server/api/routes/units";
 import { weatherRoutes } from "@server/api/routes/weather";
 import { recipesRoutes } from "@server/api/routes/recipes";
+import { sharesRoutes } from "@server/api/routes/shares";
 import { logError } from "@server/lib/log";
 import { getConfig, setConfigValue } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
@@ -127,6 +128,7 @@ api.openapi(
 // Mounted after the bearer middleware, like every other route — see the test that walks the
 // generated document and asserts each one is gated.
 api.route("/", recipesRoutes);
+api.route("/", sharesRoutes);
 api.route("/", plansRoutes);
 api.route("/", planningRoutes);
 api.route("/", historyRoutes);

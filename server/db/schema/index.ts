@@ -10,4 +10,5 @@ export * from "./login-attempts";
 export * from "./plans";
 export * from "./prices";
 export * from "./recipes";
+export * from "./shares";
 export * from "./shopping";
