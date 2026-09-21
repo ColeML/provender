@@ -143,7 +143,7 @@ export async function listHistory(
     .orderBy(desc(schema.mealHistory.date));
 }
 
-async function resolveNoRepeatDays(householdId: string, db: Database) {
+export async function resolveNoRepeatDays(householdId: string, db: Database) {
   const configured = Number((await getConfig(householdId, db)).no_repeat_days);
 
   return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_NO_REPEAT_DAYS;
