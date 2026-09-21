@@ -16,7 +16,7 @@ dishes. Gaps between repeats of the same dish, in days:
 ```
 
 `no_repeat_days` is 30. Thirteen of the 21 repeats land between 32 and 53 days, so the planner
-reaches for a dish as soon as it becomes legal. Meanwhile 48 of 99 saved recipes have never been
+reaches for a dish as soon as it becomes legal. Meanwhile 46 of 96 saved recipes have never been
 planned once — they arrived in the v1 Sheet import (97 recipes created inside 15 seconds on
 2026-09-07, commit `eb15fe7`) and nothing has drawn on them since.
 
@@ -45,13 +45,13 @@ in prose is exposed to this.
 
 Tiers:
 
-- **`unplanned`** — no `mealHistory` entry names this recipe. 48 of 99 today.
+- **`unplanned`** — no `mealHistory` entry names this recipe. 46 of 96 today.
 - **`eligible`** — planned before, and `lastPlanned` is older than `no_repeat_days`.
 - **`blocked`** — planned within `no_repeat_days`.
 
 Rows come back sorted (unplanned, then eligible oldest-first, then blocked) for readability, but
 **`tier` is the contract and position within a tier means nothing.** Sorting alone would not
-help: 48 recipes tie for first, and an agent reading top-down would work through the same
+help: 46 recipes tie for first, and an agent reading top-down would work through the same
 alphabetical head every week, reproducing the sameness one level down.
 
 The endpoint reports; it never enforces. Nothing in the plan write path consults
@@ -90,7 +90,7 @@ Step 1 drops `GET '/recipes?pageSize=200'` and `GET /mealHistory` in favour of
   list.
 - Rotation becomes: fill from `unplanned`, then `eligible` oldest-first.
 - The novelty quota (`new_mains_per_week`, shipped in #147) now counts anything in `unplanned`,
-  whether it came from the library or the web. The planner works through the household's own 48
+  whether it came from the library or the web. The planner works through the household's own 46
   unused recipes before scraping, and scrapes when that tier runs dry or the user asks.
 
 No prose in the skill performs date arithmetic or set arithmetic over history.
@@ -111,6 +111,17 @@ Service-level vitest, following `server/services/history.test.ts`:
 Route test for the response shape. Then fixture reps for the skill using the harness from #147:
 with the new tiering, a planned week should draw mains from `unplanned` and plan no `blocked`
 dish unless asked.
+
+## Library cleanup, done separately
+
+A pairwise ingredient comparison across the catalogue found three true duplicates, all unused,
+deleted on 2026-09-21 with the household's approval: `watermelon-and-feta-salad`,
+`creamy-coleslaw` and `italian-pasta-salad`. Title similarity alone was too noisy to act on
+(`Instant Pot Mashed Potatoes` scores 0.68 against `Instant Pot Pulled Pork` purely on the
+appliance); ingredient overlap was the usable signal. High-scoring pairs that are deliberate
+variants — a from-frozen technique, a potluck-scale batch, Instant Pot against stovetop — were
+kept. The remaining 46 unused recipes are genuinely distinct dishes, which is what makes this a
+rotation problem rather than a cleanup one.
 
 ## Out of scope
 
