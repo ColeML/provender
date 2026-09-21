@@ -21,7 +21,8 @@ You choose the menu. The API stores it. Nothing is written until the user approv
 
 `GET /planning/rotation` returns `recipes`, every recipe tiered. `unplanned` has never been
 planned, `eligible` is outside `no_repeat_days`, `blocked` is inside it and says when it frees up.
-The tier is the answer — do not recompute it from dates.
+The tier is the answer — do not recompute it from dates. Each row also carries `baseServings`,
+the yield the recipe is stored at, which is what a day's `servings` takes in step 6.
 
 ## 2. Choose the menu
 
@@ -98,6 +99,9 @@ Wait for approval. Write nothing yet.
 ## 6. Save, once approved
 
 Store every recipe at the servings that will be cooked, so the shopping list never has to scale.
+A day's `servings` is the main's `baseServings` from step 1, not a number derived from household
+size. Where that yield will not cover the leftovers the household expects, say so rather than
+writing a larger number the recipe cannot back.
 
 ```bash
 ./scripts/prov POST '/plans?planId=<iso-week>' '{"budgetTarget":<n>}'
