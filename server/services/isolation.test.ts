@@ -44,6 +44,7 @@ import {
   PriceNotFoundError,
   setPrice,
 } from "@server/services/prices";
+import { planningRotation } from "@server/services/planning";
 import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { isoWeekFor } from "@server/lib/iso-week";
@@ -329,6 +330,24 @@ describe("history", () => {
     await expect(getHistoryEntry(A, `${MONDAY}-fajitas`, db)).resolves.toMatchObject({
       planId: "2026-W36",
     });
+  });
+});
+
+describe("planning rotation", () => {
+  it("will not return another household's recipes", async () => {
+    await createRecipe(B, "burgers", { ...recipe, title: "Burgers" }, [], db);
+
+    await expect(planningRotation(A, db)).resolves.not.toContainEqual(
+      expect.objectContaining({ recipeId: "burgers" }),
+    );
+  });
+
+  it("will not let another household's mealHistory change this household's tiers", async () => {
+    await recordMeal(B, { date: "2026-09-20", recipeId: "fajitas", title: "Fajitas" }, db);
+
+    await expect(planningRotation(A, db)).resolves.toContainEqual(
+      expect.objectContaining({ recipeId: "fajitas", tier: "unplanned" }),
+    );
   });
 });
 

@@ -30,7 +30,7 @@ const RotationEntrySchema = z
     lastPlanned: z.string().nullable().openapi({ example: "2026-08-31" }),
     timesPlanned: z.number().int(),
     daysUntilEligible: z.number().int().nullable(),
-    rating: z.number().int().nullable(),
+    rating: z.number().int().min(1).max(5).nullable(),
   })
   .openapi("RotationEntry");
 

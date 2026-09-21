@@ -42,6 +42,10 @@ in prose is exposed to this.
 | `lastPlanned` | ISO date, or `null` when never planned |
 | `timesPlanned` | count across all history |
 | `daysUntilEligible` | `null` unless `blocked` |
+| `rating` | the rating from the most recent *rated* history entry, or `null` when never rated |
+
+`rating` and `lastPlanned` can come from different entries: the latest planning of a dish is not
+necessarily the one that was rated.
 
 Tiers:
 

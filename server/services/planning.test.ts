@@ -130,6 +130,15 @@ describe("planningRotation", () => {
     expect(rows.map((row) => row.recipeId)).toEqual(["ziti", "chili", "tacos", "pizza"]);
   });
 
+  it("breaks a tie between two unplanned recipes by title, not insertion order", async () => {
+    await recipe(H, "zeta", "Zeta Bake");
+    await recipe(H, "alpha", "Alpha Bake");
+
+    const rows = await planningRotation(H, db);
+
+    expect(rows.map((row) => row.recipeId)).toEqual(["alpha", "zeta"]);
+  });
+
   it("carries the fields a planner needs, so it needs no second catalog call", async () => {
     await createRecipe(
       H,
