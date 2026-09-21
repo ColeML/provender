@@ -122,10 +122,10 @@ Build one payload and send it once:
 `week.json` carries the whole week:
 
 - `budgetTarget` — the number the week was costed against.
-- `recipes` — the drafts held from step 3, each with its `recipeId` and its ingredients inline.
-  Build this list by walking the approved days' `main`, `side` and `extras`: a draft no approved day
-  names does not belong in the payload. A dish the household swapped out during review therefore
-  drops out on its own.
+- `recipes` — the drafts held from step 3, each with its `recipeId` (the draft's slug) and its
+  ingredients inline. Build this list by walking the approved days' `main`, `side` and `extras`: a
+  draft no approved day names does not belong in the payload. A dish the household swapped out
+  during review therefore drops out on its own.
 - `days` — one entry per planned day, carrying `date`, `servings`, `status`, `notes`, `main`, `side`
   and `extras`. The plan id is the ISO week (`2026-W37`) and every date must fall inside it.
 
@@ -145,6 +145,12 @@ History is recorded for you, one entry per day's main. Do not call `POST /mealHi
 **`ALREADY_EXISTS` naming dates means those days are already planned.** Show the dates to the
 household and ask. They may have been edited since the week was planned, and `replaceExistingDays`
 discards whatever is on them — so set it only when the household says to.
+
+**`ALREADY_EXISTS` naming a recipe id means that dish is already in the library** — step 3's slug
+check missed it, most likely a same-dish-different-slug case add-recipe left to judgment. Drop that
+entry from `recipes`, point the day that named it at the existing id instead, and re-commit.
+`replaceExistingDays` does not apply here; it only gates the days check, so setting it will not
+clear this error and retrying unchanged just repeats it.
 
 ## 7. Hand off
 

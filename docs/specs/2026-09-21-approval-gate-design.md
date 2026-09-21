@@ -188,13 +188,13 @@ The route in `server/api/routes/plans.ts` is a thin caller: parse, call, map err
 ## What changes in the skills
 
 **`add-recipe` splits at the write boundary.** Steps 1-3 (scrape, judge what the page could not,
-set the servings the household will cook) become the draft half and end by writing the draft to a
-file. Step 4 stays exactly as it is for `add-recipe`'s own use: the user pasted a link, so their
-paste was the approval, and there is no gate to defer to. A closing note says that a caller which
-owns an approval gate stops after step 3 and hands the draft to that gate.
+set the servings the household will cook) become the draft half. A new step 4 ends that half by
+writing the draft to a file. Step 5 stays exactly as it was for `add-recipe`'s own use: the user
+pasted a link, so their paste was the approval, and there is no gate to defer to. A closing note on
+step 4 says that a caller which owns an approval gate stops there and hands the draft to that gate.
 
 Both workflows then agree on when a write happens: at the point the user said yes. The
-`ALREADY_EXISTS` and PATCH branch stays in step 4, reachable only from the user-pasted path.
+`ALREADY_EXISTS` and PATCH branch stays in step 5, reachable only from the user-pasted path.
 
 **Drafts are files in a gitignored `.provender/drafts/<slug>.json`.** `prov` passes the body to
 `curl --data`, which resolves `@file` against the working directory, so drafts written at the repo

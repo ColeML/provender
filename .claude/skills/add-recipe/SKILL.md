@@ -63,12 +63,27 @@ quantities as-is and never re-scales.
 ```bash
 mkdir -p .provender/drafts
 cat > .provender/drafts/<slug>.json <<'JSON'
-{ "title": "...", "baseServings": 8, "ingredients": [ ... ] }
+{
+  "title": "Marinated Skirt Steak",
+  "sourceUrl": "https://example.com/skirt-steak",
+  "imageUrl": "https://example.com/skirt-steak.jpg",
+  "baseServings": 8,
+  "prepMin": 15,
+  "cookMin": 10,
+  "totalMin": 25,
+  "costEstimate": 18.5,
+  "tags": ["quick", "grill"],
+  "ingredients": [
+    { "ingredientName": "skirt steak", "quantity": 2, "unit": "lb", "category": "meat", "notes": null }
+  ],
+  "instructions": ["Marinate the steak.", "Grill 4 minutes per side."]
+}
 JSON
 ```
 
-The slug is the title, lowercase and hyphenated. The file holds exactly the body `POST /recipes`
-takes — nothing is written to the library yet.
+The slug is the title, lowercase and hyphenated, letters, digits and hyphens only — an ampersand or
+an apostrophe is dropped, not kept. The file holds exactly the body `POST /recipes` takes —
+nothing is written to the library yet.
 
 A caller that owns an approval gate stops here and hands the draft to that gate: **plan-week** does,
 because a week the household rejects must leave no recipes behind. On its own, `add-recipe` carries
@@ -87,10 +102,9 @@ exactly like all of one. `ALREADY_EXISTS` catches an exact slug collision; the s
 different slug is yours to spot. PATCH the one that exists instead:
 
 ```bash
-./scripts/prov PATCH '/recipes/<slug>?updateMask=title,ingredients' @recipe.json
+./scripts/prov PATCH '/recipes/<slug>?updateMask=title,ingredients' @.provender/drafts/<slug>.json
 ```
 
-The slug is the title, lowercase and hyphenated. The create response omits the ingredients, so
-read them back to confirm they landed.
+The create response omits the ingredients, so read them back to confirm they landed.
 
 Report the `recipeId`, the servings, and the cost estimate.
