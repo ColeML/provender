@@ -29,7 +29,9 @@ export default defineConfig({
     // Extends rather than replaces: assigning `exclude` outright drops vitest's own defaults,
     // including **/dist/**.
     // e2e/** too: those are Playwright specs, which need a running server and a database.
-    exclude: [...configDefaults.exclude, ".next/**", "e2e/**"],
+    // .claude/worktrees/** is git-ignored sibling checkouts of this same repo, used by other
+    // agents' sessions — without the exclude, vitest also collects and runs their branches' tests.
+    exclude: [...configDefaults.exclude, ".next/**", "e2e/**", ".claude/worktrees/**"],
   },
   resolve: {
     // Mirrors tsconfig `paths`. Anchored regexes rather than bare string prefixes, so a plain "@"
