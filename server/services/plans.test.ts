@@ -313,6 +313,18 @@ describe("upsertPlan", () => {
     expect(Number((await upsertPlan(H, WEEK, 140, db)).budgetTarget)).toBe(140);
   });
 
+  it("leaves the stored budget alone when the caller passes null on an existing week", async () => {
+    await upsertPlan(H, WEEK, 95, db);
+
+    expect(Number((await upsertPlan(H, WEEK, null, db)).budgetTarget)).toBe(95);
+  });
+
+  it("falls back to the household default when the caller passes null on a new week", async () => {
+    const plan = await upsertPlan(H, WEEK, null, db);
+
+    expect(Number(plan.budgetTarget)).toBe(120);
+  });
+
   it("rejects an id that is not an ISO week", async () => {
     await expect(upsertPlan(H, "not-a-week", undefined, db)).rejects.toThrow(InvalidPlanIdError);
   });

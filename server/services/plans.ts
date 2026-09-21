@@ -304,9 +304,10 @@ export async function createPlan(
  * Create the week, or return the one already there.
  *
  * Separate from `createPlan` rather than replacing it: `POST /plans` promises 409 on a week that
- * exists, and a committed week has to be retryable after a rolled-back attempt. An absent
- * `budgetTarget` on a conflict leaves the stored number alone — a re-commit that omits it must
- * not reset the target the week was planned against.
+ * exists, and a committed week has to be retryable after a rolled-back attempt. `null` or absent
+ * `budgetTarget` on a conflict both leave the stored number alone — a re-commit that names no
+ * number must not reset the target the week was planned against. `PATCH /plans/{plan}` is what
+ * clears a budget.
  */
 export async function upsertPlan(
   householdId: string,
@@ -324,9 +325,9 @@ export async function upsertPlan(
     .onConflictDoUpdate({
       target: [schema.plans.householdId, schema.plans.id],
       set:
-        budgetTarget === undefined
-          ? { updateTime: sql`now()` }
-          : { budgetTarget: resolved, updateTime: sql`now()` },
+        typeof budgetTarget === "number"
+          ? { budgetTarget: resolved, updateTime: sql`now()` }
+          : { updateTime: sql`now()` },
     })
     .returning();
 
