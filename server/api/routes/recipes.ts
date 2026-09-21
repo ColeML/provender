@@ -7,6 +7,7 @@ import {
   ListRecipesResponseSchema,
   RecipeInputSchema,
   RecipeSchema,
+  toIngredientInput,
 } from "@server/api/schemas";
 import {
   createRecipe,
@@ -23,7 +24,6 @@ import {
   RecipeExistsError,
   RecipeNotFoundError,
   type Ingredient,
-  type IngredientInput,
   type Recipe,
 } from "@server/services/recipes";
 import {
@@ -67,23 +67,6 @@ function toIngredientResource(ingredient: Ingredient) {
     unit: ingredient.unit,
     category: ingredient.category,
     notes: ingredient.notes,
-  };
-}
-
-/** The API calls it `ingredientName`; `name` is reserved for the resource name (AIP-122). */
-function toIngredientInput(input: {
-  ingredientName: string;
-  quantity?: number | null;
-  unit?: string | null;
-  category: IngredientInput["category"];
-  notes?: string | null;
-}): IngredientInput {
-  return {
-    name: input.ingredientName,
-    quantity: input.quantity,
-    unit: input.unit,
-    category: input.category,
-    notes: input.notes,
   };
 }
 

@@ -1,5 +1,7 @@
 import { z } from "@hono/zod-openapi";
 
+import type { IngredientInput } from "@server/services/recipes";
+
 /** The store aisles the shopping list groups by. Mirrors the `ingredient_category` enum. */
 export const CategorySchema = z.enum([
   "produce",
@@ -32,6 +34,17 @@ export const IngredientInputSchema = z
     notes: z.string().nullish(),
   })
   .openapi("IngredientInput");
+
+/** The HTTP field is `ingredientName`; the service field is `name`. One place converts. */
+export function toIngredientInput(input: z.infer<typeof IngredientInputSchema>): IngredientInput {
+  return {
+    name: input.ingredientName,
+    quantity: input.quantity,
+    unit: input.unit,
+    category: input.category,
+    notes: input.notes,
+  };
+}
 
 export const RecipeSchema = z
   .object({
@@ -122,6 +135,18 @@ export const PlanDayInputSchema = z
   })
   .openapi("PlanDayInput");
 
+export const CommitDayInputSchema = PlanDayInputSchema.extend({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  mealSlot: MealSlotSchema.default("dinner"),
+}).openapi("CommitDayInput");
+
+export const CommitRecipeInputSchema = RecipeInputSchema.extend({
+  recipeId: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9][a-z0-9-]*$/),
+}).openapi("CommitRecipeInput");
+
 export const PlanSchema = z
   .object({
     name: z.string().openapi({ example: "plans/2026-W36" }),
@@ -132,3 +157,21 @@ export const PlanSchema = z
     updateTime: z.string(),
   })
   .openapi("Plan");
+
+export const WeekCommitRequestSchema = z
+  .object({
+    budgetTarget: z.number().nonnegative().nullish(),
+    recipes: z.array(CommitRecipeInputSchema).optional(),
+    // At least one day: a commit that writes nothing is a caller mistake, not an empty success.
+    days: z.array(CommitDayInputSchema).min(1),
+    replaceExistingDays: z.boolean().optional(),
+  })
+  .openapi("WeekCommitRequest");
+
+export const WeekCommitResponseSchema = z
+  .object({
+    plan: PlanSchema,
+    createdRecipeIds: z.array(z.string()),
+    historyEntryIds: z.array(z.string()),
+  })
+  .openapi("WeekCommitResponse");

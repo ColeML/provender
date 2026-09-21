@@ -137,3 +137,100 @@ describe("DELETE /v1/plans/{plan}/days/{day}", () => {
     expect((await send("GET", `/v1/plans/${WEEK}/days/${MONDAY}`)).status).toBe(404);
   });
 });
+
+describe("POST /v1/plans/{plan}:commit", () => {
+  const body = {
+    budgetTarget: 95,
+    recipes: [
+      {
+        recipeId: "gnocchi",
+        title: "Sheet-Pan Gnocchi",
+        baseServings: 8,
+        ingredients: [{ ingredientName: "gnocchi", quantity: 32, unit: "oz", category: "pantry" }],
+      },
+    ],
+    days: [{ date: MONDAY, servings: 8, main: "gnocchi", notes: "58F and wet" }],
+  };
+
+  it("writes the week and reports what it wrote", async () => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, body);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      plan: {
+        name: `plans/${WEEK}`,
+        planId: WEEK,
+        budgetTarget: 95,
+        days: [{ date: MONDAY, main: "gnocchi", servings: 8 }],
+      },
+      createdRecipeIds: ["gnocchi"],
+      historyEntryIds: [`${MONDAY}-gnocchi`],
+    });
+  });
+
+  it("maps a taken recipe id to ALREADY_EXISTS", async () => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      ...body,
+      recipes: [{ recipeId: "fajitas", title: "Fajitas", baseServings: 8 }],
+      days: [{ date: MONDAY, servings: 8, main: "fajitas" }],
+    });
+
+    expect(response.status).toBe(409);
+  });
+
+  it("maps a day already planned to ALREADY_EXISTS", async () => {
+    await send("POST", `/v1/plans/${WEEK}:commit`, body);
+
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      recipes: [],
+      days: [{ date: MONDAY, servings: 4, main: "pico" }],
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "ALREADY_EXISTS", message: expect.stringContaining(MONDAY) },
+    });
+  });
+
+  it("overwrites that day when the caller opts in", async () => {
+    await send("POST", `/v1/plans/${WEEK}:commit`, body);
+
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      replaceExistingDays: true,
+      recipes: [],
+      days: [{ date: MONDAY, servings: 4, main: "pico" }],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      plan: { days: [{ date: MONDAY, main: "pico", servings: 4 }] },
+    });
+  });
+
+  it("maps an unknown recipe on a day to INVALID_ARGUMENT", async () => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      recipes: [],
+      days: [{ date: MONDAY, servings: 8, main: "ghost" }],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT", message: expect.stringContaining("ghost") },
+    });
+  });
+
+  it("maps a date outside the week to INVALID_ARGUMENT", async () => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      recipes: [],
+      days: [{ date: "2026-09-08", servings: 8, main: "fajitas" }],
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects an empty days array before reaching the service", async () => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, { recipes: [], days: [] });
+
+    expect(response.status).toBe(400);
+  });
+});
