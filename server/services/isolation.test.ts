@@ -49,7 +49,6 @@ import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
-import { isoWeekFor } from "@server/lib/iso-week";
 import { schema } from "@server/db";
 
 /**
@@ -437,26 +436,18 @@ describe("prices", () => {
 });
 
 describe("week overview", () => {
-  // Both the week id and the Monday come from one reading of the clock. Sampling the date twice
-  // lets a UTC midnight land between them and put the Monday in a later week than `THIS_WEEK`.
-  const today = new Date();
-  const THIS_WEEK = isoWeekFor(today.toISOString().slice(0, 10));
-  const MONDAY = mondayOf(today);
-
-  function mondayOf(date: Date) {
-    const monday = new Date(date);
-
-    monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
-
-    return monday.toISOString().slice(0, 10);
-  }
+  // A fixed past week, so nothing here depends on the clock. `weekOverview` falls back to the
+  // latest plan when none is current, which is all these cases need; whether a week reads as the
+  // current one is `overview.test.ts`'s question, and it covers both answers.
+  const WEEK = "2026-W36";
+  const MONDAY = "2026-08-31";
 
   beforeEach(async () => {
-    await createPlan(A, THIS_WEEK, 120, db);
-    await setPlanDay(A, THIS_WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
+    await createPlan(A, WEEK, 120, db);
+    await setPlanDay(A, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
     await replaceItems(
       A,
-      THIS_WEEK,
+      WEEK,
       [{ name: "chicken breast", quantity: 3, unit: "lb", category: "meat" }],
       db,
     );
@@ -474,12 +465,12 @@ describe("week overview", () => {
   // B plans the same date and slot with no main of its own, which is what a potluck day looks
   // like. A's main for that day must not surface as B's.
   it("shows nothing from another household's week of the same name", async () => {
-    await createPlan(B, THIS_WEEK, 200, db);
-    await setPlanDay(B, THIS_WEEK, MONDAY, "dinner", { servings: 4 }, db);
+    await createPlan(B, WEEK, 200, db);
+    await setPlanDay(B, WEEK, MONDAY, "dinner", { servings: 4 }, db);
 
     await expect(weekOverview(B, db)).resolves.toEqual({
-      planId: THIS_WEEK,
-      isCurrentWeek: true,
+      planId: WEEK,
+      isCurrentWeek: false,
       days: [
         {
           date: MONDAY,
@@ -506,7 +497,10 @@ describe("week plan", () => {
   it("leaves the grid empty when only the other household planned that week", async () => {
     const week = await weekPlan(B, "2026-W36", db);
 
-    expect(week.days.every((day) => !day.planned)).toBe(true);
+    // The planned dates rather than a boolean over them: `every` reports "expected false to be
+    // true" and names no day, so a leak through the filter would say nothing about which one.
+    expect(week.days.filter((day) => day.planned).map((day) => day.date)).toEqual([]);
+    expect(week.days).toHaveLength(7);
     expect(week.estimatedCost).toBe(0);
   });
 

@@ -4,31 +4,36 @@ import { isoWeekFor } from "@server/lib/iso-week";
 import { createPlan, setPlanDay } from "@server/services/plans";
 import { createRecipe } from "@server/services/recipes";
 import { replaceItems, updateItem } from "@server/services/shopping";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { weekOverview } from "./overview";
 
 const H = "loewer";
-const THIS_WEEK = isoWeekFor(new Date().toISOString().slice(0, 10));
+
+/**
+ * A fixed Wednesday, held for the whole file.
+ *
+ * `isCurrentWeek` compares the plan's id against `isoWeekFor(new Date())` read when the service is
+ * called, so anything deriving the expected week from a second reading of the real clock can
+ * straddle a UTC midnight and disagree with it. Only `Date` is faked — the in-process Postgres and
+ * every await still run on real timers.
+ */
+const NOW = new Date("2026-09-16T12:00:00.000Z");
+const THIS_WEEK = isoWeekFor(NOW.toISOString().slice(0, 10));
+const MONDAY_OF_THIS_WEEK = "2026-09-14";
 
 let db: Database;
 let close: () => Promise<void>;
 
-/** A date inside `THIS_WEEK`, so the overview treats it as the current week rather than a fallback. */
-function mondayOfThisWeek() {
-  const today = new Date();
-  const monday = new Date(today);
-
-  monday.setUTCDate(today.getUTCDate() - ((today.getUTCDay() + 6) % 7));
-
-  return monday.toISOString().slice(0, 10);
-}
-
 beforeEach(async () => {
   ({ db, close } = await createTestDb());
+
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   await close();
 });
 
@@ -48,7 +53,7 @@ describe("weekOverview", () => {
     await setPlanDay(
       H,
       THIS_WEEK,
-      mondayOfThisWeek(),
+      MONDAY_OF_THIS_WEEK,
       "dinner",
       { servings: 8, main: "fajitas" },
       db,
@@ -60,7 +65,7 @@ describe("weekOverview", () => {
     expect(overview.isCurrentWeek).toBe(true);
     expect(overview.days).toEqual([
       {
-        date: mondayOfThisWeek(),
+        date: MONDAY_OF_THIS_WEEK,
         mealSlot: "dinner",
         status: "planned",
         mainRecipeId: "fajitas",
@@ -75,7 +80,7 @@ describe("weekOverview", () => {
     await setPlanDay(
       H,
       THIS_WEEK,
-      mondayOfThisWeek(),
+      MONDAY_OF_THIS_WEEK,
       "dinner",
       { servings: 24, status: "potluck", extras: ["cake"] },
       db,
@@ -83,7 +88,7 @@ describe("weekOverview", () => {
 
     expect((await weekOverview(H, db)).days).toEqual([
       {
-        date: mondayOfThisWeek(),
+        date: MONDAY_OF_THIS_WEEK,
         mealSlot: "dinner",
         status: "potluck",
         mainRecipeId: null,
@@ -121,12 +126,12 @@ describe("weekOverview", () => {
     await setPlanDay(
       H,
       THIS_WEEK,
-      mondayOfThisWeek(),
+      MONDAY_OF_THIS_WEEK,
       "dinner",
       { servings: 8, main: "fajitas" },
       db,
     );
-    await setPlanDay(H, THIS_WEEK, mondayOfThisWeek(), "lunch", { servings: 4, main: "soup" }, db);
+    await setPlanDay(H, THIS_WEEK, MONDAY_OF_THIS_WEEK, "lunch", { servings: 4, main: "soup" }, db);
 
     // Without a mealSlot in the key, both days would claim the same main. Lunch comes first
     // because the day reads in meal order, not in the order the enum happens to be stored in.
@@ -151,7 +156,7 @@ describe("weekOverview", () => {
     await setPlanDay(
       H,
       THIS_WEEK,
-      mondayOfThisWeek(),
+      MONDAY_OF_THIS_WEEK,
       "dinner",
       { servings: 8, main: "fajitas" },
       db,
