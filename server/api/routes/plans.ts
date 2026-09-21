@@ -1,6 +1,14 @@
 import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
-import { MealSlotSchema, PlanDayInputSchema, PlanDaySchema, PlanSchema } from "@server/api/schemas";
+import {
+  MealSlotSchema,
+  PlanDayInputSchema,
+  PlanDaySchema,
+  PlanSchema,
+  toIngredientInput,
+  WeekCommitRequestSchema,
+  WeekCommitResponseSchema,
+} from "@server/api/schemas";
 import {
   createPlan,
   DateOutsidePlanError,
@@ -20,6 +28,15 @@ import {
   type Plan,
   type PlanDayWithRecipes,
 } from "@server/services/plans";
+import { RecipeExistsError } from "@server/services/recipes";
+import {
+  commitWeek,
+  DaysAlreadyPlannedError,
+  DuplicateCommitDayError,
+  DuplicateCommitRecipeError,
+  UnknownRecipeError,
+  UnreferencedRecipeError,
+} from "@server/services/week-commit";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 function toDayResource(planId: string, day: PlanDayWithRecipes) {
@@ -57,12 +74,20 @@ function planError(c: Parameters<typeof apiError>[0], error: unknown) {
     error instanceof InvalidPlanIdError ||
     error instanceof DateOutsidePlanError ||
     error instanceof InvalidDateError ||
-    error instanceof DuplicateRecipeError
+    error instanceof DuplicateRecipeError ||
+    error instanceof DuplicateCommitDayError ||
+    error instanceof DuplicateCommitRecipeError ||
+    error instanceof UnknownRecipeError ||
+    error instanceof UnreferencedRecipeError
   ) {
     return apiError(c, "INVALID_ARGUMENT", error.message);
   }
 
-  if (error instanceof PlanExistsError) {
+  if (
+    error instanceof PlanExistsError ||
+    error instanceof RecipeExistsError ||
+    error instanceof DaysAlreadyPlannedError
+  ) {
     return apiError(c, "ALREADY_EXISTS", error.message);
   }
 
@@ -300,6 +325,60 @@ plansRoutes.openapi(
       await deletePlanDay(c.get("householdId"), plan, day, mealSlot as MealSlot, { keepHistory });
 
       return c.json({}, 200);
+    } catch (error) {
+      return planError(c, error);
+    }
+  },
+);
+
+plansRoutes.openapi(
+  createRoute({
+    method: "post",
+    // A custom verb, matching `/recipes/{recipe}:scale` and `/recipes:scrape`. The week is not a
+    // resource being replaced: the body carries recipes to create as well as days to write.
+    path: "/plans/{plan}:commit",
+    summary: "Write an approved week in one transaction",
+    description:
+      "Creates the recipes, upserts the plan, writes the days and records one history entry per " +
+      "day's main, all or nothing. Recipes are create-only: an id that already exists fails the " +
+      "commit rather than updating it. A day already in the plan is refused unless " +
+      "`replaceExistingDays` is set, because it may carry edits made after the week was planned.",
+    request: {
+      params: PlanParam,
+      body: { content: { "application/json": { schema: WeekCommitRequestSchema } } },
+    },
+    responses: {
+      200: {
+        description: "What was written",
+        content: { "application/json": { schema: WeekCommitResponseSchema } },
+      },
+      409: { description: "A recipe id is taken, or a day is already planned" },
+      ...ERRORS,
+    },
+  }),
+  async (c) => {
+    const { plan } = c.req.valid("param");
+    const request = c.req.valid("json");
+
+    try {
+      const result = await commitWeek(c.get("householdId"), plan, {
+        budgetTarget: request.budgetTarget,
+        replaceExistingDays: request.replaceExistingDays,
+        recipes: (request.recipes ?? []).map(({ ingredients, ...recipe }) => ({
+          ...recipe,
+          ingredients: (ingredients ?? []).map(toIngredientInput),
+        })),
+        days: request.days,
+      });
+
+      return c.json(
+        {
+          plan: toPlanResource(result.plan, result.days),
+          createdRecipeIds: result.createdRecipeIds,
+          historyEntryIds: result.historyEntryIds,
+        },
+        200,
+      );
     } catch (error) {
       return planError(c, error);
     }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { db as defaultDb, schema, type Database } from "@server/db";
+import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
@@ -260,6 +260,20 @@ export async function currentOrLatestPlan(householdId: string, db: Database = de
   return latest;
 }
 
+/**
+ * `null` and `undefined` both mean "use the household default" on a create. They differ only on a
+ * conflict, which is `upsertPlan`'s business, not this function's.
+ */
+async function resolveBudgetTarget(
+  householdId: string,
+  budgetTarget: number | null | undefined,
+  db: Queryable,
+) {
+  const fallback = budgetTarget ?? Number((await getConfig(householdId, db)).default_budget);
+
+  return Number.isFinite(fallback) ? String(fallback) : null;
+}
+
 export async function createPlan(
   householdId: string,
   planId: string,
@@ -271,22 +285,51 @@ export async function createPlan(
   // Falls back to the household's configured default so a plan always has something to show a
   // running total against, and stores it so editing the default later does not move the target of
   // a week already planned.
-  const fallback = budgetTarget ?? Number((await getConfig(householdId, db)).default_budget);
-  const resolved = Number.isFinite(fallback) ? fallback : null;
+  const resolved = await resolveBudgetTarget(householdId, budgetTarget, db);
 
   const [plan] = await db
     .insert(schema.plans)
-    .values({
-      householdId,
-      id: planId,
-      budgetTarget: resolved === null ? null : String(resolved),
-    })
+    .values({ householdId, id: planId, budgetTarget: resolved })
     .onConflictDoNothing({ target: [schema.plans.householdId, schema.plans.id] })
     .returning();
 
   if (!plan) {
     throw new PlanExistsError(planId);
   }
+
+  return plan;
+}
+
+/**
+ * Create the week, or return the one already there.
+ *
+ * Separate from `createPlan` rather than replacing it: `POST /plans` promises 409 on a week that
+ * exists, and a committed week has to be retryable after a rolled-back attempt. `null` or absent
+ * `budgetTarget` on a conflict both leave the stored number alone — a re-commit that names no
+ * number must not reset the target the week was planned against. `PATCH /plans/{plan}` is what
+ * clears a budget.
+ */
+export async function upsertPlan(
+  householdId: string,
+  planId: string,
+  budgetTarget: number | null | undefined,
+  db: Queryable = defaultDb,
+) {
+  requireIsoWeek(planId);
+
+  const resolved = await resolveBudgetTarget(householdId, budgetTarget, db);
+
+  const [plan] = await db
+    .insert(schema.plans)
+    .values({ householdId, id: planId, budgetTarget: resolved })
+    .onConflictDoUpdate({
+      target: [schema.plans.householdId, schema.plans.id],
+      set:
+        typeof budgetTarget === "number"
+          ? { budgetTarget: resolved, updateTime: sql`now()` }
+          : { updateTime: sql`now()` },
+    })
+    .returning();
 
   return plan;
 }
@@ -324,6 +367,32 @@ export async function deletePlan(householdId: string, planId: string, db: Databa
   }
 }
 
+/** A validated day and the recipe rows it will write. */
+export interface PreparedDay {
+  date: string;
+  mealSlot: MealSlot;
+  input: PlanDayInput;
+  rows: (typeof schema.planDayRecipes.$inferInsert)[];
+}
+
+/**
+ * Validate a day and build its recipe rows, touching no database.
+ *
+ * Separate from the write so a rejected request never takes a write lock first, and so a caller
+ * writing several days can reject a bad one before any of them are written.
+ */
+export function prepareDay(
+  householdId: string,
+  planId: string,
+  date: string,
+  mealSlot: MealSlot,
+  input: PlanDayInput,
+): PreparedDay {
+  assertDateInPlan(planId, date);
+
+  return { date, mealSlot, input, rows: recipeRows(householdId, planId, date, mealSlot, input) };
+}
+
 /**
  * Write one day and everything on it, replacing whatever was there.
  *
@@ -339,67 +408,73 @@ export async function setPlanDay(
   input: PlanDayInput,
   db: Database = defaultDb,
 ) {
-  assertDateInPlan(planId, date);
+  const prepared = prepareDay(householdId, planId, date, mealSlot, input);
 
-  // Built before the transaction opens: this validates the input, and a rejected request should
-  // not have taken a write lock first.
-  const rows = recipeRows(householdId, planId, date, mealSlot, input);
+  return db.transaction((tx) => writePlanDay(householdId, planId, prepared, tx));
+}
 
-  return db.transaction(async (tx) => {
-    const [plan] = await tx
-      .select({ id: schema.plans.id })
-      .from(schema.plans)
-      .where(and(eq(schema.plans.householdId, householdId), eq(schema.plans.id, planId)));
+/** The write itself, so a caller committing a whole week can run it in its own transaction. */
+export async function writePlanDay(
+  householdId: string,
+  planId: string,
+  prepared: PreparedDay,
+  db: Queryable = defaultDb,
+): Promise<PlanDayWithRecipes> {
+  const { date, mealSlot, input, rows } = prepared;
 
-    if (!plan) {
-      throw new PlanNotFoundError(planId);
-    }
+  const [plan] = await db
+    .select({ id: schema.plans.id })
+    .from(schema.plans)
+    .where(and(eq(schema.plans.householdId, householdId), eq(schema.plans.id, planId)));
 
-    const [day] = await tx
-      .insert(schema.planDays)
-      .values({
-        householdId,
-        planId,
-        date,
-        mealSlot,
+  if (!plan) {
+    throw new PlanNotFoundError(planId);
+  }
+
+  const [day] = await db
+    .insert(schema.planDays)
+    .values({
+      householdId,
+      planId,
+      date,
+      mealSlot,
+      servings: input.servings,
+      status: input.status ?? "planned",
+      notes: input.notes ?? null,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.planDays.householdId,
+        schema.planDays.planId,
+        schema.planDays.date,
+        schema.planDays.mealSlot,
+      ],
+      set: {
         servings: input.servings,
         status: input.status ?? "planned",
         notes: input.notes ?? null,
-      })
-      .onConflictDoUpdate({
-        target: [
-          schema.planDays.householdId,
-          schema.planDays.planId,
-          schema.planDays.date,
-          schema.planDays.mealSlot,
-        ],
-        set: {
-          servings: input.servings,
-          status: input.status ?? "planned",
-          notes: input.notes ?? null,
-          // The database's clock, matching the column defaults — see the same note in
-          // `recipes.ts`. Mixing in the Node process's clock lets skew produce an updateTime
-          // earlier than the row's own createTime.
-          updateTime: sql`now()`,
-        },
-      })
-      .returning();
+        // The database's clock, matching the column defaults — see the same note in
+        // `recipes.ts`. Mixing in the Node process's clock lets skew produce an updateTime
+        // earlier than the row's own createTime.
+        updateTime: sql`now()`,
+      },
+    })
+    .returning();
 
-    const dayMatch = and(
-      eq(schema.planDayRecipes.householdId, householdId),
-      eq(schema.planDayRecipes.planId, planId),
-      eq(schema.planDayRecipes.date, date),
-      eq(schema.planDayRecipes.mealSlot, mealSlot),
-    );
+  const dayMatch = and(
+    eq(schema.planDayRecipes.householdId, householdId),
+    eq(schema.planDayRecipes.planId, planId),
+    eq(schema.planDayRecipes.date, date),
+    eq(schema.planDayRecipes.mealSlot, mealSlot),
+  );
 
-    await tx.delete(schema.planDayRecipes).where(dayMatch);
+  await db.delete(schema.planDayRecipes).where(dayMatch);
 
-    if (rows.length > 0) {
-      await tx.insert(schema.planDayRecipes).values(rows);
-    }
+  if (rows.length > 0) {
+    await db.insert(schema.planDayRecipes).values(rows);
+  }
 
-    return { ...day, ...groupRecipes(rows) };
-  });
+  return { ...day, ...groupRecipes(rows) };
 }
 
 export async function getPlanDay(

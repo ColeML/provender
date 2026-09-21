@@ -48,6 +48,7 @@ import { planningRotation } from "@server/services/planning";
 import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
+import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
 import { isoWeekFor } from "@server/lib/iso-week";
 import { schema } from "@server/db";
 
@@ -354,6 +355,46 @@ describe("planning rotation", () => {
     await expect(planningRotation(A, db)).resolves.toContainEqual(
       expect.objectContaining({ recipeId: "fajitas", tier: "unplanned" }),
     );
+  });
+});
+
+describe("commitWeek", () => {
+  it("does not see another household's recipes or days", async () => {
+    await setConfigValue(B, "default_budget", "80", db);
+    await createRecipe(B, "theirs", { title: "Theirs", baseServings: 8 }, [], db);
+
+    // Their recipe must not satisfy our day's reference.
+    await expect(
+      commitWeek(
+        A,
+        "2026-W36",
+        { days: [{ date: "2026-08-31", servings: 8, main: "theirs" }] },
+        db,
+      ),
+    ).rejects.toThrow(UnknownRecipeError);
+
+    // Their planned day must not block ours.
+    await commitWeek(
+      B,
+      "2026-W36",
+      {
+        recipes: [{ recipeId: "ours", title: "Ours", baseServings: 8 }],
+        days: [{ date: "2026-08-31", servings: 8, main: "ours" }],
+      },
+      db,
+    );
+    await createRecipe(A, "mine", { title: "Mine", baseServings: 8 }, [], db);
+
+    const result = await commitWeek(
+      A,
+      "2026-W36",
+      { days: [{ date: "2026-08-31", servings: 8, main: "mine" }] },
+      db,
+    );
+
+    expect(result.days[0].main).toBe("mine");
+    expect(await listHistory(B, {}, db)).toHaveLength(1);
+    expect(await listHistory(A, {}, db)).toHaveLength(1);
   });
 });
 

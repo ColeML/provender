@@ -55,8 +55,18 @@ Apply in order:
 ## 3. Source the recipes
 
 A dish the household already has is the cheaper choice, and re-scraping one saves it twice. For
-each new main the quota calls for, find a real URL and follow **add-recipe** for scraping,
-parsing and pricing.
+each new main the quota calls for, find a real URL and follow **add-recipe** through its draft step
+— steps 1 to 4. Stop there. Nothing is saved until the household approves the week.
+
+Then check the draft's slug against the `recipes` list from step 1, which is the whole catalog:
+
+- **Already there.** The dish was never new. Delete the draft. If that recipe is in the `unplanned`
+  tier, plan the saved one instead — that is what the novelty quota wanted. Otherwise choose a
+  different dish.
+- **Not there.** Keep the draft. It will be committed with the week in step 6.
+
+Never `PATCH` a recipe from here. A slug that collides belongs to a dish the household already
+owns, and rewriting it changes something nobody asked to change.
 
 Rotate the source across the week and across weeks — new dishes that all come from one site are
 one house style, not exploration:
@@ -103,23 +113,44 @@ A day's `servings` is the main's `baseServings` from step 1, not a number derive
 size. Where that yield will not cover the leftovers the household expects, say so rather than
 writing a larger number the recipe cannot back.
 
+Build one payload and send it once:
+
 ```bash
-./scripts/prov POST '/plans?planId=<iso-week>' '{"budgetTarget":<n>}'
-./scripts/prov PUT '/plans/<iso-week>/days/<date>' @day.json
-./scripts/prov POST /mealHistory @entry.json
+./scripts/prov POST '/plans/<iso-week>:commit' @.provender/week.json
 ```
 
-The plan id is the ISO week (`2026-W37`); each day's date must fall inside it. A day carries
-`servings`, `status`, `notes`, `main`, `side`, `extras`.
+`.provender/week.json` carries the whole week:
+
+- `budgetTarget` — the number the week was costed against.
+- `recipes` — the drafts held from step 3, each with its `recipeId` (the draft's slug) and its
+  ingredients inline. Build this list by walking the approved days' `main`, `side` and `extras`: a
+  draft no approved day names does not belong in the payload. A dish the household swapped out
+  during review therefore drops out on its own.
+- `days` — one entry per planned day, carrying `date`, `servings`, `status`, `notes`, `main`, `side`
+  and `extras`. The plan id is the ISO week (`2026-W37`) and every date must fall inside it.
+
+The call is one transaction: it writes the recipes, the plan, the days and the history together, or
+it writes nothing. There is no half-written week to clean up, and a retry after a failure is the
+same call again.
 
 `mealSlot` defaults to `dinner`, which is what a week of planning writes — lunches here are
 leftovers. Pass `breakfast` or `lunch` only when the user asks for that meal specifically; a date
-holds one of each, so a second dinner overwrites the first.
+holds one of each.
 
 **Every side and dessert is a saved recipe, linked by id.** A dish named only in prose is invisible
 to the shopping list.
 
-Record only mains in `mealHistory`, one per cooked day.
+History is recorded for you, one entry per day's main. Do not call `POST /mealHistory`.
+
+**`ALREADY_EXISTS` naming dates means those days are already planned.** Show the dates to the
+household and ask. They may have been edited since the week was planned, and `replaceExistingDays`
+discards whatever is on them — so set it only when the household says to.
+
+**`ALREADY_EXISTS` naming a recipe id means that dish is already in the library** — step 3's slug
+check missed it, most likely a same-dish-different-slug case add-recipe left to judgment. Drop that
+entry from `recipes`, point the day that named it at the existing id instead, and re-commit.
+`replaceExistingDays` does not apply here; it only gates the days check, so setting it will not
+clear this error and retrying unchanged just repeats it.
 
 ## 7. Hand off
 
