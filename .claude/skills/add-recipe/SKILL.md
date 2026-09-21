@@ -58,11 +58,27 @@ not linear, eggs and cans round to whole numbers, and times rise when the batch 
 (`:scale` needs a saved recipe, so it cannot help a draft.) The shopping list reads stored
 quantities as-is and never re-scales.
 
-## 4. Save
+## 4. Write the draft
+
+```bash
+mkdir -p .provender/drafts
+cat > .provender/drafts/<slug>.json <<'JSON'
+{ "title": "...", "baseServings": 8, "ingredients": [ ... ] }
+JSON
+```
+
+The slug is the title, lowercase and hyphenated. The file holds exactly the body `POST /recipes`
+takes — nothing is written to the library yet.
+
+A caller that owns an approval gate stops here and hands the draft to that gate: **plan-week** does,
+because a week the household rejects must leave no recipes behind. On its own, `add-recipe` carries
+straight on to step 5 — the user pasting a link *was* the approval, so there is no gate to wait for.
+
+## 5. Save
 
 ```bash
 ./scripts/prov GET '/recipes?pageSize=200'
-./scripts/prov POST '/recipes?recipeId=<slug>' @recipe.json
+./scripts/prov POST '/recipes?recipeId=<slug>' @.provender/drafts/<slug>.json
 ./scripts/prov GET /recipes/<slug>/ingredients
 ```
 
