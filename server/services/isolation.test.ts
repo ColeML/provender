@@ -23,6 +23,8 @@ import {
 } from "@server/services/recipes";
 import { clearTokenCache, NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
 import {
+  addItem,
+  deleteItem,
   listItems,
   replaceItems,
   ShoppingItemNotFoundError,
@@ -228,6 +230,22 @@ describe("shopping lists", () => {
     ).rejects.toBeInstanceOf(ShoppingItemNotFoundError);
 
     await expect(listItems(A, "2026-W36", db)).resolves.toMatchObject([{ purchased: false }]);
+  });
+
+  it("will not let one household delete another's hand-added item", async () => {
+    await addItem(A, "2026-W36", { name: "dish soap", category: "other" }, db);
+
+    await expect(deleteItem(B, "2026-W36", "dish-soap", db)).rejects.toBeInstanceOf(
+      ShoppingItemNotFoundError,
+    );
+
+    await expect(listItems(A, "2026-W36", db)).resolves.toHaveLength(2);
+  });
+
+  it("keeps one household's hand-added item out of another's list", async () => {
+    await addItem(A, "2026-W36", { name: "dish soap", category: "other" }, db);
+
+    await expect(listItems(B, "2026-W36", db)).resolves.toEqual([]);
   });
 });
 

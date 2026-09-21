@@ -296,7 +296,7 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       </label>
 
       {match === null ? null : (
-        <AlreadyListed match={match} amount={typedAmount} bump={bump} planId={planId} />
+        <AlreadyListed match={match} amount={typedAmount} busy={busy} bump={bump} planId={planId} />
       )}
 
       {add.isError || bump.isError ? (
@@ -330,10 +330,29 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
   );
 }
 
+/**
+ * Where a match sits, when it is not among the rows still to buy.
+ *
+ * Raising the quantity of one of these would move a number the shopper cannot see, so the notice
+ * says where the thing went and offers no bump.
+ */
+function whereItSits(match: ShopItem) {
+  if (match.haveAlready) {
+    return "under Already have";
+  }
+
+  if (match.purchased) {
+    return "and already ticked off";
+  }
+
+  return null;
+}
+
 interface AlreadyListedProps {
   match: ShopItem;
   amount: number;
   planId: string;
+  busy: boolean;
   bump: { mutate: (input: { planId: string; itemId: string; quantity: number }) => void };
 }
 
@@ -343,22 +362,28 @@ interface AlreadyListedProps {
  * The button names the unit rather than a bare number, because the amount is being added to a
  * quantity the recipes measured — "Add 1" beside "2 lb" reads as one butter.
  */
-function AlreadyListed({ match, amount, planId, bump }: AlreadyListedProps) {
-  const listed = formatQuantity(match.quantity, match.unit);
+function AlreadyListed({ match, amount, planId, busy, bump }: AlreadyListedProps) {
   // Read out of the item so the handler below closes over a number, not a nullable property.
   const onList = match.quantity;
+  // `formatQuantity` answers a null quantity with the bare unit, which would read as
+  // "Already on your list: tsp".
+  const listed = onList === null ? "" : formatQuantity(onList, match.unit);
+
+  const elsewhere = whereItSits(match);
 
   return (
     <p role="alert" className="bg-muted mt-3 flex items-center gap-3 rounded-md px-3 py-2 text-sm">
       <span className="min-w-0 flex-1">
         Already on your list{listed === "" ? "" : `: ${listed}`}
+        {elsewhere === null ? "" : `, ${elsewhere}`}
       </span>
 
-      {onList === null ? null : (
+      {onList === null || elsewhere !== null ? null : (
         <button
           type="button"
+          disabled={busy}
           onClick={() => bump.mutate({ planId, itemId: match.id, quantity: onList + amount })}
-          className="focus-visible:ring-ring text-primary min-h-11 shrink-0 font-semibold focus-visible:ring-3 focus-visible:outline-none"
+          className="focus-visible:ring-ring text-primary min-h-11 shrink-0 font-semibold focus-visible:ring-3 focus-visible:outline-none disabled:opacity-50"
         >
           Add {formatQuantity(amount, match.unit)}
         </button>
@@ -427,12 +452,24 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
     }),
   );
 
+  // Its own state, not the tick's `failed`: that one tells the shopper to tap the row again,
+  // which toggles `purchased` and then clears the warning without anything having been deleted.
+  const [notDeleted, setNotDeleted] = useState<Set<string>>(new Set());
+
   const remove = useMutation(
     trpc.shoppingList.deleteItem.mutationOptions({
       onError: (_error, variables) =>
-        setFailed((current) => new Set(current).add(variables.itemId)),
-      onSuccess: (_data, variables) =>
-        setItems((current) => current.filter((item) => item.id !== variables.itemId)),
+        setNotDeleted((current) => new Set(current).add(variables.itemId)),
+      onSuccess: (_data, variables) => {
+        setItems((current) => current.filter((item) => item.id !== variables.itemId));
+        setNotDeleted((current) => {
+          const next = new Set(current);
+
+          next.delete(variables.itemId);
+
+          return next;
+        });
+      },
     }),
   );
 
@@ -446,7 +483,14 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
   }
 
   function onAdded(item: ShopItem) {
-    setItems((current) => [...current, item]);
+    // Replaced rather than appended. `addItem` is an upsert, and the form's name check reads a
+    // local snapshot — a second phone in the same household can have added it since this one
+    // loaded, in which case the server returns the row that is already on screen.
+    setItems((current) =>
+      current.some((row) => row.id === item.id)
+        ? current.map((row) => (row.id === item.id ? item : row))
+        : [...current, item],
+    );
   }
 
   function onBumped(itemId: string, quantity: number) {
@@ -565,8 +609,15 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
                     <button
                       type="button"
                       onClick={() => remove.mutate({ planId, itemId: item.id })}
-                      aria-label={`Delete ${item.name}`}
-                      className="focus-visible:ring-ring text-muted-foreground flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:ring-3 focus-visible:outline-none"
+                      aria-label={
+                        notDeleted.has(item.id)
+                          ? `Delete ${item.name} — not deleted, try again`
+                          : `Delete ${item.name}`
+                      }
+                      className={cn(
+                        "focus-visible:ring-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:ring-3 focus-visible:outline-none",
+                        notDeleted.has(item.id) ? "text-destructive" : "text-muted-foreground",
+                      )}
                     >
                       <Trash2 aria-hidden className="size-4" />
                     </button>
