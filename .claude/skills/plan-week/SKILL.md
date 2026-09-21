@@ -116,10 +116,10 @@ writing a larger number the recipe cannot back.
 Build one payload and send it once:
 
 ```bash
-./scripts/prov POST '/plans/<iso-week>:commit' @week.json
+./scripts/prov POST '/plans/<iso-week>:commit' @.provender/week.json
 ```
 
-`week.json` carries the whole week:
+`.provender/week.json` carries the whole week:
 
 - `budgetTarget` — the number the week was costed against.
 - `recipes` — the drafts held from step 3, each with its `recipeId` (the draft's slug) and its

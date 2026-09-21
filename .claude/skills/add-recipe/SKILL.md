@@ -91,6 +91,10 @@ straight on to step 5 — the user pasting a link *was* the approval, so there i
 
 ## 5. Save
 
+Skip this step if you were asked only for a draft rather than a saved recipe — that request came
+from another workflow, not from a person pasting a link, and that workflow's own commit is what
+writes the draft to the library.
+
 ```bash
 ./scripts/prov GET '/recipes?pageSize=200'
 ./scripts/prov POST '/recipes?recipeId=<slug>' @.provender/drafts/<slug>.json
