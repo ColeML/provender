@@ -55,6 +55,7 @@ describe("GET /v1/planning/rotation", () => {
           name: "recipes/ziti",
           recipeId: "ziti",
           title: "Baked Ziti",
+          baseServings: 8,
           tier: "unplanned",
           lastPlanned: null,
           timesPlanned: 0,

@@ -159,6 +159,7 @@ describe("planningRotation", () => {
       tags: ["italian"],
       totalMin: 65,
       costEstimate: 16.84,
+      baseServings: 8,
     });
   });
 

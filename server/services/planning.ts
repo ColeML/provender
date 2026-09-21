@@ -23,6 +23,7 @@ export interface RotationEntry {
   tags: string[];
   totalMin: number | null;
   costEstimate: number | null;
+  baseServings: number;
   tier: RotationTier;
   lastPlanned: string | null;
   timesPlanned: number;
@@ -93,6 +94,7 @@ export async function planningRotation(
       tags: recipe.tags,
       totalMin: recipe.totalMin,
       costEstimate: recipe.costEstimate === null ? null : Number(recipe.costEstimate),
+      baseServings: recipe.baseServings,
     };
 
     if (!used) {

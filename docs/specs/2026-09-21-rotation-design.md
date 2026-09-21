@@ -38,6 +38,7 @@ in prose is exposed to this.
 | field | meaning |
 | --- | --- |
 | `recipeId`, `title`, `tags`, `totalMin`, `costEstimate` | so no second catalog call is needed |
+| `baseServings` | the recipe's stored yield, required when writing a plan day |
 | `tier` | `unplanned`, `eligible` or `blocked` |
 | `lastPlanned` | ISO date, or `null` when never planned |
 | `timesPlanned` | count across all history |
