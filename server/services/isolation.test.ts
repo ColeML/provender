@@ -387,6 +387,22 @@ describe("shopping lists", () => {
       expect.objectContaining({ id: "brown-sugar_bag" }),
     );
   });
+
+  it("will not let one household delete another's hand-added item", async () => {
+    await addItem(A, "2026-W36", { name: "dish soap", category: "other" }, db);
+
+    await expect(deleteItem(B, "2026-W36", "dish-soap", db)).rejects.toBeInstanceOf(
+      ShoppingItemNotFoundError,
+    );
+
+    await expect(listItems(A, "2026-W36", db)).resolves.toHaveLength(2);
+  });
+
+  it("keeps one household's hand-added item out of another's list", async () => {
+    await addItem(A, "2026-W36", { name: "dish soap", category: "other" }, db);
+
+    await expect(listItems(B, "2026-W36", db)).resolves.toEqual([]);
+  });
 });
 
 describe("kroger price lookups", () => {

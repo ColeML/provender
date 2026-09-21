@@ -520,6 +520,68 @@ describe("adding something the plan did not call for", () => {
     expect(await screen.findByText("3 lb")).toBeInTheDocument();
   });
 
+  it("says where a match is when it is not among the rows still to buy", async () => {
+    const user = await openForm([
+      item({ id: "butter_lb", name: "butter", quantity: 2, unit: "lb", haveAlready: true }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "butter");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    // Raising its quantity would move a number the shopper cannot see, so no bump is offered.
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Already on your list: 2 lb, under Already have",
+    );
+    expect(screen.queryByRole("button", { name: /^Add \d/ })).toBeNull();
+  });
+
+  it("does not read a unit as the amount when the match has no quantity", async () => {
+    const user = await openForm([
+      item({ id: "salt_tsp", name: "salt", quantity: null, unit: "tsp", category: "pantry" }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "salt");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/^Already on your list$/);
+  });
+
+  it("replaces the row when the server upserts one another phone already added", async () => {
+    addItemFn.mockResolvedValue(row({ id: "onion", name: "onion", category: "produce" }));
+
+    const user = await openForm([]);
+
+    // The list loaded empty, so the name check passes; the household's other phone added it
+    // first, and `addItem` upserts and returns the row that is already there.
+    await user.type(screen.getByLabelText("Item"), "onion");
+    await user.selectOptions(screen.getByLabelText("Aisle"), "produce");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.type(screen.getByLabelText("Item"), "onion");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getAllByText("onion")).toHaveLength(1);
+  });
+
+  it("marks the bin rather than telling the shopper to tap a row that does not delete", async () => {
+    deleteItemFn.mockRejectedValueOnce(new Error("offline"));
+
+    const user = renderList([item({ id: "dish-soap", name: "dish soap", source: "manual" })]);
+
+    await user.click(screen.getByRole("button", { name: "Delete dish soap" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Delete dish soap — not deleted, try again" }),
+    ).toBeInTheDocument();
+    // The tick's banner is for ticks: tapping the row toggles purchased, it does not retry.
+    expect(screen.queryByText(/did not save/i)).toBeNull();
+
+    deleteItemFn.mockResolvedValue(undefined);
+
+    await user.click(screen.getByRole("button", { name: /^Delete dish soap/ }));
+
+    await waitFor(() => expect(screen.queryByText("dish soap")).toBeNull());
+  });
+
   it("offers no bump for something bought by feel", async () => {
     const user = await openForm([
       item({ id: "salt", name: "salt", quantity: null, unit: null, category: "pantry" }),
