@@ -16,8 +16,8 @@ You choose the menu. The API stores it. Nothing is written until the user approv
 ```
 
 `config` carries `people`, `location`, `default_budget`, `default_meals`, `dislikes`, `allergies`,
-`dietary_restrictions`, `equipment`, `preferences`, `no_repeat_days`. Ask only for what the user is
-overriding.
+`dietary_restrictions`, `equipment`, `preferences`, `no_repeat_days`, and optionally
+`new_mains_per_week`. Ask only for what the user is overriding. Every value is a string.
 
 ## 2. Choose the menu
 
@@ -31,8 +31,13 @@ Apply in order:
 5. **Equipment honesty.** Cite a device in a day's note only if that recipe uses it. Verify after
    scraping, and change the note rather than the recipe.
 6. **Repeat-avoidance, mains only.** Sides may repeat freely.
-7. **Ratings.** Favour mains rated 4–5; avoid 1–2 unless asked.
-8. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and waste.
+7. **Novelty quota.** Plan `new_mains_per_week` mains the household has neither saved nor
+   planned before. Absent that key, it is a third of the week's mains, rounded up — 2 of 5, 3 of
+   7. Step 3 reads the catalog; judge it against that and `mealHistory` together.
+8. **Ratings.** Favour mains rated 4–5; avoid 1–2 unless asked. Ratings live on `mealHistory`
+   entries, so a new dish is unrated rather than low-rated.
+9. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
+   waste.
 
 `mealHistory` records what was **planned**, not what was eaten. A dish there may never have been
 cooked. Present what you are skipping as a list the user can pull from, not a hard exclusion.
@@ -46,8 +51,34 @@ Start with what is already saved:
 ```
 
 A dish the household already has is the cheaper choice, and re-scraping one saves it twice. For
-anything genuinely new, find a real URL — budgetbytes.com is reliable and cheap — and follow
-**add-recipe** for scraping, parsing and pricing.
+each new main the quota calls for, find a real URL and follow **add-recipe** for scraping,
+parsing and pricing.
+
+Rotate the source across the week and across weeks — new dishes that all come from one site are
+one house style, not exploration:
+
+| Site | Reach for it when |
+| --- | --- |
+| `budgetbytes.com` | cheap, reliable, the workhorse |
+| `theseasonedmom.com` | family dinners, make-ahead |
+| `dinneratthezoo.com` | kid-friendly weeknights |
+| `thecozycook.com` | comfort food, skillet dinners |
+| `damndelicious.net` | fast weeknight one-pots |
+| `skinnytaste.com` | lighter mains |
+| `saltandlavender.com` | creamy pastas and skillets |
+| `therecipecritic.com` | crowd-pleasers |
+| `cookingclassy.com` | well-tested standards |
+| `gimmesomeoven.com` | casseroles, bakes |
+| `thewoksoflife.com` | Chinese |
+| `justonecookbook.com` | Japanese |
+| `isabeleats.com` | Mexican |
+| `themediterraneandish.com` | Mediterranean |
+| `feastingathome.com` | seasonal, vegetable-forward |
+| `loveandlemons.com` | vegetable-forward |
+| `cookieandkate.com` | vegetarian |
+
+The scraper reads schema.org JSON-LD, so any site publishing it works — this is a starting
+rotation, not a permitted list.
 
 ## 4. Cost the week
 
