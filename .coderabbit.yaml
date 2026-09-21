@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+
+reviews:
+  # "quiet" is the least chatty of the three (quiet / chill / assertive) — essential
+  # feedback only. Bump to "chill" if it turns out to be missing things.
+  profile: "quiet"
+  request_changes_workflow: false
+  high_level_summary: true
+  collapse_walkthrough: true
+  review_status: true
+
+  # Solo repo, small PRs. Everything below is walkthrough decoration, not review signal.
+  poem: false
+  in_progress_fortune: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  changed_files_summary: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!.next/**"
+    - "!node_modules/**"
+    - "!playwright-report/**"
+    - "!test-results/**"
+    - "!**/*.snap"
+
+  path_instructions:
+    - path: "server/**"
+      instructions: |
+        The architecture rule in coding-standards.md: all logic lives in server/services/*.
+        tRPC procedures, the REST handlers under src/app/v1, and Server Components are thin
+        callers of it. Flag logic that has leaked into a caller.
+
+        Ids are unique per household, not globally. Every service function takes a householdId
+        and must filter on it. A query missing that filter returns other households' rows and
+        looks normal in review — check every new or edited database query for it.
+
+        Never sort on the meal_slot enum column for reading order; Postgres holds its values in
+        creation order (dinner, lunch, breakfast). MEAL_ORDER in the schema is the reading order.
+
+    - path: "server/db/**"
+      instructions: |
+        Schema changes need a generated migration (pnpm db:generate). Flag a schema edit with no
+        matching migration file in the diff. Check that a new column, index, or constraint is safe
+        to apply against a live database.
+
+    - path: "src/app/v1/**"
+      instructions: |
+        Every request and response is validated by a zod schema; the OpenAPI spec is generated
+        from them, so an endpoint added without schemas silently drops out of the spec. Check the
+        error shape matches the existing handlers.
+
+    - path: "src/**"
+      instructions: |
+        Formatting is the UI's job: quantities are stored as a number and a unit and rendered as
+        fractions at the point of display. Flag formatting logic pushed into the server, and
+        stored pre-formatted strings.
+
+        A page reading live data needs force-dynamic, or it fails at prerender time during
+        pnpm build — lint, typecheck, and tests all pass. Flag a new page that reads live data
+        without it.
+
+    - path: "**/*.test.ts"
+      instructions: |
+        Check the test asserts on behavior rather than restating the implementation, and that it
+        covers the failure path, not only the happy one. Flag tests with no real assertion.
+
+    - path: ".claude/skills/**/SKILL.md"
+      instructions: |
+        These are agent playbooks and the single source of truth for each workflow. Check the
+        steps match the current API (see the generated /openapi.json) and that the description
+        field states when to trigger the skill rather than summarizing its steps.
+
+    - path: "**/*.md"
+      instructions: |
+        Plain language, American English spelling. No jargon a competent developer new to the
+        codebase would have to look up; expand acronyms on first use unless universal.
+        Flag AI-writing tells: negative parallelism ("not X but Y" as style), "worth noting",
+        vivid metaphors for technical behavior.
+
+  tools:
+    # The repo uses oxlint and oxfmt, run in CI. Nothing here should duplicate or contradict them.
+    eslint:
+      enabled: false
+    biome:
+      enabled: false
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "coding-standards.md"
+      - "AGENTS.md"
+      - "DESIGN.md"
+
+chat:
+  auto_reply: true
