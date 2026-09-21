@@ -169,16 +169,16 @@ plan, recipes, days, history.
 
 Composition follows the pattern `detachHistoryFromDay` already establishes — a function that may
 run inside a caller's transaction takes `db: Queryable = defaultDb` and opens none of its own.
-`Queryable` exists in `server/db/index.ts` for exactly this. Four step functions are extracted, and
-each existing public function keeps its own `db.transaction` wrapper around the same step, so no
-current caller or test changes behavior:
+`Queryable` exists in `server/db/index.ts` for exactly this. Where a function today owns a
+transaction, the write is extracted and the public function keeps its wrapper around the same step,
+so no current caller or test changes behavior. Where it owns none, only the parameter widens:
 
 | extracted from | step | note |
 | --- | --- | --- |
 | `recipes.ts:createRecipe` | `insertRecipe` | keeps the insert-then-check that turns a concurrent create into 409 rather than 500 |
 | `plans.ts:createPlan` | `upsertPlan` | new: `onConflictDoUpdate` when `budgetTarget` is present, otherwise leave the row. `createPlan` keeps its 409 for `POST /plans` |
 | `plans.ts:setPlanDay` | `writePlanDay` | its plan-existence check stays; inside a commit the plan was upserted in the same transaction, so it passes |
-| `history.ts:recordMeal` | `insertHistoryEntry` | its day-existence check runs against the transaction, so it sees the day written moments earlier |
+| `history.ts:recordMeal` | widened in place | it opens no transaction today, so only its parameter changes. Its day-existence check then runs against the caller's transaction and sees the day written moments earlier |
 
 No nested transactions.
 
