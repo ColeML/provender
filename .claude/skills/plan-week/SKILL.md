@@ -37,10 +37,10 @@ Apply in order:
 6. **Repeat-avoidance, mains only.** Do not plan a `blocked` main. Offer them as a list the
    household can pull from — history records what was *planned*, not what was eaten. Sides may
    repeat freely.
-7. **Novelty quota.** Plan `new_mains_per_week` mains from the `unplanned` tier. Absent that key,
-   it is a third of the week's mains, rounded up — 2 of 5, 3 of 7. A saved `unplanned` recipe
-   counts: work through the household's own unused dishes before scraping, and scrape only when
-   that tier runs dry or they ask for something off the web.
+7. **Novelty quota.** `new_mains_per_week` mains come from the `unplanned` tier — saved recipes the
+   household already owns and has never cooked. Scrape the web only once `unplanned` runs dry, or
+   when the user asks for something new. Absent `new_mains_per_week`, the quota is a third of the
+   week's mains, rounded up — 2 of 5, 3 of 7.
 8. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
    (a dish can have a `lastPlanned` newer than its `rating` if the latest planning wasn't rated).
    Drop mains rated 1–2 from the pool unless the user asks for one; favour 4–5. `rating: null`
