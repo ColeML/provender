@@ -41,11 +41,13 @@ Apply in order:
    it is a third of the week's mains, rounded up — 2 of 5, 3 of 7. A saved `unplanned` recipe
    counts: work through the household's own unused dishes before scraping, and scrape only when
    that tier runs dry or they ask for something off the web.
-8. **Rotation for the rest.** Fill the remaining slots from `eligible`, oldest `lastPlanned`
-   first by default; override that order on weather, time or ingredient overlap.
-9. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
+8. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
    (a dish can have a `lastPlanned` newer than its `rating` if the latest planning wasn't rated).
-   Favour mains rated 4–5; avoid 1–2 unless asked. `rating: null` means unrated, not low-rated.
+   Drop mains rated 1–2 from the pool unless the user asks for one; favour 4–5. `rating: null`
+   means unrated, not low-rated.
+9. **Rotation for the rest.** Order whatever the earlier rules left in the pool — oldest
+   `lastPlanned` first by default, overridden by weather, time or ingredient overlap. Do not
+   reach back into a tier or rating excluded above.
 10. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
     waste.
 
