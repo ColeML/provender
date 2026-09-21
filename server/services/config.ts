@@ -1,6 +1,6 @@
 import "server-only";
 
-import { db as defaultDb, schema, type Database } from "@server/db";
+import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { eq } from "drizzle-orm";
 
 /**
@@ -19,7 +19,7 @@ import { eq } from "drizzle-orm";
  */
 export type Config = Record<string, string>;
 
-export async function getConfig(householdId: string, db: Database = defaultDb): Promise<Config> {
+export async function getConfig(householdId: string, db: Queryable = defaultDb): Promise<Config> {
   const rows = await db
     .select()
     .from(schema.config)

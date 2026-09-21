@@ -20,6 +20,7 @@ import {
   PlanNotFoundError,
   setPlanDay,
   updatePlan,
+  upsertPlan,
 } from "./plans";
 
 const H = "loewer";
@@ -274,5 +275,45 @@ describe("updatePlan", () => {
 
   it("reports a missing plan rather than creating one", async () => {
     await expect(updatePlan(H, WEEK, 150, db)).rejects.toBeInstanceOf(PlanNotFoundError);
+  });
+});
+
+describe("upsertPlan", () => {
+  it("creates the week with the configured default budget", async () => {
+    const plan = await upsertPlan(H, WEEK, undefined, db);
+
+    expect(plan.id).toBe(WEEK);
+    expect(Number(plan.budgetTarget)).toBe(120);
+  });
+
+  it("stores the caller's budget over the configured default", async () => {
+    const plan = await upsertPlan(H, WEEK, 95, db);
+
+    expect(Number(plan.budgetTarget)).toBe(95);
+  });
+
+  it("returns the existing week instead of raising, unlike createPlan", async () => {
+    await upsertPlan(H, WEEK, 95, db);
+
+    const again = await upsertPlan(H, WEEK, undefined, db);
+
+    expect(again.id).toBe(WEEK);
+  });
+
+  it("leaves the stored budget alone when the caller names none", async () => {
+    await upsertPlan(H, WEEK, 95, db);
+    await upsertPlan(H, WEEK, undefined, db);
+
+    expect(Number((await upsertPlan(H, WEEK, undefined, db)).budgetTarget)).toBe(95);
+  });
+
+  it("replaces the stored budget when the caller names one", async () => {
+    await upsertPlan(H, WEEK, 95, db);
+
+    expect(Number((await upsertPlan(H, WEEK, 140, db)).budgetTarget)).toBe(140);
+  });
+
+  it("rejects an id that is not an ISO week", async () => {
+    await expect(upsertPlan(H, "not-a-week", undefined, db)).rejects.toThrow(InvalidPlanIdError);
   });
 });

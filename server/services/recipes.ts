@@ -1,6 +1,6 @@
 import "server-only";
 
-import { db as defaultDb, schema, type Database } from "@server/db";
+import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { scaleFactor, snapToKitchenUnit, VOLUME_LADDER } from "@server/lib/units";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
@@ -247,7 +247,7 @@ export async function listIngredients(
 export async function recipesByIds(
   householdId: string,
   ids: readonly string[],
-  db: Database = defaultDb,
+  db: Queryable = defaultDb,
 ) {
   const wanted = [...new Set(ids)];
 
@@ -292,44 +292,51 @@ export async function createRecipe(
   ingredients: IngredientInput[] = [],
   db: Database = defaultDb,
 ) {
-  return db.transaction(async (tx) => {
-    // Insert-then-check rather than check-then-insert: a SELECT followed by an INSERT lets two
-    // concurrent callers both find nothing and both insert, so the loser fails on the primary key
-    // with an error this function does not recognise and the caller sees 500 instead of 409.
-    const [recipe] = await tx
-      .insert(schema.recipes)
-      .values({
-        householdId,
-        id: recipeId,
-        title: input.title,
-        sourceUrl: input.sourceUrl ?? null,
-        imageUrl: input.imageUrl ?? null,
-        baseServings: input.baseServings,
-        prepMin: input.prepMin ?? null,
-        cookMin: input.cookMin ?? null,
-        totalMin: input.totalMin ?? null,
-        costEstimate:
-          input.costEstimate === null || input.costEstimate === undefined
-            ? null
-            : String(input.costEstimate),
-        tags: input.tags ?? [],
-        instructions: input.instructions ?? [],
-      })
-      .onConflictDoNothing({ target: [schema.recipes.householdId, schema.recipes.id] })
-      .returning();
+  return db.transaction((tx) => insertRecipe(householdId, recipeId, input, ingredients, tx));
+}
 
-    if (!recipe) {
-      throw new RecipeExistsError(recipeId);
-    }
+/** The write itself, so a caller committing a whole week can run it in its own transaction. */
+export async function insertRecipe(
+  householdId: string,
+  recipeId: string,
+  input: RecipeInput,
+  ingredients: IngredientInput[] = [],
+  db: Queryable = defaultDb,
+) {
+  // Insert-then-check rather than check-then-insert: a SELECT followed by an INSERT lets two
+  // concurrent callers both find nothing and both insert, so the loser fails on the primary key
+  // with an error this function does not recognise and the caller sees 500 instead of 409.
+  const [recipe] = await db
+    .insert(schema.recipes)
+    .values({
+      householdId,
+      id: recipeId,
+      title: input.title,
+      sourceUrl: input.sourceUrl ?? null,
+      imageUrl: input.imageUrl ?? null,
+      baseServings: input.baseServings,
+      prepMin: input.prepMin ?? null,
+      cookMin: input.cookMin ?? null,
+      totalMin: input.totalMin ?? null,
+      costEstimate:
+        input.costEstimate === null || input.costEstimate === undefined
+          ? null
+          : String(input.costEstimate),
+      tags: input.tags ?? [],
+      instructions: input.instructions ?? [],
+    })
+    .onConflictDoNothing({ target: [schema.recipes.householdId, schema.recipes.id] })
+    .returning();
 
-    if (ingredients.length > 0) {
-      await tx
-        .insert(schema.ingredients)
-        .values(ingredientRows(householdId, recipeId, ingredients));
-    }
+  if (!recipe) {
+    throw new RecipeExistsError(recipeId);
+  }
 
-    return recipe;
-  });
+  if (ingredients.length > 0) {
+    await db.insert(schema.ingredients).values(ingredientRows(householdId, recipeId, ingredients));
+  }
+
+  return recipe;
 }
 
 /**

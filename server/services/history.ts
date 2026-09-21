@@ -45,7 +45,7 @@ export function historyId(date: string, recipeId: string) {
 export async function recordMeal(
   householdId: string,
   input: MealHistoryInput,
-  db: Database = defaultDb,
+  db: Queryable = defaultDb,
 ) {
   // Checked here rather than left to the date column, which fails inside the driver with a
   // Postgres range error the handlers cannot map to a 400.
