@@ -18,6 +18,7 @@ import {
   DuplicateCommitDayError,
   DuplicateCommitRecipeError,
   UnknownRecipeError,
+  UnreferencedRecipeError,
 } from "./week-commit";
 
 const H = "loewer";
@@ -237,7 +238,10 @@ describe("commitWeek", () => {
         { recipeId: "gnocchi", title: "Sheet-Pan Gnocchi", baseServings: 8 },
         { recipeId: "tacos", title: "Tacos Again", baseServings: 8 },
       ],
-      days: [{ date: MONDAY, servings: 8, main: "gnocchi" }],
+      days: [
+        { date: MONDAY, servings: 8, main: "gnocchi" },
+        { date: TUESDAY, servings: 8, main: "tacos" },
+      ],
     });
 
     await expect(commitWeek(H, WEEK, doomed, db)).rejects.toThrow(RecipeExistsError);
@@ -320,6 +324,51 @@ describe("commitWeek", () => {
 
     expect(result.days).toHaveLength(2);
     expect(result.historyEntryIds).toHaveLength(2);
+  });
+
+  it("rejects a recipe no day names, and writes nothing", async () => {
+    await expect(
+      commitWeek(
+        H,
+        WEEK,
+        oneDay({
+          recipes: [
+            { recipeId: "gnocchi", title: "Sheet-Pan Gnocchi", baseServings: 8 },
+            { recipeId: "chili-verde", title: "Chili Verde", baseServings: 8 },
+          ],
+        }),
+        db,
+      ),
+    ).rejects.toThrow(UnreferencedRecipeError);
+
+    expect(await db.query.plans.findFirst()).toBeUndefined();
+  });
+
+  it("accepts a recipe named only as a side or in extras", async () => {
+    const result = await commitWeek(
+      H,
+      WEEK,
+      oneDay({
+        recipes: [
+          { recipeId: "gnocchi", title: "Sheet-Pan Gnocchi", baseServings: 8 },
+          { recipeId: "salad", title: "Green Salad", baseServings: 10 },
+          { recipeId: "brownies", title: "Brownies", baseServings: 12 },
+        ],
+        days: [
+          {
+            date: MONDAY,
+            servings: 8,
+            main: "gnocchi",
+            side: "salad",
+            extras: ["brownies"],
+            notes: "58F and wet",
+          },
+        ],
+      }),
+      db,
+    );
+
+    expect(result.createdRecipeIds).toEqual(["gnocchi", "salad", "brownies"]);
   });
 
   it("rejects two recipes sharing an id", async () => {

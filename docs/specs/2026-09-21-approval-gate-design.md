@@ -230,12 +230,14 @@ stumble to land on.
 plan gets shown to the user with those dates, because it means either the week was already planned
 or those days were edited since. Overwriting them is their call, not the planner's.
 
-**A stale draft is unreachable by construction.** `week.json`'s `recipes[]` is assembled by walking
-the approved days' `main`, `side` and `extras` ids and including only the drafts those ids name. A
-day the user swapped out contributes nothing. So the re-source path — a draft that missed its day
-because the user rejected it, or because the scraped `totalMin` failed the "quick Monday" check
-after costing — needs no cleanup step to remember: scrape the replacement, write its draft, rebuild
-the payload from the approved week.
+**A stale draft cannot reach the library.** `week.json`'s `recipes[]` is assembled by walking the
+approved days' `main`, `side` and `extras` ids and including only the drafts those ids name, but
+`commitWeek` does not trust the skill to get that walk right: it refuses any `recipes[]` entry no
+day names, so a leftover draft the payload includes by mistake fails the commit instead of landing
+unapproved. So the re-source path — a draft that missed its day because the user rejected it, or
+because the scraped `totalMin` failed the "quick Monday" check after costing — needs no cleanup
+step to remember: scrape the replacement, write its draft, rebuild the payload from the approved
+week.
 
 This is the shape that worked in #154 and the shape that failed three times before it. Three
 attempts to fix the earlier half in skill prose alone all regressed. What worked was moving the

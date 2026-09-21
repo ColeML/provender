@@ -86,6 +86,15 @@ export class DaysAlreadyPlannedError extends Error {
   }
 }
 
+export class UnreferencedRecipeError extends Error {
+  constructor(readonly recipeIds: string[]) {
+    super(
+      `${recipeIds.join(", ")} named in recipes but no day's main, side or extras references ` +
+        "it; a commit only creates a recipe some day in the payload actually uses",
+    );
+  }
+}
+
 function assertNoDuplicateRecipes(recipes: CommitRecipeInput[]) {
   const seen = new Set<string>();
 
@@ -109,6 +118,17 @@ function assertNoDuplicateDays(days: PreparedDay[]) {
     }
 
     seen.add(key);
+  }
+}
+
+function assertRecipesReferenced(recipes: CommitRecipeInput[], days: PreparedDay[]) {
+  const referenced = new Set(referencedRecipeIds(days));
+  const orphaned = recipes
+    .map((recipe) => recipe.recipeId)
+    .filter((recipeId) => !referenced.has(recipeId));
+
+  if (orphaned.length > 0) {
+    throw new UnreferencedRecipeError(orphaned);
   }
 }
 
@@ -213,6 +233,7 @@ export async function commitWeek(
   );
 
   assertNoDuplicateDays(prepared);
+  assertRecipesReferenced(recipes, prepared);
 
   return db.transaction(async (tx) => {
     // The two checks that read stored state are the transaction's first reads rather than queries

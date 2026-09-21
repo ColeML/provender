@@ -35,6 +35,7 @@ import {
   DuplicateCommitDayError,
   DuplicateCommitRecipeError,
   UnknownRecipeError,
+  UnreferencedRecipeError,
 } from "@server/services/week-commit";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
@@ -76,7 +77,8 @@ function planError(c: Parameters<typeof apiError>[0], error: unknown) {
     error instanceof DuplicateRecipeError ||
     error instanceof DuplicateCommitDayError ||
     error instanceof DuplicateCommitRecipeError ||
-    error instanceof UnknownRecipeError
+    error instanceof UnknownRecipeError ||
+    error instanceof UnreferencedRecipeError
   ) {
     return apiError(c, "INVALID_ARGUMENT", error.message);
   }
