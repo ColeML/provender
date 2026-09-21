@@ -192,8 +192,9 @@ shoppingRoutes.openapi(
     path: "/plans/{plan}/shoppingList/items",
     summary: "Add something no recipe calls for",
     description:
-      "The item is marked `manual` and survives every rebuild. Adding one that is already on the " +
-      "list adjusts it rather than failing.",
+      "A new item is marked `manual` and survives every rebuild. A name and unit already on the " +
+      "list adjusts that row rather than failing, and a row the plan owns stays the plan's — " +
+      "otherwise it would outlive the recipe that called for it.",
     request: {
       params: PlanParam,
       body: { content: { "application/json": { schema: ItemInputSchema } } },

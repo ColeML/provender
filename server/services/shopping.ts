@@ -218,15 +218,19 @@ export async function addItem(
       // Adding something already on the list adjusts it rather than failing — a shopper asking
       // twice means "make sure this is on there", not "error".
       //
-      // `source` becomes manual even if the plan put it there first: the shopper has taken
-      // ownership, and without this they could not delete an item they had just added.
+      // `source` is absent on purpose. Flipping a plan row to manual would orphan it: a rebuild
+      // only deletes `plan` rows, so the item would outlive the recipe that called for it and
+      // could never be removed again. A plan item stays the plan's, which is also what makes
+      // "set haveAlready rather than deleting" still true of it.
+      //
+      // `estCost` is only overwritten by a caller who priced the item. A hand-added row carries
+      // no cost, and letting that null land on a plan item would quietly drop it from the budget.
       set: {
         name: row.name,
         quantity: row.quantity,
         unit: row.unit,
         category: row.category,
-        estCost: row.estCost,
-        source: "manual",
+        estCost: sql`coalesce(excluded.est_cost, ${schema.shoppingListItems.estCost})`,
         updateTime: sql`now()`,
       },
     })
