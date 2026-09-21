@@ -197,15 +197,55 @@ describe("an item added by hand", () => {
 });
 
 describe("adding something the plan already covers", () => {
-  it("becomes yours to delete, since you asked for it", async () => {
+  /** What the /shop form sends: a name, an amount, an aisle. No cost, no recipes. */
+  const byHand: ShoppingItemInput = {
+    name: "chicken breast",
+    quantity: 5,
+    unit: "lb",
+    category: "meat",
+  };
+
+  beforeEach(async () => {
     await replaceItems(H, WEEK, [chicken], db);
-    await addItem(H, WEEK, { ...chicken, quantity: 5 }, db);
+  });
+
+  it("adjusts the row the plan owns, and leaves it the plan's", async () => {
+    await addItem(H, WEEK, byHand, db);
 
     const item = await getItem(H, WEEK, "chicken-breast_lb", db);
 
-    expect(item.source).toBe("manual");
     expect(item.quantity).toBe("5");
-    await expect(deleteItem(H, WEEK, item.id, db)).resolves.toBeUndefined();
+    // Taking ownership would orphan it: only `plan` rows are deleted on a rebuild, so a row
+    // flipped to manual outlives the recipe that called for it and can never be removed.
+    expect(item.source).toBe("plan");
+  });
+
+  it("is still the plan's to remove, not the shopper's", async () => {
+    await addItem(H, WEEK, byHand, db);
+
+    await expect(deleteItem(H, WEEK, "chicken-breast_lb", db)).rejects.toBeInstanceOf(
+      ManualItemOnlyError,
+    );
+  });
+
+  it("leaves it out of the week once no recipe calls for it", async () => {
+    await addItem(H, WEEK, byHand, db);
+    await replaceItems(H, WEEK, [], db);
+
+    await expect(listItems(H, WEEK, db)).resolves.toEqual([]);
+  });
+
+  it("keeps the estimate when the caller priced nothing", async () => {
+    await addItem(H, WEEK, byHand, db);
+
+    // A null cost landing here would quietly drop the item out of the budget footer.
+    expect((await getItem(H, WEEK, "chicken-breast_lb", db)).estCost).toBe("12.50");
+  });
+
+  it("takes a new estimate from a caller who has one", async () => {
+    await addItem(H, WEEK, { ...byHand, estCost: 11 }, db);
+
+    expect((await getItem(H, WEEK, "chicken-breast_lb", db)).estCost).toBe("11.00");
   });
 });
 
