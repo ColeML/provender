@@ -82,17 +82,18 @@ plan has to be one transaction. This extends that decision to the whole week rat
 | `budgetTarget` | optional; applied when present |
 | `recipes` | recipes to create, each with its ingredients inline. Create-only |
 | `days` | the days to write. Same shape as `PUT /plans/{plan}/days/{day}` plus `date` and `mealSlot` |
+| `replaceExistingDays` | optional, default `false`. Permits overwriting days already in the plan |
 
 The response reports what was written: the plan, the created recipe ids, the days, and the history
 entry ids.
 
 ### Semantics
 
-**A re-commit replaces the week rather than failing.** The plan is upserted, the named days are
-replaced wholesale, and history upserts on its existing `<date>-<recipeId>` key. A retry after a
-network stumble is therefore the same call, and so is re-planning a week that already exists. This
-is the one behavior that differs from the four calls it replaces, and it is the point: the 409 on
-`POST /plans` is what makes today's half-written week unrecoverable without manual cleanup.
+**A re-commit is safe rather than blocked.** The plan is upserted instead of returning 409, and
+history upserts on its existing `<date>-<recipeId>` key. A retry after a network stumble is
+therefore the same call. This is the behavior that differs from the four calls it replaces, and it
+is the point: the 409 on `POST /plans` is what makes today's half-written week unrecoverable
+without manual cleanup.
 
 **`recipes[]` is create-only.** A `recipeId` that already exists fails the whole commit with
 `ALREADY_EXISTS` naming the collisions. There is deliberately no reuse-on-conflict and no PATCH
@@ -100,9 +101,21 @@ path. `add-recipe`'s collision branch PATCHes the existing recipe, which rewrite
 nobody asked to change; that branch must be unreachable from planning, and making the endpoint
 refuse is what guarantees it rather than skill prose promising it.
 
-**Days replace only what they name.** A day absent from `days[]` is untouched. An unplanned day is
-the absence of a row, so there is no blank to write, and a late-planned day added to an existing
-week must not wipe the days already there.
+**A day absent from `days[]` is untouched.** An unplanned day is the absence of a row, so there is
+no blank to write, and a late-planned day added to an existing week must not wipe the days already
+there.
+
+**A day already in the plan is refused, not overwritten.** Naming one fails the commit with an
+error listing those dates unless the payload sets `replaceExistingDays`. The household edits days
+after a week is planned — a note added during planning, or a swap made mid-week on finding a
+missing ingredient or less time than expected — so a whole-week commit arriving later would
+silently discard real work. The schema already takes this position for the same reason: the
+`plan_day_recipes` foreign key to `recipes` is `RESTRICT` rather than `CASCADE` so a delete will
+"fail loudly rather than silently empty a day someone is cooking from this week."
+
+Atomicity is what makes refusing affordable. A commit that fails rolls back completely, so a retry
+finds no days and needs no flag — the only call that has to opt in is a deliberate re-plan, which
+is the case where discarding the old days is the intent.
 
 **Omitting `budgetTarget` on a re-commit leaves the stored target alone.** On first create it falls
 back to the household's `default_budget`, which is what `createPlan` does today and why the column
@@ -121,15 +134,21 @@ history. `recordMeal`'s upsert carries `rating` and `notes` only when the caller
 derived entry sends neither, so a rating given between two commits of the same week survives the
 second.
 
-**Validation runs before the transaction opens**, following the note on `setPlanDay`: a rejected
-request should not have taken a write lock first. Checked up front:
+**Shape checks run before the transaction opens**, following the note on `setPlanDay`: a rejected
+request should not have taken a write lock first. These need no database:
 
 - `plan` parses as an ISO week, and every `days[].date` falls inside it.
 - No two `days[]` entries share a date and slot.
 - No two `recipes[]` entries share a `recipeId`.
+
+**The checks that read the database are the transaction's first reads**, not queries run ahead of
+it. Both of them decide whether to write based on what is already stored, so running them outside
+the transaction would leave a window where the answer changes underneath:
+
 - Every `main`, `side` and `extras` id resolves to either an existing recipe row or an entry in
   `recipes[]`. Without this the `RESTRICT` foreign key rejects the write inside the driver, and the
   handler has no way to turn that into a 400 that names the dish.
+- No `days[]` entry names a day already in the plan, unless `replaceExistingDays` is set.
 
 ## The service
 
@@ -207,6 +226,10 @@ library to read to exhaustion here.
 The recipe-plan-day-history order leaves the prose entirely. There is no first failure for a
 stumble to land on.
 
+**The skill never sets `replaceExistingDays` on its own.** A refusal naming days already in the
+plan gets shown to the user with those dates, because it means either the week was already planned
+or those days were edited since. Overwriting them is their call, not the planner's.
+
 **A stale draft is unreachable by construction.** `week.json`'s `recipes[]` is assembled by walking
 the approved days' `main`, `side` and `extras` ids and including only the drafts those ids name. A
 day the user swapped out contributes nothing. So the re-source path — a draft that missed its day
@@ -230,9 +253,14 @@ a transaction rolling back, and that is the property this whole design exists fo
 - A new week: five days, two new recipes, history derived from the mains.
 - **Rollback.** A payload whose second recipe collides with a saved id. Assert `ALREADY_EXISTS`,
   then assert the first recipe, the plan row, every day and every history entry are absent.
-- Re-commit of the same payload: no duplicate history, no second plan, and a rating set between the
-  two commits survives.
-- Re-commit adding one day: the days already there and their recipes are untouched.
+- Re-commit naming an existing day without `replaceExistingDays`: refused, the day's stored
+  servings, notes and recipes unchanged, and nothing else in the payload written either.
+- Re-commit of the same payload with `replaceExistingDays`: no duplicate history, no second plan,
+  and a rating set between the two commits survives.
+- Re-commit adding one day the plan does not have: accepted without the flag, and the days already
+  there and their recipes are untouched.
+- A retry after a rolled-back commit succeeds without the flag, because the failed attempt left no
+  days behind. This is the case the refusal must not break.
 - Re-commit omitting `budgetTarget`: the stored target is unchanged.
 - A day naming a recipe id that neither exists nor appears in `recipes[]`: a named error, nothing
   written.
