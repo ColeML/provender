@@ -96,6 +96,10 @@ agents read them as instructions):
 - **A shopping list `PUT` replaces what the plan calls for and preserves the rest** — the shopper's
   ticks, their `haveAlready` flags, and anything they added by hand. Rebuilding after a
   late-planned day is safe, and needs no separate merge call.
+- **An approved week is written by one call.** `POST /plans/{plan}:commit` creates the recipes,
+  upserts the plan, writes the days and records history in one transaction, so a rejected or failed
+  plan leaves nothing behind. Scraped recipes wait in `.provender/drafts/` until then. A day already
+  in the plan is refused unless the caller opts in, because it may carry edits made after planning.
 - **Deleting a shopping item is for manual items only.** A plan item comes back on the next
   rebuild, so set `haveAlready` instead.
 - **Ids are unique per household, not globally.** Two households can each have a
