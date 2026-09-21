@@ -6,12 +6,21 @@ import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server
 import { weekPlan } from "@server/services/week-plan";
 import { listPrices } from "@server/services/prices";
 import { getForecast } from "@server/services/weather";
-import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
+import {
+  addItem,
+  deleteItem,
+  estimatedTotal,
+  listItems,
+  updateItem,
+} from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes, scaleRecipe } from "@server/services/recipes";
 
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../init";
+
+/** The store aisles a hand-added item can be filed under. Mirrors the `ingredient_category` enum. */
+const AisleSchema = z.enum(["produce", "meat", "dairy", "bakery", "frozen", "pantry", "other"]);
 
 /**
  * The application router. Every procedure the client can call is reachable from here, and its
@@ -66,6 +75,53 @@ export const appRouter = router({
         estimatedTotal: estimatedTotal(items),
       };
     }),
+    /** Something the shopper is out of, which no recipe called for. */
+    addItem: protectedProcedure
+      .input(
+        z.object({
+          planId: z.string().min(1),
+          itemName: z.string().min(1).max(120),
+          quantity: z.number().positive().max(9999).nullable(),
+          category: AisleSchema,
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        addItem(
+          ctx.householdId,
+          input.planId,
+          { name: input.itemName, quantity: input.quantity, category: input.category },
+          ctx.db,
+        ),
+      ),
+    /** Only a manual item — the service refuses a plan item, which a rebuild would re-add. */
+    deleteItem: protectedProcedure
+      .input(z.object({ planId: z.string().min(1), itemId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteItem(ctx.householdId, input.planId, input.itemId, ctx.db),
+      ),
+    /**
+     * Buy more of something the list already has.
+     *
+     * The row keeps whatever `source` it had, so a rebuild still owns a plan item's quantity.
+     */
+    setQuantity: protectedProcedure
+      .input(
+        z.object({
+          planId: z.string().min(1),
+          itemId: z.string().min(1),
+          quantity: z.number().positive().max(9999),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        updateItem(
+          ctx.householdId,
+          input.planId,
+          input.itemId,
+          { quantity: input.quantity },
+          ["quantity"],
+          ctx.db,
+        ),
+      ),
     // The optimistic toggle the /shop screen fires on every tap.
     setPurchased: protectedProcedure
       .input(

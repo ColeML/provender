@@ -57,6 +57,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<{ w
         purchased: item.purchased,
         haveAlready: item.haveAlready,
         feedsRecipes: item.feedsRecipes,
+        source: item.source,
       }))}
     />
   );

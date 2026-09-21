@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
+import { slug } from "@server/lib/slug";
 import { and, asc, eq, notInArray, sql } from "drizzle-orm";
 
 import { PlanNotFoundError } from "./plans";
@@ -53,15 +54,6 @@ function normalizeUnit(unit: string | null | undefined) {
   const trimmed = unit?.trim();
 
   return trimmed ? trimmed.toLowerCase() : null;
-}
-
-function slug(value: string) {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "item"
-  );
 }
 
 /**
