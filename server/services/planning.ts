@@ -27,6 +27,7 @@ export interface RotationEntry {
   lastPlanned: string | null;
   timesPlanned: number;
   daysUntilEligible: number | null;
+  rating: number | null;
 }
 
 const TIER_ORDER: Record<RotationTier, number> = { unplanned: 0, eligible: 1, blocked: 2 };
@@ -45,22 +46,40 @@ export async function planningRotation(
   const [recipes, history, noRepeatDays] = await Promise.all([
     db.select().from(schema.recipes).where(eq(schema.recipes.householdId, householdId)),
     db
-      .select({ recipeId: schema.mealHistory.recipeId, date: schema.mealHistory.date })
+      .select({
+        recipeId: schema.mealHistory.recipeId,
+        date: schema.mealHistory.date,
+        rating: schema.mealHistory.rating,
+      })
       .from(schema.mealHistory)
       .where(eq(schema.mealHistory.householdId, householdId)),
     resolveNoRepeatDays(householdId, db),
   ]);
 
-  const seen = new Map<string, { last: string; count: number }>();
+  // `last` and `ratingDate` track different entries on purpose: lastPlanned is the most recent
+  // entry regardless of rating, while rating comes from the most recent *rated* entry.
+  const seen = new Map<
+    string,
+    { last: string; count: number; ratingDate: string | null; rating: number | null }
+  >();
 
   for (const entry of history) {
     if (!entry.recipeId) continue;
 
     const prior = seen.get(entry.recipeId);
+    let ratingDate = prior?.ratingDate ?? null;
+    let rating = prior?.rating ?? null;
+
+    if (entry.rating !== null && (ratingDate === null || entry.date > ratingDate)) {
+      ratingDate = entry.date;
+      rating = entry.rating;
+    }
 
     seen.set(entry.recipeId, {
       last: prior && prior.last > entry.date ? prior.last : entry.date,
       count: (prior?.count ?? 0) + 1,
+      ratingDate,
+      rating,
     });
   }
 
@@ -83,6 +102,7 @@ export async function planningRotation(
         lastPlanned: null,
         timesPlanned: 0,
         daysUntilEligible: null,
+        rating: null,
       };
     }
 
@@ -95,6 +115,7 @@ export async function planningRotation(
       lastPlanned: used.last,
       timesPlanned: used.count,
       daysUntilEligible: blocked ? noRepeatDays - elapsed : null,
+      rating: used.rating,
     };
   });
 

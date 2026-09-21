@@ -14,6 +14,7 @@ function toResource(entry: RotationEntry) {
     lastPlanned: entry.lastPlanned,
     timesPlanned: entry.timesPlanned,
     daysUntilEligible: entry.daysUntilEligible,
+    rating: entry.rating,
   };
 }
 
@@ -29,6 +30,7 @@ const RotationEntrySchema = z
     lastPlanned: z.string().nullable().openapi({ example: "2026-08-31" }),
     timesPlanned: z.number().int(),
     daysUntilEligible: z.number().int().nullable(),
+    rating: z.number().int().nullable(),
   })
   .openapi("RotationEntry");
 

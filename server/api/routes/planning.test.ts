@@ -59,6 +59,7 @@ describe("GET /v1/planning/rotation", () => {
           lastPlanned: null,
           timesPlanned: 0,
           daysUntilEligible: null,
+          rating: null,
         },
       ],
     });

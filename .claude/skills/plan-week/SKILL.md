@@ -42,9 +42,10 @@ Apply in order:
    counts: work through the household's own unused dishes before scraping, and scrape only when
    that tier runs dry or they ask for something off the web.
 8. **Rotation for the rest.** Fill the remaining slots from `eligible`, oldest `lastPlanned`
-   first. Within a tier, order carries no meaning — choose on weather, time and overlap.
-9. **Ratings.** Favour mains rated 4–5; avoid 1–2 unless asked. Ratings live on `mealHistory`
-   entries, so a new dish is unrated rather than low-rated.
+   first by default; override that order on weather, time or ingredient overlap.
+9. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
+   (a dish can have a `lastPlanned` newer than its `rating` if the latest planning wasn't rated).
+   Favour mains rated 4–5; avoid 1–2 unless asked. `rating: null` means unrated, not low-rated.
 10. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
     waste.
 
