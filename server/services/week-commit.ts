@@ -1,9 +1,9 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 
-import { recordMeal } from "./history";
+import { historyId, recordMeal } from "./history";
 import {
   prepareDay,
   upsertPlan,
@@ -112,11 +112,6 @@ function assertNoDuplicateDays(days: PreparedDay[]) {
   }
 }
 
-/**
- * Every recipe a day names, so both checks that need them run over one list.
- *
- * A day's own duplicate-role check is `prepareDay`'s; this is only about which ids have to exist.
- */
 function referencedRecipeIds(days: PreparedDay[]) {
   return [
     ...new Set(
@@ -149,6 +144,35 @@ async function assertRecipesResolve(
   if (missing.length > 0) {
     throw new UnknownRecipeError(missing);
   }
+}
+
+/**
+ * Delete the history this day's write is superseding, keyed on the plan-day link rather than the
+ * date alone — an entry `keepHistory` detached has a null `planId` and must survive, and a link
+ * keyed this way cannot reach another week that happens to reuse the date.
+ *
+ * Excludes the id the incoming main would itself use, so re-committing the same main does not
+ * delete and immediately reinsert the row whose rating this is trying to preserve.
+ */
+async function clearSupersededHistory(
+  householdId: string,
+  planId: string,
+  day: PreparedDay,
+  db: Queryable,
+) {
+  const keep = day.input.main ? historyId(day.date, day.input.main) : null;
+
+  await db
+    .delete(schema.mealHistory)
+    .where(
+      and(
+        eq(schema.mealHistory.householdId, householdId),
+        eq(schema.mealHistory.planId, planId),
+        eq(schema.mealHistory.planDate, day.date),
+        eq(schema.mealHistory.planMealSlot, day.mealSlot),
+        ...(keep ? [ne(schema.mealHistory.id, keep)] : []),
+      ),
+    );
 }
 
 async function assertDaysUnplanned(
@@ -222,6 +246,8 @@ export async function commitWeek(
     const historyEntryIds: string[] = [];
 
     for (const day of prepared) {
+      await clearSupersededHistory(householdId, planId, day, tx);
+
       const main = day.input.main;
 
       if (!main) continue;

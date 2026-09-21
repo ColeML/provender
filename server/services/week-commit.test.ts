@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 import { setConfigValue } from "@server/services/config";
-import { getPlanDay } from "@server/services/plans";
-import { createRecipe, getRecipe, RecipeNotFoundError } from "@server/services/recipes";
+import { getPlanDay, PlanDayNotFoundError } from "@server/services/plans";
+import {
+  createRecipe,
+  getRecipe,
+  RecipeExistsError,
+  RecipeNotFoundError,
+} from "@server/services/recipes";
 import { listHistory, rateMeal } from "@server/services/history";
 
 import {
@@ -145,7 +150,7 @@ describe("commitWeek", () => {
         }),
         db,
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow(RecipeExistsError);
 
     expect(await getRecipe(H, "tacos", db)).toMatchObject({ title: "Tacos", baseServings: 8 });
   });
@@ -173,7 +178,7 @@ describe("commitWeek", () => {
     expect(monday).toMatchObject({ servings: 8, main: "gnocchi", notes: "58F and wet" });
 
     await expect(getRecipe(H, "chili", db)).rejects.toThrow(RecipeNotFoundError);
-    await expect(getPlanDay(H, WEEK, TUESDAY, "dinner", db)).rejects.toThrow();
+    await expect(getPlanDay(H, WEEK, TUESDAY, "dinner", db)).rejects.toThrow(PlanDayNotFoundError);
   });
 
   it("overwrites a day when the caller opts in", async () => {
@@ -197,6 +202,23 @@ describe("commitWeek", () => {
     });
   });
 
+  it("drops the replaced main's history entry when a day is overwritten", async () => {
+    await commitWeek(H, WEEK, oneDay(), db);
+    await createRecipe(H, "salad", { title: "Green Salad", baseServings: 10 }, [], db);
+
+    await commitWeek(
+      H,
+      WEEK,
+      { replaceExistingDays: true, days: [{ date: MONDAY, servings: 4, main: "salad" }] },
+      db,
+    );
+
+    const history = await listHistory(H, {}, db);
+
+    expect(history).toHaveLength(1);
+    expect(history[0].recipeId).toBe("salad");
+  });
+
   it("accepts a day the plan does not have without the flag, and leaves the others alone", async () => {
     await commitWeek(H, WEEK, oneDay(), db);
     await createRecipe(H, "chili", { title: "Chili", baseServings: 8 }, [], db);
@@ -218,7 +240,7 @@ describe("commitWeek", () => {
       days: [{ date: MONDAY, servings: 8, main: "gnocchi" }],
     });
 
-    await expect(commitWeek(H, WEEK, doomed, db)).rejects.toThrow();
+    await expect(commitWeek(H, WEEK, doomed, db)).rejects.toThrow(RecipeExistsError);
 
     // The failed attempt left no plan and no days, so the retry needs no replaceExistingDays.
     const result = await commitWeek(H, WEEK, oneDay(), db);
@@ -232,7 +254,10 @@ describe("commitWeek", () => {
     await rateMeal(H, first.historyEntryIds[0], { rating: 5 }, ["rating"], db);
     await commitWeek(H, WEEK, { replaceExistingDays: true, days: oneDay().days }, db);
 
-    expect((await listHistory(H, {}, db))[0]).toMatchObject({ rating: 5 });
+    const history = await listHistory(H, {}, db);
+
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ rating: 5 });
   });
 
   it("leaves the stored budget alone when a re-commit names none", async () => {
@@ -254,12 +279,6 @@ describe("commitWeek", () => {
     ).rejects.toThrow(UnknownRecipeError);
 
     expect(await db.query.plans.findFirst()).toBeUndefined();
-  });
-
-  it("accepts a day referencing a recipe created in the same commit", async () => {
-    const result = await commitWeek(H, WEEK, oneDay(), db);
-
-    expect(result.days[0].main).toBe("gnocchi");
   });
 
   it("rejects a date outside the plan's own week", async () => {
