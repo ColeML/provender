@@ -12,12 +12,16 @@ You choose the menu. The API stores it. Nothing is written until the user approv
 ```bash
 ./scripts/prov GET /config
 ./scripts/prov GET /weather
-./scripts/prov GET /mealHistory
+./scripts/prov GET /planning/rotation
 ```
 
 `config` carries `people`, `location`, `default_budget`, `default_meals`, `dislikes`, `allergies`,
 `dietary_restrictions`, `equipment`, `preferences`, `no_repeat_days`, and optionally
 `new_mains_per_week`. Ask only for what the user is overriding. Every value is a string.
+
+`GET /planning/rotation` returns `recipes`, every recipe tiered. `unplanned` has never been
+planned, `eligible` is outside `no_repeat_days`, `blocked` is inside it and says when it frees up.
+The tier is the answer — do not recompute it from dates.
 
 ## 2. Choose the menu
 
@@ -30,25 +34,21 @@ Apply in order:
 4. **Day preferences.** "Quick Monday" means ≤30 minutes, and say the number.
 5. **Equipment honesty.** Cite a device in a day's note only if that recipe uses it. Verify after
    scraping, and change the note rather than the recipe.
-6. **Repeat-avoidance, mains only.** Sides may repeat freely.
-7. **Novelty quota.** Plan `new_mains_per_week` mains the household has neither saved nor
-   planned before. Absent that key, it is a third of the week's mains, rounded up — 2 of 5, 3 of
-   7. Step 3 reads the catalog; judge it against that and `mealHistory` together.
-8. **Ratings.** Favour mains rated 4–5; avoid 1–2 unless asked. Ratings live on `mealHistory`
+6. **Repeat-avoidance, mains only.** Do not plan a `blocked` main. Offer them as a list the
+   household can pull from — history records what was *planned*, not what was eaten. Sides may
+   repeat freely.
+7. **Novelty quota.** Plan `new_mains_per_week` mains from the `unplanned` tier. Absent that key,
+   it is a third of the week's mains, rounded up — 2 of 5, 3 of 7. A saved `unplanned` recipe
+   counts: work through the household's own unused dishes before scraping, and scrape only when
+   that tier runs dry or they ask for something off the web.
+8. **Rotation for the rest.** Fill the remaining slots from `eligible`, oldest `lastPlanned`
+   first. Within a tier, order carries no meaning — choose on weather, time and overlap.
+9. **Ratings.** Favour mains rated 4–5; avoid 1–2 unless asked. Ratings live on `mealHistory`
    entries, so a new dish is unrated rather than low-rated.
-9. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
-   waste.
-
-`mealHistory` records what was **planned**, not what was eaten. A dish there may never have been
-cooked. Present what you are skipping as a list the user can pull from, not a hard exclusion.
+10. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
+    waste.
 
 ## 3. Source the recipes
-
-Start with what is already saved:
-
-```bash
-./scripts/prov GET '/recipes?pageSize=200'
-```
 
 A dish the household already has is the cheaper choice, and re-scraping one saves it twice. For
 each new main the quota calls for, find a real URL and follow **add-recipe** for scraping,
