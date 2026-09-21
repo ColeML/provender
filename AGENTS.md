@@ -100,7 +100,16 @@ agents read them as instructions):
   rebuild, so set `haveAlready` instead.
 - **Ids are unique per household, not globally.** Two households can each have a
   `chicken-fajitas`. Every service function takes a `householdId` and filters on it — a query
-  missing that filter returns everyone's rows and looks entirely normal in review.
+  missing that filter returns everyone's rows and looks entirely normal in review. The single
+  exception is the one below, and it is the only one that may ever exist.
+- **A share token is the whole key, and `getSharedRecipe` must stay unscoped.** `/r/{token}`
+  answers before anyone has a session, so there is no caller to resolve a household from: the
+  function takes a token, and reads the household *off the row it finds*. Do not "fix" it by
+  adding a `householdId` parameter for consistency with every other service function, and never
+  let this page or that query accept a recipe id — the slugs are words like `ziti`, so an
+  id-addressed public page would let a stranger walk the library by guessing. The two households
+  that both own a `fajitas` in `server/services/isolation.test.ts` are what catch a regression
+  here.
 - **Recipe pages are a derived view.** `/recipes/[slug]` renders from the database.
 - **Formatting is the UI's job.** Quantities are stored as a number and a unit, and rendered as
   fractions where they are shown.
