@@ -10,14 +10,8 @@ import { weekOverview } from "./overview";
 
 const H = "loewer";
 
-/**
- * A fixed Wednesday, held for the whole file.
- *
- * `isCurrentWeek` compares the plan's id against `isoWeekFor(new Date())` read when the service is
- * called, so anything deriving the expected week from a second reading of the real clock can
- * straddle a UTC midnight and disagree with it. Only `Date` is faked — the in-process Postgres and
- * every await still run on real timers.
- */
+// `isCurrentWeek` reads the clock when the service is called, so deriving the expected week from a
+// second reading can straddle a UTC midnight. Only `Date` is faked, leaving awaits on real timers.
 const NOW = new Date("2026-09-16T12:00:00.000Z");
 const THIS_WEEK = isoWeekFor(NOW.toISOString().slice(0, 10));
 const MONDAY_OF_THIS_WEEK = "2026-09-14";

@@ -157,6 +157,24 @@ describe("recipes", () => {
     await expect(getRecipe(A, "fajitas", db)).resolves.toMatchObject({ title: "Fajitas" });
   });
 
+  // Naming `ingredients` in the mask replaces the list, which deletes the recipe's rows before
+  // inserting the new ones. B's inserts are its own rows, so a delete that reached A's would raise
+  // nothing — A's recipe would just empty. Only this mask reaches that statement.
+  it("will not let one household's ingredient replace empty another's list", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    await updateRecipe(
+      B,
+      "fajitas",
+      ["ingredients"],
+      {},
+      [{ name: "lime", quantity: 2, unit: "ea", category: "produce" }],
+      db,
+    );
+
+    await expect(listIngredients(A, "fajitas", db)).resolves.toMatchObject([{ name: "salt" }]);
+  });
+
   // The lookup behind both plan views. Asking for an id only the other household holds is the
   // deterministic form of the failure: a collision would return one of two rows in whichever order
   // the database happened to produce them, and the map would keep the last.
@@ -299,6 +317,8 @@ describe("plans", () => {
 
     await expect(getPlanDay(B, "2026-W36", "2026-08-31", "dinner", db)).resolves.toMatchObject({
       main: null,
+      side: null,
+      extras: [],
     });
   });
 });
@@ -621,8 +641,7 @@ describe("week plan", () => {
   it("leaves the grid empty when only the other household planned that week", async () => {
     const week = await weekPlan(B, "2026-W36", db);
 
-    // The planned dates rather than a boolean over them: `every` reports "expected false to be
-    // true" and names no day, so a leak through the filter would say nothing about which one.
+    // The dates rather than a boolean over them, so a leak names the day it came in on.
     expect(week.days.filter((day) => day.planned).map((day) => day.date)).toEqual([]);
     expect(week.days).toHaveLength(7);
     expect(week.estimatedCost).toBe(0);
