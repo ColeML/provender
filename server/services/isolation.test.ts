@@ -5,13 +5,19 @@ import type { Database } from "@server/db";
 import { getConfig, setConfigValue } from "@server/services/config";
 import {
   createPlan,
+  deletePlan,
+  deletePlanDay,
   getPlan,
+  getPlanDay,
   PlanDayNotFoundError,
   PlanNotFoundError,
   setPlanDay,
+  updatePlan,
 } from "@server/services/plans";
 import {
+  addIngredient,
   createRecipe,
+  deleteIngredient,
   deleteRecipe,
   getIngredient,
   getRecipe,
@@ -23,6 +29,9 @@ import {
 } from "@server/services/recipes";
 import { clearTokenCache, NoStoreConfiguredError, searchPrices } from "@server/services/kroger";
 import {
+  addItem,
+  deleteItem,
+  getItem,
   listItems,
   replaceItems,
   ShoppingItemNotFoundError,
@@ -49,7 +58,6 @@ import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
-import { isoWeekFor } from "@server/lib/iso-week";
 import { schema } from "@server/db";
 
 /**
@@ -138,6 +146,35 @@ describe("recipes", () => {
     await expect(getRecipe(A, "fajitas", db)).resolves.toBeDefined();
   });
 
+  // Both households hold a "fajitas", so id and recipeId collide once B legitimately owns a row
+  // under that id too. The household filter on the UPDATE statement itself — not the existence
+  // check ahead of it — is what keeps B's edit from also touching A's row.
+  it("will not let one household's update change another's recipe of the same id", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    await updateRecipe(B, "fajitas", ["title"], { title: "Hijacked" }, undefined, db);
+
+    await expect(getRecipe(A, "fajitas", db)).resolves.toMatchObject({ title: "Fajitas" });
+  });
+
+  // Naming `ingredients` in the mask replaces the list, which deletes the recipe's rows before
+  // inserting the new ones. B's inserts are its own rows, so a delete that reached A's would raise
+  // nothing — A's recipe would just empty. Only this mask reaches that statement.
+  it("will not let one household's ingredient replace empty another's list", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    await updateRecipe(
+      B,
+      "fajitas",
+      ["ingredients"],
+      {},
+      [{ name: "lime", quantity: 2, unit: "ea", category: "produce" }],
+      db,
+    );
+
+    await expect(listIngredients(A, "fajitas", db)).resolves.toMatchObject([{ name: "salt" }]);
+  });
+
   // The lookup behind both plan views. Asking for an id only the other household holds is the
   // deterministic form of the failure: a collision would return one of two rows in whichever order
   // the database happened to produce them, and the map would keep the last.
@@ -175,6 +212,28 @@ describe("ingredients", () => {
     await expect(getIngredient(A, "fajitas", "fajitas_salt", db)).resolves.toBeDefined();
     await expect(getIngredient(B, "fajitas", "fajitas_salt", db)).resolves.toBeUndefined();
   });
+
+  it("will not let one household delete another's ingredient by matching recipe id", async () => {
+    await expect(deleteIngredient(B, "fajitas", "fajitas_salt", db)).resolves.toBe(false);
+
+    await expect(listIngredients(A, "fajitas", db)).resolves.toHaveLength(1);
+  });
+
+  // Both households hold a "fajitas", so A's ingredient rows are reachable by recipeId alone. If
+  // they leaked into the rows this reads before inserting, B's new "salt" would collide with A's
+  // and get bumped to a numbered suffix and a later position instead of `fajitas_salt` at 0.
+  it("does not let another household's ingredients affect this household's new ingredient", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    const created = await addIngredient(
+      B,
+      "fajitas",
+      { name: "salt", quantity: 1, unit: "tsp", category: "pantry" },
+      db,
+    );
+
+    expect(created).toMatchObject({ id: "fajitas_salt", position: 0 });
+  });
 });
 
 describe("plans", () => {
@@ -196,6 +255,70 @@ describe("plans", () => {
     await expect(getPlan(B, "2026-W36", db)).resolves.toMatchObject({
       plan: { budgetTarget: "200.00" },
       days: [],
+    });
+  });
+
+  it("will not let one household's plan update change another's budget", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+
+    await updatePlan(B, "2026-W36", 50, db);
+
+    await expect(getPlan(A, "2026-W36", db)).resolves.toMatchObject({
+      plan: { budgetTarget: "120.00" },
+    });
+  });
+
+  it("will not let one household's plan delete remove another's plan", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+
+    await deletePlan(B, "2026-W36", db);
+
+    await expect(getPlan(A, "2026-W36", db)).resolves.toBeDefined();
+  });
+
+  // Both weeks are named `2026-W36`, so the date and slot alone do not identify the day — the
+  // household filter on the delete inside `writePlanDay` is what stops B's own write from also
+  // clearing A's recipes for that day.
+  it("will not let one household's day edit strip another's recipes for the same date and slot", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+
+    await setPlanDay(B, "2026-W36", "2026-08-31", "dinner", { servings: 4 }, db);
+
+    await expect(getPlan(A, "2026-W36", db)).resolves.toMatchObject({
+      days: [{ date: "2026-08-31", main: "fajitas" }],
+    });
+  });
+
+  it("will not let one household's day-clear delete another's day of the same date", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+
+    await expect(
+      deletePlanDay(B, "2026-W36", "2026-08-31", "dinner", {}, db),
+    ).rejects.toBeInstanceOf(PlanDayNotFoundError);
+
+    await expect(getPlan(A, "2026-W36", db)).resolves.toMatchObject({
+      days: [{ date: "2026-08-31" }],
+    });
+  });
+
+  it("does not resolve another household's day from getPlanDay", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+
+    await expect(getPlanDay(B, "2026-W36", "2026-08-31", "dinner", db)).rejects.toBeInstanceOf(
+      PlanDayNotFoundError,
+    );
+  });
+
+  // B legitimately owns a day at the same date and slot, so the day-match query resolves B's own
+  // row — the household filter on the recipes query underneath it is what keeps A's main out.
+  it("does not attach another household's recipes to getPlanDay", async () => {
+    await createPlan(B, "2026-W36", 200, db);
+    await setPlanDay(B, "2026-W36", "2026-08-31", "dinner", { servings: 4 }, db);
+
+    await expect(getPlanDay(B, "2026-W36", "2026-08-31", "dinner", db)).resolves.toMatchObject({
+      main: null,
+      side: null,
+      extras: [],
     });
   });
 });
@@ -236,6 +359,26 @@ describe("shopping lists", () => {
     ).rejects.toBeInstanceOf(ShoppingItemNotFoundError);
 
     await expect(listItems(A, "2026-W36", db)).resolves.toMatchObject([{ purchased: false }]);
+  });
+
+  it("will not let getItem resolve another household's item", async () => {
+    await expect(getItem(B, "2026-W36", "chicken-breast_lb", db)).rejects.toBeInstanceOf(
+      ShoppingItemNotFoundError,
+    );
+  });
+
+  // Item ids come from name and unit alone, so B's own "brown sugar" collides with A's — the
+  // household filter on the DELETE itself, not `getItem`'s prior guard, is what keeps B's delete
+  // from also removing A's row.
+  it("will not let one household's delete remove another's item of the same name", async () => {
+    await addItem(A, "2026-W36", { name: "brown sugar", unit: "bag", category: "pantry" }, db);
+    await addItem(B, "2026-W36", { name: "brown sugar", unit: "bag", category: "pantry" }, db);
+
+    await deleteItem(B, "2026-W36", "brown-sugar_bag", db);
+
+    await expect(listItems(A, "2026-W36", db)).resolves.toContainEqual(
+      expect.objectContaining({ id: "brown-sugar_bag" }),
+    );
   });
 });
 
@@ -437,26 +580,18 @@ describe("prices", () => {
 });
 
 describe("week overview", () => {
-  // Both the week id and the Monday come from one reading of the clock. Sampling the date twice
-  // lets a UTC midnight land between them and put the Monday in a later week than `THIS_WEEK`.
-  const today = new Date();
-  const THIS_WEEK = isoWeekFor(today.toISOString().slice(0, 10));
-  const MONDAY = mondayOf(today);
-
-  function mondayOf(date: Date) {
-    const monday = new Date(date);
-
-    monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
-
-    return monday.toISOString().slice(0, 10);
-  }
+  // A fixed past week, so nothing here depends on the clock. `weekOverview` falls back to the
+  // latest plan when none is current, which is all these cases need; whether a week reads as the
+  // current one is `overview.test.ts`'s question, and it covers both answers.
+  const WEEK = "2026-W36";
+  const MONDAY = "2026-08-31";
 
   beforeEach(async () => {
-    await createPlan(A, THIS_WEEK, 120, db);
-    await setPlanDay(A, THIS_WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
+    await createPlan(A, WEEK, 120, db);
+    await setPlanDay(A, WEEK, MONDAY, "dinner", { servings: 8, main: "fajitas" }, db);
     await replaceItems(
       A,
-      THIS_WEEK,
+      WEEK,
       [{ name: "chicken breast", quantity: 3, unit: "lb", category: "meat" }],
       db,
     );
@@ -474,12 +609,12 @@ describe("week overview", () => {
   // B plans the same date and slot with no main of its own, which is what a potluck day looks
   // like. A's main for that day must not surface as B's.
   it("shows nothing from another household's week of the same name", async () => {
-    await createPlan(B, THIS_WEEK, 200, db);
-    await setPlanDay(B, THIS_WEEK, MONDAY, "dinner", { servings: 4 }, db);
+    await createPlan(B, WEEK, 200, db);
+    await setPlanDay(B, WEEK, MONDAY, "dinner", { servings: 4 }, db);
 
     await expect(weekOverview(B, db)).resolves.toEqual({
-      planId: THIS_WEEK,
-      isCurrentWeek: true,
+      planId: WEEK,
+      isCurrentWeek: false,
       days: [
         {
           date: MONDAY,
@@ -506,7 +641,9 @@ describe("week plan", () => {
   it("leaves the grid empty when only the other household planned that week", async () => {
     const week = await weekPlan(B, "2026-W36", db);
 
-    expect(week.days.every((day) => !day.planned)).toBe(true);
+    // The dates rather than a boolean over them, so a leak names the day it came in on.
+    expect(week.days.filter((day) => day.planned).map((day) => day.date)).toEqual([]);
+    expect(week.days).toHaveLength(7);
     expect(week.estimatedCost).toBe(0);
   });
 
