@@ -14,10 +14,30 @@ import { ShoppingList, type ShopItem } from "./shopping-list";
  * is covered by the service and route tests.
  */
 const mutate = vi.fn();
+const addItemFn = vi.fn();
+const deleteItemFn = vi.fn();
+const setQuantityFn = vi.fn();
 type Variables = { itemId: string; purchased: boolean };
 
 let onErrorHandler: ((error: unknown, variables: Variables) => void) | undefined;
 let onSuccessHandler: ((data: unknown, variables: Variables) => void) | undefined;
+
+/** A row as the server returns it: numerics arrive as strings from Postgres. */
+function row(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "dish-soap",
+    name: "dish soap",
+    quantity: null,
+    unit: null,
+    category: "other",
+    estCost: null,
+    purchased: false,
+    haveAlready: false,
+    feedsRecipes: [],
+    source: "manual",
+    ...overrides,
+  };
+}
 
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
@@ -33,6 +53,17 @@ vi.mock("@/lib/trpc/client", () => ({
           return { mutationFn: mutate };
         },
       },
+      // These three run their real onSuccess, so the tests assert what the screen does with the
+      // row the server sends back rather than what the component hoped it would be.
+      addItem: {
+        mutationOptions: (options: object) => ({ ...options, mutationFn: addItemFn }),
+      },
+      deleteItem: {
+        mutationOptions: (options: object) => ({ ...options, mutationFn: deleteItemFn }),
+      },
+      setQuantity: {
+        mutationOptions: (options: object) => ({ ...options, mutationFn: setQuantityFn }),
+      },
     },
   }),
 }));
@@ -46,6 +77,7 @@ function item(overrides: Partial<ShopItem> & { id: string; name: string }): Shop
     purchased: false,
     haveAlready: false,
     feedsRecipes: [],
+    source: "plan",
     ...overrides,
   };
 }
@@ -401,5 +433,189 @@ describe("switching weeks", () => {
 
     expect(screen.getByText("Bacon")).toBeInTheDocument();
     expect(screen.queryByText("Tuna")).toBeNull();
+  });
+});
+
+describe("adding something the plan did not call for", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  async function openForm(items: ShopItem[]) {
+    const user = renderList(items);
+
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+
+    return user;
+  }
+
+  it("puts the item in the aisle the shopper chose, and counts it", async () => {
+    addItemFn.mockResolvedValue(row({ id: "dish-soap", name: "dish soap", category: "other" }));
+
+    const user = await openForm([item({ id: "onion", name: "onion" })]);
+
+    await user.type(screen.getByLabelText("Item"), "dish soap");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("dish soap")).toBeInTheDocument();
+    // react-query hands the mutation function a context object after the variables.
+    expect(addItemFn).toHaveBeenCalledWith(
+      { planId: "2026-W36", itemName: "dish soap", quantity: null, category: "other" },
+      expect.anything(),
+    );
+    expect(screen.getByText(/2 left of 2/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Other" })).toBeInTheDocument();
+  });
+
+  it("sends the typed quantity and the chosen aisle", async () => {
+    addItemFn.mockResolvedValue(row({ id: "banana", name: "banana", category: "produce" }));
+
+    const user = await openForm([]);
+
+    await user.type(screen.getByLabelText("Item"), "banana");
+    await user.type(screen.getByLabelText("Qty"), "6");
+    await user.selectOptions(screen.getByLabelText("Aisle"), "produce");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() =>
+      expect(addItemFn).toHaveBeenCalledWith(
+        { planId: "2026-W36", itemName: "banana", quantity: 6, category: "produce" },
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("refuses a name already on the list and says how much is there", async () => {
+    const user = await openForm([
+      item({ id: "butter_lb", name: "butter", quantity: 2, unit: "lb", category: "dairy" }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "Butter");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Already on your list: 2 lb");
+    expect(addItemFn).not.toHaveBeenCalled();
+  });
+
+  it("offers to buy more of it, in the unit the list is using", async () => {
+    setQuantityFn.mockResolvedValue(
+      row({ id: "butter_lb", name: "butter", quantity: "3", unit: "lb", source: "plan" }),
+    );
+
+    const user = await openForm([
+      item({ id: "butter_lb", name: "butter", quantity: 2, unit: "lb", category: "dairy" }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "butter");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add 1 lb" }));
+
+    await waitFor(() =>
+      expect(setQuantityFn).toHaveBeenCalledWith(
+        { planId: "2026-W36", itemId: "butter_lb", quantity: 3 },
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findByText("3 lb")).toBeInTheDocument();
+  });
+
+  it("says where a match is when it is not among the rows still to buy", async () => {
+    const user = await openForm([
+      item({ id: "butter_lb", name: "butter", quantity: 2, unit: "lb", haveAlready: true }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "butter");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    // Raising its quantity would move a number the shopper cannot see, so no bump is offered.
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Already on your list: 2 lb, under Already have",
+    );
+    expect(screen.queryByRole("button", { name: /^Add \d/ })).toBeNull();
+  });
+
+  it("does not read a unit as the amount when the match has no quantity", async () => {
+    const user = await openForm([
+      item({ id: "salt_tsp", name: "salt", quantity: null, unit: "tsp", category: "pantry" }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "salt");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/^Already on your list$/);
+  });
+
+  it("replaces the row when the server upserts one another phone already added", async () => {
+    addItemFn.mockResolvedValue(row({ id: "onion", name: "onion", category: "produce" }));
+
+    const user = await openForm([]);
+
+    // The list loaded empty, so the name check passes; the household's other phone added it
+    // first, and `addItem` upserts and returns the row that is already there.
+    await user.type(screen.getByLabelText("Item"), "onion");
+    await user.selectOptions(screen.getByLabelText("Aisle"), "produce");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.type(screen.getByLabelText("Item"), "onion");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getAllByText("onion")).toHaveLength(1);
+  });
+
+  it("marks the bin rather than telling the shopper to tap a row that does not delete", async () => {
+    deleteItemFn.mockRejectedValueOnce(new Error("offline"));
+
+    const user = renderList([item({ id: "dish-soap", name: "dish soap", source: "manual" })]);
+
+    await user.click(screen.getByRole("button", { name: "Delete dish soap" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Delete dish soap — not deleted, try again" }),
+    ).toBeInTheDocument();
+    // The tick's banner is for ticks: tapping the row toggles purchased, it does not retry.
+    expect(screen.queryByText(/did not save/i)).toBeNull();
+
+    deleteItemFn.mockResolvedValue(undefined);
+
+    await user.click(screen.getByRole("button", { name: /^Delete dish soap/ }));
+
+    await waitFor(() => expect(screen.queryByText("dish soap")).toBeNull());
+  });
+
+  it("offers no bump for something bought by feel", async () => {
+    const user = await openForm([
+      item({ id: "salt", name: "salt", quantity: null, unit: null, category: "pantry" }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "salt");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Already on your list");
+    expect(screen.queryByRole("button", { name: /^Add \d/ })).toBeNull();
+  });
+
+  it("deletes a manual item, and offers no bin for one the plan called for", async () => {
+    deleteItemFn.mockResolvedValue(undefined);
+
+    const user = renderList([
+      item({ id: "onion", name: "onion", feedsRecipes: ["chili"] }),
+      item({ id: "dish-soap", name: "dish soap", category: "other", source: "manual" }),
+    ]);
+
+    expect(screen.queryByRole("button", { name: "Delete onion" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Delete dish soap" }));
+
+    await waitFor(() => expect(screen.queryByText("dish soap")).toBeNull());
+    expect(deleteItemFn).toHaveBeenCalledWith(
+      { planId: "2026-W36", itemId: "dish-soap" },
+      expect.anything(),
+    );
+  });
+
+  it("is not offered on a week nobody has planned", () => {
+    renderList([], 120, { planned: false });
+
+    expect(screen.queryByRole("button", { name: "+ Add item" })).toBeNull();
   });
 });
