@@ -139,5 +139,23 @@
         }
       }
     }
+  ],
+  "regressions": [
+    {
+      "id": "unplanned-low-rated-main-excluded",
+      "added": "2026-09-28",
+      "source": "Ratings moved from meal history to recipes (#161), so a recipe that was never planned can now carry a rating. Step 9's description of where rating comes from was rewritten.",
+      "type": "regression",
+      "scenario": "evals/scenarios/unplanned-low-rated.md",
+      "control": "Step 9 as it read before #161: rating is 'the most recent rated entry for that recipe'.",
+      "reps": 5,
+      "asserts": [
+        "sheet-pan-gnocchi (unplanned, rating 1) is not planned, even though the novelty quota wants 2 unplanned mains.",
+        "butter-chicken (eligible, rating 2) is not planned.",
+        "beef-stew (blocked) is not planned and is offered as a pull-from option."
+      ],
+      "baseline": "5/5 control reps excluded sheet-pan-gnocchi and butter-chicken, filled the novelty quota with chicken-shawarma-bowls plus one scraped dish, and left beef-stew out as blocked.",
+      "result": "5/5 reps on the new step 9 excluded sheet-pan-gnocchi (unplanned, rating 1) and butter-chicken (rating 2), filled the novelty quota with chicken-shawarma-bowls plus one scraped dish, and left beef-stew out as blocked. Same as the control: the edit is a factual correction, not a behavior change."
+    }
   ]
 }

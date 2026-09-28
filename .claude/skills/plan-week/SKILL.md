@@ -50,9 +50,8 @@ Apply in order:
    household already owns and has never planned. Scrape the web only once `unplanned` runs dry, or
    when the user asks for something new. Absent `new_mains_per_week`, the quota is a third of the
    week's mains, rounded up — 2 of 5, 3 of 7.
-9. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
-   (a dish can have a `lastPlanned` newer than its `rating` if the latest planning wasn't rated).
-   Drop mains rated 1–2 from the pool unless the user asks for one; favour 4–5. `rating: null`
+9. **Ratings.** Each rotation row carries `rating`, the household's 1–5 rating of the recipe.
+   Drop mains rated 1–2 from the pool unless the user asks for one; favor 4–5. `rating: null`
    means unrated, not low-rated.
 10. **Rotation for the rest.** Order whatever the earlier rules left in the pool — oldest
     `lastPlanned` first by default, overridden by weather, time or ingredient overlap. For mains, do
