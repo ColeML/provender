@@ -1,7 +1,8 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 import { households } from "./households";
 import {
+  check,
   foreignKey,
   index,
   integer,
@@ -50,12 +51,15 @@ export const recipes = pgTable(
     tags: text("tags").array().notNull().default([]),
     /** One element per step. v1 stored a numbered blob; the numbering is the UI's job. */
     instructions: text("instructions").array().notNull().default([]),
+    /** 1–5. Null means unrated, not low-rated. */
+    rating: integer("rating"),
     createTime: timestamp("create_time", { withTimezone: true }).notNull().defaultNow(),
     updateTime: timestamp("update_time", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.householdId, table.id] }),
     index("recipes_title_idx").on(table.householdId, table.title),
+    check("recipes_rating_range", sql`${table.rating} BETWEEN 1 AND 5`),
   ],
 );
 

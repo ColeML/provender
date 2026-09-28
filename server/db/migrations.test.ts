@@ -77,3 +77,47 @@ describe("the household migration", () => {
     await client.close();
   }, 60_000);
 });
+
+describe("the recipe rating migration", () => {
+  it("copies each recipe's most recent rating, within its own household", async () => {
+    const client = new PGlite();
+    const files = await migrationFiles();
+    const rating = files.findIndex((file) => file.includes("add_recipe_rating"));
+
+    expect(rating).toBeGreaterThan(0);
+
+    for (const file of files.slice(0, rating)) {
+      await apply(client, file);
+    }
+
+    await client.exec(`
+      INSERT INTO households (id, name) VALUES ('loewer', 'Loewer'), ('other', 'Other')
+      ON CONFLICT (id) DO NOTHING;
+      INSERT INTO recipes (household_id, id, title, base_servings) VALUES
+        ('loewer', 'tacos', 'Tacos', 4),
+        ('loewer', 'ziti', 'Ziti', 4),
+        ('other', 'tacos', 'Their Tacos', 4);
+      INSERT INTO meal_history (household_id, id, date, recipe_id, title, rating) VALUES
+        ('loewer', '2026-06-01-tacos', '2026-06-01', 'tacos', 'Tacos', 2),
+        ('loewer', '2026-08-01-tacos', '2026-08-01', 'tacos', 'Tacos', 5),
+        ('loewer', '2026-09-01-tacos', '2026-09-01', 'tacos', 'Tacos', NULL),
+        ('loewer', '2026-08-01-ziti', '2026-08-01', 'ziti', 'Ziti', NULL),
+        ('other', '2026-07-01-tacos', '2026-07-01', 'tacos', 'Their Tacos', 1);
+    `);
+
+    await apply(client, files[rating]);
+
+    const recipes = await client.query<{ household_id: string; id: string; rating: number | null }>(
+      "SELECT household_id, id, rating FROM recipes ORDER BY household_id, id",
+    );
+
+    // Latest *rated* entry wins (5, not the unrated 09-01), and the other household's 1 stays theirs.
+    expect(recipes.rows).toEqual([
+      { household_id: "loewer", id: "tacos", rating: 5 },
+      { household_id: "loewer", id: "ziti", rating: null },
+      { household_id: "other", id: "tacos", rating: 1 },
+    ]);
+
+    await client.close();
+  }, 60_000);
+});

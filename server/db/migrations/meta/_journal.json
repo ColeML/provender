@@ -92,6 +92,13 @@
       "when": 1791218286679,
       "tag": "0012_add_week_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792336893348,
+      "tag": "0013_add_recipe_rating",
+      "breakpoints": true
     }
   ]
 }
