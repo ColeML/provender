@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Star } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -19,23 +19,25 @@ export function RecipeRating({
   const trpc = useTRPC();
   const [rating, setRating] = useState(initialRating);
   const [failed, setFailed] = useState(false);
-  const save = useMutation(trpc.recipes.setRating.mutationOptions());
+  const lastSaved = useRef(initialRating);
+  const save = useMutation(
+    trpc.recipes.setRating.mutationOptions({ scope: { id: `rating-${recipeId}` } }),
+  );
 
   function onRate(next: number | null) {
-    const previous = rating;
-
     setRating(next);
 
-    // Callbacks passed to `mutate` fire only for the latest call, so an older failed tap cannot
-    // revert a newer one.
     save.mutate(
       { recipeId, rating: next },
       {
         onError: () => {
-          setRating(previous);
+          setRating(lastSaved.current);
           setFailed(true);
         },
-        onSuccess: () => setFailed(false),
+        onSuccess: () => {
+          lastSaved.current = next;
+          setFailed(false);
+        },
       },
     );
   }

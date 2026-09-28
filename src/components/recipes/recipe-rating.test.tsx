@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +11,9 @@ const mutate = vi.fn();
 
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
-    recipes: { setRating: { mutationOptions: () => ({ mutationFn: mutate }) } },
+    recipes: {
+      setRating: { mutationOptions: (options) => ({ ...options, mutationFn: mutate }) },
+    },
   }),
 }));
 
@@ -73,6 +75,30 @@ describe("rating a recipe", () => {
     await user.click(star(5));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save that rating.");
+    expect(star(2)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("reverts to the last saved rating, not a superseded tap, when both writes fail", async () => {
+    const rejecters: Array<(error: Error) => void> = [];
+
+    mutate.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejecters.push(reject);
+        }),
+    );
+    const user = renderRating(2);
+
+    await user.click(star(3));
+    await user.click(star(4));
+
+    // The scope serializes writes for this recipe, so the second tap's mutationFn does not run
+    // until the first settles.
+    rejecters[0](new Error("offline"));
+    await waitFor(() => expect(rejecters).toHaveLength(2));
+    rejecters[1](new Error("offline"));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(star(2)).toHaveAttribute("aria-pressed", "true");
   });
 });
