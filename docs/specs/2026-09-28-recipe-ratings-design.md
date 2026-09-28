@@ -62,10 +62,12 @@ Code, after which nothing reads or writes `meal_history.rating`:
   `annotateMeal`.
 - History responses (`GET /mealHistory`, the entry view in `server/api/routes/history.ts`) drop
   `rating`.
-- The `meal_history.rating` column stays in the drizzle schema but no query names it. The four
-  queries in `server/services/history.ts` that name every column implicitly — `select()` in
-  `listHistory` and `getHistoryEntry`, `returning()` in `recordMeal` and `rateMeal` — switch to an
-  explicit column list without `rating`, so the drop in PR 2 cannot break the outgoing deployment.
+- `rating` leaves the drizzle `mealHistory` definition, while the database column stays until
+  PR 2. Drizzle names every column it knows in `select()`, `returning()` and `insert()` — an
+  insert sends `default` for each one the caller omitted (`buildInsertQuery` in
+  `drizzle-orm/pg-core/dialect.js`) — so the definition is the only place the column can leave
+  queries. Order matters: generate this PR's migration first, then remove the column from the
+  definition, so PR 2's `pnpm db:generate` produces the drop from the snapshot difference.
 - `planningRotation` reads `recipes.rating` and drops the `ratingDate` tracking. The rotation
   response keeps its `rating` field, so `GET /planning/rotation` does not change shape.
 - `updateRecipe` and `PATCH /recipes/{recipe}` accept `rating` in `updateMask`, 1–5 or null.
@@ -73,8 +75,8 @@ Code, after which nothing reads or writes `meal_history.rating`:
 
 ### PR 2: contract
 
-After PR 1 is deployed: a migration drops `meal_history.rating`, and the column leaves the drizzle
-schema.
+After PR 1 is deployed: `pnpm db:generate` produces the migration that drops `meal_history.rating`.
+No other migration may be generated between the two PRs, or it picks up the drop early.
 
 ## UI
 
@@ -98,7 +100,8 @@ schema.
 
 - `.claude/skills/plan-week/SKILL.md` step 8: `rating` is the recipe's own rating; remove the note
   about `lastPlanned` being newer than `rating`. Edited through `cml:writing-skills`.
-- `server/db/schema/history.ts`: remove the `rating` column comment in PR 2.
+- `server/services/week-commit.ts`: the `clearSupersededHistory` comment says it preserves a
+  rating; it preserves the entry's notes.
 
 ## Testing
 
@@ -107,8 +110,11 @@ schema.
   - Isolation: household A cannot rate household B's `fajitas`, and B's rating is unchanged.
   - `planningRotation` reports `recipes.rating`, including for a recipe with no history.
   - The backfill picks the latest rated entry and does not cross households.
-- Removed: the week-commit test "keeps a rating given between two commits of the same week" and
-  the history rating tests. Re-planning no longer touches ratings.
-- Component: setting a rating, clearing it, a failed write reverting with an alert, the library
-  showing and omitting the rating, and the shared recipe view not rendering one.
-- Playwright: rate a recipe, reload, and the rating persists.
+- The week-commit test "keeps a rating given between two commits of the same week" becomes the
+  same test for notes, which is what `clearSupersededHistory`'s exclusion still protects. The
+  history rating tests are removed.
+- Component: setting a rating, clearing it, a failed write reverting with an alert, and the library
+  showing and omitting the rating.
+- No Playwright test. `playwright.config.ts` runs against a database that must stay empty for the
+  empty-state tests, so a rating test would have to create and remove its own recipe through the
+  bearer-token API. The service and component tests cover the same path.
