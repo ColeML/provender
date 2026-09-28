@@ -43,7 +43,7 @@ import {
   getHistoryEntry,
   listHistory,
   MealHistoryNotFoundError,
-  rateMeal,
+  annotateMeal,
   recordMeal,
 } from "@server/services/history";
 import {
@@ -471,13 +471,13 @@ describe("history", () => {
     );
   });
 
-  it("will not let one household rate another's meal", async () => {
+  it("will not let one household annotate another's meal", async () => {
     await expect(
-      rateMeal(B, `${MONDAY}-fajitas`, { rating: 1 }, ["rating"], db),
+      annotateMeal(B, `${MONDAY}-fajitas`, { notes: "hijacked" }, ["notes"], db),
     ).rejects.toBeInstanceOf(MealHistoryNotFoundError);
 
     await expect(getHistoryEntry(A, `${MONDAY}-fajitas`, db)).resolves.toMatchObject({
-      rating: null,
+      notes: null,
     });
   });
 

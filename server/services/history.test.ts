@@ -12,7 +12,7 @@ import {
   getHistoryEntry,
   listHistory,
   MealHistoryNotFoundError,
-  rateMeal,
+  annotateMeal,
   recordMeal,
 } from "./history";
 
@@ -74,20 +74,6 @@ describe("recordMeal validation", () => {
       recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", planId: WEEK }, db),
     ).rejects.toBeInstanceOf(PlanDayNotFoundError);
   });
-
-  it("keeps an existing rating when a re-plan does not mention one", async () => {
-    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", rating: 5 }, db);
-    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas" }, db);
-
-    expect((await getHistoryEntry(H, `${MONDAY}-fajitas`, db)).rating).toBe(5);
-  });
-
-  it("applies a rating the caller actually sent, rather than ignoring it", async () => {
-    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", rating: 5 }, db);
-    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas", rating: 2 }, db);
-
-    expect((await getHistoryEntry(H, `${MONDAY}-fajitas`, db)).rating).toBe(2);
-  });
 });
 
 describe("listHistory", () => {
@@ -115,36 +101,32 @@ describe("listHistory", () => {
   });
 });
 
-describe("rateMeal", () => {
+describe("annotateMeal", () => {
   beforeEach(async () => {
     await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas" }, db);
   });
 
-  it("records a rating and notes", async () => {
-    const entry = await rateMeal(
+  it("records notes", async () => {
+    const entry = await annotateMeal(
       H,
       `${MONDAY}-fajitas`,
-      { rating: 5, notes: "kids loved it" },
-      ["rating", "notes"],
+      { notes: "kids loved it" },
+      ["notes"],
       db,
     );
 
-    expect(entry.rating).toBe(5);
     expect(entry.notes).toBe("kids loved it");
   });
 
-  it("leaves notes alone when the mask names only the rating", async () => {
-    await rateMeal(H, `${MONDAY}-fajitas`, { rating: 4, notes: "first" }, ["rating", "notes"], db);
-    await rateMeal(H, `${MONDAY}-fajitas`, { rating: 2 }, ["rating"], db);
+  it("keeps notes through a re-plan that does not mention them", async () => {
+    await annotateMeal(H, `${MONDAY}-fajitas`, { notes: "first" }, ["notes"], db);
+    await recordMeal(H, { date: MONDAY, recipeId: "fajitas", title: "Fajitas" }, db);
 
-    const entry = await getHistoryEntry(H, `${MONDAY}-fajitas`, db);
-
-    expect(entry.rating).toBe(2);
-    expect(entry.notes).toBe("first");
+    expect((await getHistoryEntry(H, `${MONDAY}-fajitas`, db)).notes).toBe("first");
   });
 
   it("reports a missing entry rather than creating one", async () => {
-    await expect(rateMeal(H, "nope", { rating: 5 }, ["rating"], db)).rejects.toBeInstanceOf(
+    await expect(annotateMeal(H, "nope", { notes: "x" }, ["notes"], db)).rejects.toBeInstanceOf(
       MealHistoryNotFoundError,
     );
   });

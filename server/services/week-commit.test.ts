@@ -10,7 +10,7 @@ import {
   RecipeExistsError,
   RecipeNotFoundError,
 } from "@server/services/recipes";
-import { listHistory, rateMeal } from "@server/services/history";
+import { annotateMeal, listHistory } from "@server/services/history";
 
 import {
   commitWeek,
@@ -254,16 +254,16 @@ describe("commitWeek", () => {
     expect(result.days).toHaveLength(1);
   });
 
-  it("keeps a rating given between two commits of the same week", async () => {
+  it("keeps notes given between two commits of the same week", async () => {
     const first = await commitWeek(H, WEEK, oneDay(), db);
 
-    await rateMeal(H, first.historyEntryIds[0], { rating: 5 }, ["rating"], db);
+    await annotateMeal(H, first.historyEntryIds[0], { notes: "kids loved it" }, ["notes"], db);
     await commitWeek(H, WEEK, { replaceExistingDays: true, days: oneDay().days }, db);
 
     const history = await listHistory(H, { withinDays: 10_000 }, db);
 
     expect(history).toHaveLength(1);
-    expect(history[0]).toMatchObject({ rating: 5 });
+    expect(history[0]).toMatchObject({ notes: "kids loved it" });
   });
 
   it("leaves the stored budget alone when a re-commit names none", async () => {
