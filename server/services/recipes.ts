@@ -349,7 +349,7 @@ export async function updateRecipe(
   householdId: string,
   recipeId: string,
   updateMask: string[],
-  input: Partial<RecipeInput>,
+  input: Partial<RecipeInput> & { rating?: number | null },
   ingredients: IngredientInput[] | undefined,
   db: Database = defaultDb,
 ) {
@@ -384,6 +384,7 @@ export async function updateRecipe(
           : String(input.costEstimate);
     if (fields.has("tags")) patch.tags = input.tags ?? [];
     if (fields.has("instructions")) patch.instructions = input.instructions ?? [];
+    if (fields.has("rating")) patch.rating = input.rating ?? null;
 
     const [recipe] = await tx
       .update(schema.recipes)

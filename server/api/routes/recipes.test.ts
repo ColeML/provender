@@ -56,6 +56,7 @@ describe("POST /v1/recipes", () => {
       recipeId: "fajitas",
       title: "Chicken Fajitas",
       tags: ["mexican"],
+      rating: null,
     });
   });
 
@@ -259,6 +260,19 @@ describe("PATCH /v1/recipes/{recipe}", () => {
 
   it("requires a mask", async () => {
     const response = await patch("", { title: "x" });
+
+    expect(response.status).toBe(400);
+  });
+
+  it("sets a rating named in the mask, and returns it", async () => {
+    const response = await patch("updateMask=rating", { rating: 5 });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ rating: 5 });
+  });
+
+  it("rejects a rating outside 1–5", async () => {
+    const response = await patch("updateMask=rating", { rating: 6 });
 
     expect(response.status).toBe(400);
   });

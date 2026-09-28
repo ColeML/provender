@@ -61,6 +61,7 @@ export const RecipeSchema = z
     costEstimate: z.number().nullable().openapi({ example: 10.19 }),
     tags: z.array(z.string()),
     instructions: z.array(z.string()),
+    rating: z.number().int().min(1).max(5).nullable(),
     createTime: z.string().openapi({ example: "2026-09-07T03:00:00.000Z" }),
     updateTime: z.string(),
   })
