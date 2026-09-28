@@ -29,6 +29,7 @@ export default async function Recipes() {
         baseServings: recipe.baseServings,
         totalMin: recipe.totalMin,
         tags: recipe.tags,
+        rating: recipe.rating,
       }))}
     />
   );
