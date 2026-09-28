@@ -1,3 +1,6 @@
+-- Hand-added after generation: backfills each recipe's rating from its most recent rated
+-- history entry, so existing ratings survive the move off `meal_history.rating`.
+
 ALTER TABLE "recipes" ADD COLUMN "rating" integer;--> statement-breakpoint
 ALTER TABLE "recipes" ADD CONSTRAINT "recipes_rating_range" CHECK ("recipes"."rating" BETWEEN 1 AND 5);
 --> statement-breakpoint
