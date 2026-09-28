@@ -20,6 +20,7 @@ vi.mock("@/lib/trpc/client", () => ({
           queryFn: () => scale(input),
         }),
       },
+      setRating: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
     },
   }),
 }));
@@ -30,6 +31,7 @@ const RECIPE: CookRecipe = {
   baseServings: 8,
   totalMin: 30,
   sourceUrl: "https://example.com/fajitas",
+  rating: null,
   instructions: ["Slice the peppers.", "Sear the chicken.", "Warm the tortillas."],
   ingredients: [
     { id: "a", name: "chicken breast", quantity: 1.5, unit: "lb", notes: "sliced" },

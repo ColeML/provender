@@ -9,6 +9,8 @@ import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
+import { RecipeRating } from "./recipe-rating";
+
 export interface CookIngredient {
   id: string;
   name: string;
@@ -23,6 +25,7 @@ export interface CookRecipe {
   baseServings: number;
   totalMin: number | null;
   sourceUrl: string | null;
+  rating: number | null;
   instructions: string[];
   ingredients: CookIngredient[];
 }
@@ -73,6 +76,8 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
           {source}
         </p>
       )}
+
+      <RecipeRating recipeId={recipe.recipeId} initialRating={recipe.rating} />
 
       <section aria-labelledby="servings" className="mt-6">
         <h2 id="servings" className="text-muted-foreground text-xs">

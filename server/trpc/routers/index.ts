@@ -14,7 +14,13 @@ import {
   listItems,
   updateItem,
 } from "@server/services/shopping";
-import { getRecipe, listIngredients, listRecipes, scaleRecipe } from "@server/services/recipes";
+import {
+  getRecipe,
+  listIngredients,
+  listRecipes,
+  scaleRecipe,
+  updateRecipe,
+} from "@server/services/recipes";
 import { createShare, deleteShare } from "@server/services/shares";
 import {
   addWeekNote,
@@ -268,6 +274,23 @@ export const appRouter = router({
       )
       .query(({ ctx, input }) =>
         scaleRecipe(ctx.householdId, input.recipeId, input.targetServings, ctx.db),
+      ),
+    setRating: protectedProcedure
+      .input(
+        z.object({
+          recipeId: z.string().min(1),
+          rating: z.number().int().min(1).max(5).nullable(),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        updateRecipe(
+          ctx.householdId,
+          input.recipeId,
+          ["rating"],
+          { rating: input.rating },
+          undefined,
+          ctx.db,
+        ),
       ),
     share: protectedProcedure
       .input(z.object({ recipeId: z.string().min(1) }))
