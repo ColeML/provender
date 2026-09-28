@@ -14,7 +14,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
     recipes: {
-      setRating: { mutationOptions: (options) => ({ ...options, mutationFn: mutate }) },
+      setRating: {
+        mutationOptions: (options: object = {}) => ({ ...options, mutationFn: mutate }),
+      },
     },
   }),
 }));
