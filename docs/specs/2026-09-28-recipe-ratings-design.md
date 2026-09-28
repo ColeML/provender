@@ -33,6 +33,9 @@ Vercel deploy. The outgoing deployment reads history with `select()`, which name
 `meal_history.rating`, so dropping the column in the same release fails its requests until the new
 deployment is live. The change ships in two PRs.
 
+PR 1's code cannot run before its migration, because the Vercel deploy is live before the `migrate`
+job runs, so migration 0012 is applied to production before PR 1 merges.
+
 ### PR 1: expand
 
 Migration:

@@ -926,9 +926,13 @@ Expected: every command exits 0.
 
 - [ ] **Step 3: Review gate.** Invoke `cml:rigorous-review` on `main...feat/recipe-ratings`, since the diff has a migration and a breaking API change. Fix blocking findings and re-run Step 1.
 
-- [ ] **Step 4: Push and open the PR.** Invoke `cml:git-workflow` first. Keep the description to a short summary (a few sentences), including the breaking change to `/mealHistory` and a note that PR 2 drops the column. Use `Refs #161`, not `Closes`, so the issue stays open until PR 2.
+- [ ] **Step 4: Apply migration 0012 to production before merging, with the user's approval.** Vercel's production deploy is live about 30 seconds after the push; the CI `migrate` job runs about 6 minutes later, after `check`. PR 1's code names `recipes.rating` in every recipes select, insert and returning, so for those minutes recipe pages, `/r/{token}`, `GET /planning/rotation` and `:commit` would fail with `column "rating" does not exist` if the migration ran only through CI. The old code on `main` works against the migrated schema, so migrating first is safe.
 
-- [ ] **Step 5: After merge, confirm production.** The `migrate` job in `.github/workflows/web.yml` is green, and:
+  `pnpm db:migrate` from this branch with `DATABASE_URL_UNPOOLED` set to the production direct connection. Confirm with `./scripts/prov GET /recipes/teriyaki` that `rating` is 5 while main's code still serves. The CI `migrate` job then finds nothing to apply. No other migration may merge to `main` in between.
+
+- [ ] **Step 5: Push and open the PR.** Invoke `cml:git-workflow` first. Keep the description to a short summary (a few sentences), including the breaking change to `/mealHistory` and a note that PR 2 drops the column. Use `Refs #161`, not `Closes`, so the issue stays open until PR 2.
+
+- [ ] **Step 6: After merge, confirm production.** The `migrate` job in `.github/workflows/web.yml` is green, and:
 
 ```bash
 ./scripts/prov GET /recipes/teriyaki
@@ -942,7 +946,7 @@ Expected: `"rating": 5`, carried over from the 2026-06-17 history entry. Repeat 
 
 ### Task 9: Drop `meal_history.rating`
 
-Start only after Task 8 Step 5 shows production has the backfilled ratings and the PR 1 deployment is live.
+Start only after Task 8 Step 6 shows production has the backfilled ratings and the PR 1 deployment is live.
 
 **Files:**
 - Create: `server/db/migrations/0013_drop_meal_history_rating.sql` (generated)
@@ -954,7 +958,19 @@ Start only after Task 8 Step 5 shows production has the backfilled ratings and t
 git switch main && git pull && git switch -c feat/drop-history-rating
 ```
 
-- [ ] **Step 2: Generate the migration**
+- [ ] **Step 2: Check for ratings the backfill missed.** Ratings written through the old deployment after the 0012 backfill ran land in `meal_history.rating` and are never copied. Before dropping the column, run:
+
+```sql
+SELECT h.household_id, h.recipe_id, h.date, h.rating, r.rating AS recipe_rating
+FROM meal_history h
+JOIN recipes r ON r.household_id = h.household_id AND r.id = h.recipe_id
+WHERE h.rating IS NOT NULL AND r.rating IS DISTINCT FROM h.rating
+ORDER BY h.date DESC;
+```
+
+Expected: only rows older than each recipe's latest rated entry (the backfill takes the latest), i.e. no row whose date is the newest rated date for its recipe. Stop and ask the user if there are any, and copy them over before continuing.
+
+- [ ] **Step 3: Generate the migration**
 
 Invoke `cml:migrations` before generating. Then run: `pnpm db:generate --name drop_meal_history_rating`
 Expected: `server/db/migrations/0013_drop_meal_history_rating.sql` contains exactly:
@@ -965,7 +981,7 @@ ALTER TABLE "meal_history" DROP COLUMN "rating";
 
 Any other statement means a migration was generated between the two PRs. Stop and reconcile before continuing.
 
-- [ ] **Step 3: Run the gate**
+- [ ] **Step 4: Run the gate**
 
 ```bash
 pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm vitest run && pnpm build
@@ -973,7 +989,7 @@ pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm vitest run && pnpm build
 
 Expected: every command exits 0. The Task 1 migration test still passes, because it applies migrations only up to `0012`.
 
-- [ ] **Step 4: Commit, review and open the PR**
+- [ ] **Step 5: Commit, review and open the PR**
 
 ```bash
 git add server/db/migrations
@@ -982,4 +998,4 @@ git commit -m "feat(history): drop the unused meal_history.rating column" -m "Cl
 
 Invoke `cml:rigorous-review`, then `cml:git-workflow`, then open the PR with a short summary.
 
-- [ ] **Step 5: After merge, confirm** the `migrate` job is green and `./scripts/prov GET '/mealHistory?withinDays=3650'` still returns 200.
+- [ ] **Step 6: After merge, confirm** the `migrate` job is green and `./scripts/prov GET '/mealHistory?withinDays=3650'` still returns 200.
