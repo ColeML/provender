@@ -91,7 +91,7 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
                       <Star aria-hidden className="size-3" />
                       <span className="sr-only">rated </span>
                       {recipe.rating}
-                      <span className="sr-only"> of 5</span>
+                      <span className="sr-only"> of 5, </span>
                       <span aria-hidden>&nbsp;·&nbsp;</span>
                     </>
                   )}
