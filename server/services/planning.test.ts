@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "@server/db/testing";
 import { schema, type Database } from "@server/db";
 import { setConfigValue } from "@server/services/config";
-import { createRecipe } from "@server/services/recipes";
+import { createRecipe, updateRecipe } from "@server/services/recipes";
 import { recordMeal } from "@server/services/history";
 
 import { planningRotation } from "./planning";
@@ -185,36 +185,18 @@ describe("planningRotation", () => {
     expect(await tierOf("ziti")).toMatchObject({ rating: null });
   });
 
-  it("reports no rating for a recipe with history but no rating on any entry", async () => {
+  it("reports the recipe's own rating", async () => {
     await recipe(H, "tacos", "Tacos");
     await recordMeal(H, { date: daysAgo(10), recipeId: "tacos", title: "Tacos" }, db);
+    await updateRecipe(H, "tacos", ["rating"], { rating: 5 }, undefined, db);
 
-    expect(await tierOf("tacos")).toMatchObject({ rating: null });
+    expect(await tierOf("tacos")).toMatchObject({ rating: 5, lastPlanned: daysAgo(10) });
   });
 
-  it("reports the rating from a recipe's only entry", async () => {
-    await recipe(H, "tacos", "Tacos");
-    await recordMeal(H, { date: daysAgo(10), recipeId: "tacos", title: "Tacos", rating: 5 }, db);
+  it("reports a rating for a recipe that has never been planned", async () => {
+    await recipe(H, "ziti", "Baked Ziti");
+    await updateRecipe(H, "ziti", ["rating"], { rating: 2 }, undefined, db);
 
-    expect(await tierOf("tacos")).toMatchObject({ rating: 5 });
-  });
-
-  it("reports the rating from the more recent of two rated entries", async () => {
-    await recipe(H, "tacos", "Tacos");
-    await recordMeal(H, { date: daysAgo(90), recipeId: "tacos", title: "Tacos", rating: 2 }, db);
-    await recordMeal(H, { date: daysAgo(10), recipeId: "tacos", title: "Tacos", rating: 5 }, db);
-
-    expect(await tierOf("tacos")).toMatchObject({ rating: 5 });
-  });
-
-  it("falls back to an older rated entry when the most recent entry is unrated, without disturbing lastPlanned", async () => {
-    await recipe(H, "tacos", "Tacos");
-    await recordMeal(H, { date: daysAgo(90), recipeId: "tacos", title: "Tacos", rating: 4 }, db);
-    await recordMeal(H, { date: daysAgo(10), recipeId: "tacos", title: "Tacos" }, db);
-
-    expect(await tierOf("tacos")).toMatchObject({
-      rating: 4,
-      lastPlanned: daysAgo(10),
-    });
+    expect(await tierOf("ziti")).toMatchObject({ tier: "unplanned", rating: 2 });
   });
 });
