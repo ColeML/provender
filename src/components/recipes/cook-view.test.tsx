@@ -11,6 +11,8 @@ const scale = vi.fn();
 const request = vi.fn();
 const release = vi.fn();
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
     recipes: {

@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { Star } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { useTRPC } from "@/lib/trpc/client";
@@ -17,6 +18,7 @@ export function RecipeRating({
   initialRating: number | null;
 }) {
   const trpc = useTRPC();
+  const router = useRouter();
   const [rating, setRating] = useState(initialRating);
   const [failed, setFailed] = useState(false);
   const lastSaved = useRef(initialRating);
@@ -37,6 +39,7 @@ export function RecipeRating({
         onSuccess: () => {
           lastSaved.current = next;
           setFailed(false);
+          router.refresh();
         },
       },
     );

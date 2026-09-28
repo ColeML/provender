@@ -9,6 +9,8 @@ import { RecipeRating } from "./recipe-rating";
 
 const mutate = vi.fn();
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
     recipes: {
