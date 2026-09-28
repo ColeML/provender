@@ -88,7 +88,8 @@ No other migration may be generated between the two PRs, or it picks up the drop
     "1 star" to "5 stars" with `aria-pressed`. Buttons rather than a radio group, because
     unchecking a radio is not standard radio behavior.
   - Filled stars in `primary`; empty stars outlined in `muted-foreground`, which meets 3:1 against
-    `background` (WCAG 1.4.11, #130). No gold: DESIGN.md allows gold on one element per screen.
+    `background` (WCAG 1.4.11, #130). Not the `ring` gold, which DESIGN.md keeps to one element per
+    screen; `primary` is the token every filled control uses.
   - Optimistic update. A failed write restores the previous rating and shows a `role="alert"`
     message.
 - **Library.** `LibraryRecipe` gains `rating`. A rated row prefixes the mono meta with a small

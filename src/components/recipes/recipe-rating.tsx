@@ -61,7 +61,7 @@ export function RecipeRating({
               className={cn(
                 "size-7",
                 rating !== null && star <= rating
-                  ? "fill-foreground text-foreground"
+                  ? "fill-primary text-primary"
                   : "text-muted-foreground",
               )}
             />
