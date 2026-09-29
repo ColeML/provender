@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { addThemeColorTags, statusBarColor } from "./testing";
 import { THEME_COLOR_SCRIPT } from "./theme-colors";
 
-const VELLUM = "#F5EEDD";
-const NIGHT = "#181310";
+const CREAM = "#F9F0DE";
+const NIGHT = "#0F1C1D";
 
 /**
  * Runs the script after the layout's `theme-color` tags, as the page does. Through `Function`
@@ -44,8 +44,8 @@ describe("THEME_COLOR_SCRIPT", () => {
 
     loadPage();
 
-    expect(statusBarColor("light")).toBe(VELLUM);
-    expect(statusBarColor("dark")).toBe(VELLUM);
+    expect(statusBarColor("light")).toBe(CREAM);
+    expect(statusBarColor("dark")).toBe(CREAM);
   });
 
   it("leaves the device in charge when the device is followed", () => {
@@ -53,7 +53,7 @@ describe("THEME_COLOR_SCRIPT", () => {
 
     loadPage();
 
-    expect(statusBarColor("light")).toBe(VELLUM);
+    expect(statusBarColor("light")).toBe(CREAM);
     expect(statusBarColor("dark")).toBe(NIGHT);
   });
 
@@ -64,6 +64,6 @@ describe("THEME_COLOR_SCRIPT", () => {
 
     loadPage();
 
-    expect(tagColors()).toEqual([VELLUM, NIGHT]);
+    expect(tagColors()).toEqual([CREAM, NIGHT]);
   });
 });

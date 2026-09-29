@@ -245,7 +245,7 @@ describe("the shopping list", () => {
     const tick = box.parentElement?.querySelector("svg");
 
     // The glyph inherits its color rather than carrying one, so it flips with the theme —
-    // white was 1.41:1 on dark mode's pale-gold `primary`.
+    // white was 2.47:1 on dark mode's pale-teal `primary`.
     expect(tick).toBeInTheDocument();
     expect(tick).toHaveClass("text-primary-foreground");
     expect(tick?.getAttribute("stroke")).toBe("currentColor");

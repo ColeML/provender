@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /**
- * The Illuminated palette. See DESIGN.md for the provenance and the rules.
+ * The Illuminated palette, drawn from the logo. See DESIGN.md for the provenance and the rules.
  *
  * Every value is checked for WCAG contrast against the surface it sits on, and the hex it came
  * from is kept in a comment so the next person can re-check the arithmetic rather than trust it.
@@ -12,54 +12,50 @@
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(0.95 0.024 88.2); /* #F5EEDD vellum */
-  --foreground: oklch(0.257 0.022 63.6); /* #2B2118 iron-gall ink */
-  --card: oklch(0.976 0.015 90.2); /* #FBF7EC a fresher leaf */
-  --card-foreground: oklch(0.257 0.022 63.6); /* #2B2118 */
-  --primary: oklch(0.257 0.022 63.6); /* #2B2118 — a button is ink on the page */
-  --primary-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
-  --muted: oklch(0.911 0.035 88.8); /* #EBE1C8 */
-  --muted-foreground: oklch(0.494 0.038 77.2); /* #6E5F49 faded ink */
-  --border: oklch(0.857 0.044 88); /* #DCCFB0 */
-  --input: oklch(0.887 0.038 88.5); /* #E4D9BE */
-  --accent: oklch(0.446 0.053 204.2); /* #2C5D62 verdigris, the logo's teal */
-  --accent-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
-  --destructive: oklch(0.437 0.13 31.7); /* #8B2E1F vermilion */
-  --destructive-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
+  --background: oklch(0.957 0.026 84.6); /* #F9F0DE the logo's cream */
+  --foreground: oklch(0.289 0.031 192.2); /* #17302F teal-black ink, 12.36:1 */
+  --card: oklch(0.98 0.014 84.6); /* #FDF8EE */
+  --card-foreground: oklch(0.289 0.031 192.2); /* #17302F, 13.22:1 */
+  --primary: oklch(0.394 0.052 206.6); /* #1F4E54 the logo's teal, 8.15:1 with its foreground */
+  --primary-foreground: oklch(0.957 0.026 84.6); /* #F9F0DE */
+  --muted: oklch(0.925 0.033 85.5); /* #F0E5CE */
+  --muted-foreground: oklch(0.494 0.038 77.2); /* #6E5F49 faded ink, 5.46:1, 4.95:1 on muted */
+  --border: oklch(0.88 0.038 84.6); /* #E3D6BC */
+  --input: oklch(0.898 0.036 85.4); /* #E8DCC3 */
 
   /**
-   * Old gold, not leaf gold.
-   *
-   * Leaf gold (#C9A227) reaches only 2.09:1 on vellum, and a focus ring is the one thing a
-   * keyboard user cannot do without — WCAG 2.2 wants 3:1 for it. This is 3.45:1 on the page and
-   * 3.73:1 on a card. Dark mode keeps the brighter leaf, where it has the contrast to spare.
+   * The logo's gold, darkened. Its own #AA8348 reaches 3.07:1 on the cream, enough for a rule but
+   * not for text. This is 4.80:1 on the page and 5.14:1 on a card, so `accent` is safe for either.
    */
-  --ring: oklch(0.598 0.116 88.6); /* #9C7B15 */
+  --accent: oklch(0.526 0.082 77.1); /* #85642F */
+  --accent-foreground: oklch(0.957 0.026 84.6); /* #F9F0DE */
+  --destructive: oklch(0.437 0.13 31.7); /* #8B2E1F vermilion, 7.39:1 */
+  --destructive-foreground: oklch(0.957 0.026 84.6); /* #F9F0DE */
+
+  /** Teal, not gold, so a focused row never reads as today's. 6.51:1 on the page. */
+  --ring: oklch(0.446 0.053 204.2); /* #2C5D62 */
 }
 
 /**
- * The scriptorium at night, not an inverted page.
- *
- * Flipping the light ramp gives a blue-grey that fights the warm hues; this is ink-stained wood
- * with parchment text on it. `primary` becomes pale gold because a dark surface needs its buttons
- * light, which is also shadcn's convention.
+ * The logo's teal at night: a teal-black ground under parchment text. `primary` lifts to a pale
+ * teal because a dark surface needs its buttons light, which is also shadcn's convention.
  */
 .dark {
-  --background: oklch(0.192 0.01 52.8); /* #181310 */
-  --foreground: oklch(0.918 0.032 87.3); /* #EDE3CC parchment */
-  --card: oklch(0.23 0.017 58.7); /* #231B15 */
-  --card-foreground: oklch(0.918 0.032 87.3); /* #EDE3CC */
-  --primary: oklch(0.886 0.066 93.1); /* #E8D9A8 pale gold */
-  --primary-foreground: oklch(0.23 0.017 58.7); /* #231B15 */
-  --muted: oklch(0.269 0.021 60.4); /* #2E241C */
-  --muted-foreground: oklch(0.693 0.045 81); /* #AB9A7D */
-  --border: oklch(0.315 0.026 64.2); /* #3B2F24 */
-  --input: oklch(0.287 0.022 57.8); /* #332820 */
-  --accent: oklch(0.668 0.07 214.2); /* #5FA0AF verdigris, lifted */
-  --accent-foreground: oklch(0.192 0.01 52.8); /* #181310 */
-  --destructive: oklch(0.656 0.143 33.2); /* #DA6C55 vermilion, lifted */
-  --destructive-foreground: oklch(0.192 0.01 52.8); /* #181310 */
-  --ring: oklch(0.728 0.138 89.7); /* #C9A227 leaf gold */
+  --background: oklch(0.215 0.018 202); /* #0F1C1D */
+  --foreground: oklch(0.918 0.032 87.3); /* #EDE3CC parchment, 13.67:1 */
+  --card: oklch(0.259 0.023 205.2); /* #162729 */
+  --card-foreground: oklch(0.918 0.032 87.3); /* #EDE3CC, 12.14:1 */
+  --primary: oklch(0.714 0.066 195.8); /* #6FB0B0, 7.07:1 with its foreground */
+  --primary-foreground: oklch(0.215 0.018 202); /* #0F1C1D */
+  --muted: oklch(0.286 0.025 204.3); /* #1B2E30 */
+  --muted-foreground: oklch(0.74 0.024 168.5); /* #9DB0A8, 7.65:1, 6.22:1 on muted */
+  --border: oklch(0.328 0.027 203.5); /* #24393B */
+  --input: oklch(0.309 0.026 203.8); /* #203436 */
+  --accent: oklch(0.823 0.097 86.1); /* #E1C17A the logo's light gold, 10.06:1 */
+  --accent-foreground: oklch(0.215 0.018 202); /* #0F1C1D */
+  --destructive: oklch(0.656 0.143 33.2); /* #DA6C55 vermilion, lifted, 5.20:1 */
+  --destructive-foreground: oklch(0.215 0.018 202); /* #0F1C1D */
+  --ring: oklch(0.714 0.066 195.8); /* #6FB0B0 */
 }
 
 @theme inline {
