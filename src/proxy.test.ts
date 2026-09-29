@@ -1,8 +1,9 @@
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import type { NextRequest, NextResponse } from "next/server";
 import { describe, expect, it } from "vitest";
 
 import { REQUESTED_PATH_HEADER } from "./lib/login-url";
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 function request(pathname: string, cookies: string[] = [], search = "") {
   return {
@@ -74,5 +75,18 @@ describe("proxy", () => {
   // anyone who prefixed a path with the letter, and these are the shapes that would slip through.
   it.each(["/rogue", "/recipes", "/recipes/ziti", "/r-something"])("still gates %s", (path) => {
     expect(proxy(request(path)).headers.get("location")).toContain("/login");
+  });
+
+  // Chrome fetches the manifest without cookies, so a gated manifest redirects to /login and the
+  // browser stops offering to install the app.
+  it.each(["/manifest.webmanifest", "/icon-192.png", "/icon-512.png"])(
+    "keeps %s outside the gate, so Android can install the app",
+    (url) => {
+      expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false);
+    },
+  );
+
+  it.each(["/", "/shop", "/icon-editor"])("still runs on %s", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true);
   });
 });
