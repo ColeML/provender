@@ -3,7 +3,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /** The pixel size of `public/logo-mark.png`, which `scripts/render-icons` writes. */
-const SOURCE = { width: 238, height: 288 };
+export const LOGO_MARK_SIZE = { width: 238, height: 288 };
 
 /**
  * The logo's mark, for `/login` and the shared recipe page.
@@ -17,7 +17,7 @@ export function LogoMark({ height, className }: { height: number; className?: st
     <Image
       src="/logo-mark.png"
       alt=""
-      width={Math.round((height * SOURCE.width) / SOURCE.height)}
+      width={Math.round((height * LOGO_MARK_SIZE.width) / LOGO_MARK_SIZE.height)}
       height={height}
       className={cn("dark:bg-foreground box-content", className)}
     />
