@@ -48,9 +48,9 @@ which is the same job a status color does here.
 | `destructive` | vermilion `#8B2E1F` | `#DA6C55` | over budget, a failed write |
 | `ring` | teal `#2C5D62` | `#6FB0B0` | focus |
 
-Every value is sampled from `scripts/logo.jpg`, then darkened or lifted until it meets AA. Dark
-mode is the logo's teal at night: a teal-black ground under parchment text. Inverting the light
-ramp would give a flat grey that loses the teal.
+The ground, ink, teal and gold are sampled from `scripts/logo.jpg`, then darkened or lifted until
+they meet AA. Dark mode is the logo's teal at night: a teal-black ground under parchment text.
+Inverting the light ramp would give a flat grey that loses the teal.
 
 - **Contrast is checked, not assumed.** Body text clears 4.5:1 on the surface behind it and focus
   rings clear 3:1, both verified before a token lands. The logo's gold is the worked example: its
