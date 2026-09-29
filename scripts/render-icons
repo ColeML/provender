@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Re-render the manifest icons in public/ from scripts/icon.svg. Needs ImageMagick 7.
+# Re-render the manifest and iOS icons in public/ from scripts/icon.svg. Needs ImageMagick 7.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+render() {
+  magick -density 576 -background none scripts/icon.svg -resize "$1x$1" -strip -depth 8 "PNG24:$2"
+}
+
 for size in 192 512; do
-  magick -density 576 -background none scripts/icon.svg -resize "${size}x${size}" -strip \
-    -depth 8 "PNG24:public/icon-${size}.png"
+  render "$size" "public/icon-${size}.png"
 done
+
+render 180 public/apple-touch-icon.png

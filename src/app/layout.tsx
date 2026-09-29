@@ -23,6 +23,9 @@ const display = Charis_SIL({
 export const metadata: Metadata = {
   title: "Provender",
   description: "Weekly meal planning, provisioned.",
+  // In public/ rather than the `apple-icon` file convention, which serves at an extensionless
+  // path the proxy would gate.
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 // The manifest's theme_color can't follow the theme, so the installed app's status bar takes its
