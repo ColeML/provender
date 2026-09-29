@@ -1,3 +1,5 @@
+import { LogoMark } from "@/components/ui/logo-mark";
+import { Wordmark } from "@/components/ui/wordmark";
 import { formatQuantity } from "@/lib/quantity";
 
 export interface SharedIngredient {
@@ -40,6 +42,12 @@ export function SharedRecipe({ recipe }: Props) {
 
   return (
     <main className="mx-auto max-w-2xl p-4">
+      {/* Where the recipe came from. Not a link: this page never leads a stranger into the app. */}
+      <p className="text-muted-foreground mb-6 flex items-center gap-2 text-sm">
+        <LogoMark height={28} className="rounded-md dark:p-0.5" />
+        <Wordmark />
+      </p>
+
       <h1 className="font-display text-3xl font-semibold">{recipe.title}</h1>
 
       <p className="text-muted-foreground mt-1 text-sm">

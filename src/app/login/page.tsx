@@ -1,6 +1,7 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
+import { LogoMark } from "@/components/ui/logo-mark";
 import { Wordmark } from "@/components/ui/wordmark";
 import { isInternalPath } from "@/lib/login-url";
 
@@ -38,6 +39,7 @@ export default async function Login({ searchParams }: Props) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-8">
+      <LogoMark height={96} className="mb-4 rounded-2xl dark:p-2" />
       <h1 className="text-2xl">
         <Wordmark />
       </h1>

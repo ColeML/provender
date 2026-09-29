@@ -22,7 +22,7 @@
   --muted-foreground: oklch(0.494 0.038 77.2); /* #6E5F49 faded ink */
   --border: oklch(0.857 0.044 88); /* #DCCFB0 */
   --input: oklch(0.887 0.038 88.5); /* #E4D9BE */
-  --accent: oklch(0.399 0.058 225); /* #1F4E5F verdigris */
+  --accent: oklch(0.446 0.053 204.2); /* #2C5D62 verdigris, the logo's teal */
   --accent-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
   --destructive: oklch(0.437 0.13 31.7); /* #8B2E1F vermilion */
   --destructive-foreground: oklch(0.952 0.034 92.3); /* #F7EFD6 */
