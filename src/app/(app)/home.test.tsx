@@ -45,6 +45,16 @@ async function renderHome(week: Partial<WeekOverview>) {
   render(await Home());
 }
 
+function dayRow(linkName: string) {
+  const row = screen.getByRole("link", { name: linkName }).closest("li");
+
+  if (!row) {
+    throw new Error(`"${linkName}" is not inside a row`);
+  }
+
+  return row;
+}
+
 beforeEach(() => {
   overview.mockReset();
 });
@@ -200,11 +210,10 @@ describe("the home screen", () => {
       ],
     });
 
-    const monday = screen.getByRole("link", { name: "Mon 7" }).closest("li");
+    const monday = dayRow("Mon 7");
 
-    expect(monday).not.toBeNull();
-    expect(within(monday as HTMLElement).getByRole("link", { name: "Soup" })).toBeInTheDocument();
-    expect(within(monday as HTMLElement).queryByText("Nothing planned")).toBeNull();
+    expect(within(monday).getByRole("link", { name: "Soup" })).toBeInTheDocument();
+    expect(within(monday).queryByText("Nothing planned")).toBeNull();
   });
 
   it("puts a date's meals in one row", async () => {
@@ -217,7 +226,7 @@ describe("the home screen", () => {
       ],
     });
 
-    const monday = screen.getByRole("link", { name: "Mon 7" }).closest("li") as HTMLElement;
+    const monday = dayRow("Mon 7");
 
     expect(within(monday).getByRole("link", { name: "Oats" })).toBeInTheDocument();
     expect(within(monday).getByRole("link", { name: "Ziti" })).toBeInTheDocument();
@@ -229,12 +238,10 @@ describe("the home screen", () => {
 
     await renderHome({ planId: "2026-W37", isCurrentWeek: true });
 
-    const row = (name: string) => screen.getByRole("link", { name }).closest("li");
-
-    expect(row("Wed 9")).toHaveAttribute("aria-current", "date");
-    expect(within(row("Wed 9") as HTMLElement).getByText("Today")).toBeInTheDocument();
-    expect(row("Mon 7")).toHaveClass("text-muted-foreground");
-    expect(row("Thu 10")).not.toHaveClass("text-muted-foreground");
+    expect(dayRow("Wed 9")).toHaveAttribute("aria-current", "date");
+    expect(within(dayRow("Wed 9")).getByText("Today")).toBeInTheDocument();
+    expect(dayRow("Mon 7")).toHaveClass("text-muted-foreground");
+    expect(dayRow("Thu 10")).not.toHaveClass("text-muted-foreground");
   });
 
   it("keeps today on the local date after UTC has rolled over", async () => {

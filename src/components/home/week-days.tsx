@@ -9,12 +9,6 @@ import { cn } from "@/lib/utils";
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
 const DAY_NUMBER = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: "UTC" });
 
-const SLOT_LABELS: Record<string, string> = {
-  breakfast: "breakfast",
-  lunch: "lunch",
-  dinner: "dinner",
-};
-
 const FOCUS = "focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-visible:outline-none";
 
 const subscribe = () => () => {};
@@ -35,7 +29,56 @@ function useToday() {
   return useSyncExternalStore(subscribe, localDate, () => null);
 }
 
-export function WeekDays({ dates, days }: { dates: string[]; days: OverviewDay[] }) {
+interface DayMealsProps {
+  date: string;
+  meals: OverviewDay[];
+}
+
+function DayMeals({ date, meals }: DayMealsProps) {
+  if (meals.length === 0) {
+    return (
+      <Link
+        href={`/plan/${date}`}
+        className={cn("text-muted-foreground flex min-h-11 flex-1 items-center text-sm", FOCUS)}
+      >
+        Nothing planned
+      </Link>
+    );
+  }
+
+  return (
+    <ul className="min-w-0 flex-1 space-y-1">
+      {meals.map((meal) => (
+        <li key={meal.mealSlot} className="flex items-baseline gap-2">
+          {/* Dinner is the default, so only the other meals are named. */}
+          {meal.mealSlot === "dinner" ? null : (
+            <span className="text-muted-foreground shrink-0 text-sm">{meal.mealSlot}</span>
+          )}
+          {meal.mainRecipeId === null ? (
+            <span className="text-muted-foreground text-sm">
+              {meal.status === "planned" ? "No main" : meal.status}
+            </span>
+          ) : (
+            /* `box-decoration-clone` keeps the ring closed around a title that wraps. */
+            <Link
+              href={`/recipes/${meal.mainRecipeId}`}
+              className={cn("box-decoration-clone text-base", FOCUS)}
+            >
+              {meal.mainTitle ?? meal.mainRecipeId}
+            </Link>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface Props {
+  dates: string[];
+  days: OverviewDay[];
+}
+
+export function WeekDays({ dates, days }: Props) {
   const today = useToday();
 
   return (
@@ -67,43 +110,7 @@ export function WeekDays({ dates, days }: { dates: string[]; days: OverviewDay[]
               {isToday ? <span className="text-accent font-sans text-xs">Today</span> : null}
             </span>
 
-            {meals.length === 0 ? (
-              <Link
-                href={`/plan/${date}`}
-                className={cn(
-                  "text-muted-foreground flex min-h-11 flex-1 items-center text-sm",
-                  FOCUS,
-                )}
-              >
-                Nothing planned
-              </Link>
-            ) : (
-              <ul className="min-w-0 flex-1 space-y-1">
-                {meals.map((meal) => (
-                  <li key={meal.mealSlot} className="flex items-baseline gap-2">
-                    {/* Dinner is the default, so only the other meals are named. */}
-                    {meal.mealSlot === "dinner" ? null : (
-                      <span className="text-muted-foreground shrink-0 text-sm">
-                        {SLOT_LABELS[meal.mealSlot] ?? meal.mealSlot}
-                      </span>
-                    )}
-                    {meal.mainRecipeId === null ? (
-                      <span className="text-muted-foreground text-sm">
-                        {meal.status === "planned" ? "No main" : meal.status}
-                      </span>
-                    ) : (
-                      /* `box-decoration-clone` keeps the ring closed around a title that wraps. */
-                      <Link
-                        href={`/recipes/${meal.mainRecipeId}`}
-                        className={cn("box-decoration-clone text-base", FOCUS)}
-                      >
-                        {meal.mainTitle ?? meal.mainRecipeId}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <DayMeals date={date} meals={meals} />
           </li>
         );
       })}
