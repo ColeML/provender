@@ -2,6 +2,8 @@ import { Charis_SIL } from "next/font/google";
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
 
+import { ThemeColor } from "@/components/theme/theme-color";
+import { THEME_COLOR_SCRIPT, THEME_COLORS } from "@/components/theme/theme-colors";
 import { Providers } from "@/lib/trpc/client";
 
 import "./globals.css";
@@ -29,11 +31,12 @@ export const metadata: Metadata = {
 };
 
 // The manifest's theme_color can't follow the theme, so the installed app's status bar takes its
-// color from here. The theme is system-only, so the media query always agrees with next-themes.
+// color from here. The media query only matches "Match device"; a light or dark choice is written
+// over it by `THEME_COLOR_SCRIPT` before paint and by `ThemeColor` after a change.
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F5EEDD" },
-    { media: "(prefers-color-scheme: dark)", color: "#181310" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
 };
 
@@ -43,9 +46,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // client render disagree by design.
     <html lang="en" className={display.variable} suppressHydrationWarning>
       <body className="antialiased">
+        {/* First in <body>, so the <head> it rewrites has been parsed. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />
         {/* The dev-only "Encountered a script tag" warning is next-themes' pre-paint theme script;
             silencing it in 0.4.6 means stopping the script (pacocoursey/next-themes#385). */}
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeColor />
           <Providers>{children}</Providers>
         </ThemeProvider>
       </body>
