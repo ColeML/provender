@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-render the manifest and iOS icons in public/ from scripts/logo.jpg. Needs ImageMagick 7.
+# Re-render the app icons, the favicon, and the page logo from scripts/logo.jpg. Needs ImageMagick 7.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -16,13 +16,15 @@ canvas=2200
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+mark="$tmp/mark.png"
 master="$tmp/master.png"
 
-# The -18 offset centers the mark, which sits 18px below the crop's center.
 magick scripts/logo.jpg -crop "$crop" +repage \
   \( +clone -channel B -separate +channel -level "$cutout" -negate \) \
-  -alpha off -compose copy-opacity -composite \
-  \( -size "${canvas}x${canvas}" radial-gradient:"#FFFBF3-#F5EEDD" \) +swap \
+  -alpha off -compose copy-opacity -composite "$mark"
+
+# The -18 offset centers the mark, which sits 18px below the crop's center.
+magick -size "${canvas}x${canvas}" radial-gradient:"#FFFBF3-#F5EEDD" "$mark" \
   -gravity center -geometry +0-18 -compose over -composite "$master"
 
 render() {
@@ -34,3 +36,11 @@ for size in 192 512; do
 done
 
 render 180 public/apple-touch-icon.png
+
+# Three times the largest size a page shows it at, so it stays sharp on a phone.
+magick "$mark" -trim +repage -resize x288 -strip -depth 8 PNG32:public/logo-mark.png
+
+# On a vellum tile, since the teal and the mark's white details vanish on a dark tab bar.
+magick "$mark" -trim +repage -resize 400x400 \
+  \( -size 480x480 xc:none -fill "#F5EEDD" -draw "roundrectangle 0,0 479,479 96,96" \) +swap \
+  -gravity center -compose over -composite -define icon:auto-resize=48,32,16 src/app/favicon.ico

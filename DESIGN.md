@@ -119,6 +119,11 @@ Teriyaki Chicken and Rice" has to wrap inside 390px.
   synthesise it by scaling capitals, which reads thin against the 700 weight. `Wordmark` in
   `src/components/ui/wordmark.tsx` is the one place the treatment lives, and both the header and
   `/login` use it.
+- **The logo's mark appears in three places only:** above the wordmark on `/login`, beside it at
+  the top of a shared recipe, and as the favicon. `LogoMark` in `src/components/ui/logo-mark.tsx`
+  renders it, on a parchment tile in dark mode. The app's own header stays text-only, because on a
+  phone that space belongs to the page. `scripts/render-icons` regenerates every logo asset from
+  `scripts/logo.jpg`.
 
 ## The manuscript reference
 
