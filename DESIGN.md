@@ -45,7 +45,7 @@ which is the same job a status color does here.
 | `primary` | iron gall `#2B2118` | pale gold `#E8D9A8` | buttons, a ticked box |
 | `muted-foreground` | faded ink `#6E5F49` | `#AB9A7D` | secondary text, quantities |
 | `destructive` | vermilion `#8B2E1F` | `#DA6C55` | over budget, a failed write |
-| `accent` | verdigris `#1F4E5F` | `#5FA0AF` | a second status, sparingly |
+| `accent` | verdigris `#2C5D62` | `#5FA0AF` | a second status, sparingly |
 | `ring` | old gold `#9C7B15` | leaf gold `#C9A227` | focus |
 
 Dark mode is the scriptorium at night, not an inverted page: a warm ink-stained ground under
