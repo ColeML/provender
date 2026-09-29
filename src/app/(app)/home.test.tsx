@@ -65,7 +65,7 @@ afterEach(() => {
 });
 
 describe("the home screen", () => {
-  it("names each meal that is not dinner, by its own name", async () => {
+  it("names every meal by its slot, dinner included", async () => {
     await renderHome({
       planId: "2026-W37",
       isCurrentWeek: true,
@@ -76,10 +76,9 @@ describe("the home screen", () => {
       ],
     });
 
-    expect(screen.getByText("breakfast")).toBeInTheDocument();
-    expect(screen.getByText("lunch")).toBeInTheDocument();
-    // Dinner is the default, so naming it would be noise on every row of a normal week.
-    expect(screen.queryByText("dinner")).toBeNull();
+    expect(screen.getByText("· breakfast")).toBeInTheDocument();
+    expect(screen.getByText("· lunch")).toBeInTheDocument();
+    expect(screen.getByText("· dinner")).toBeInTheDocument();
   });
 
   it("links every meal to its day, not only the dinner", async () => {
@@ -91,7 +90,10 @@ describe("the home screen", () => {
       ],
     });
 
-    expect(screen.getByRole("link", { name: "Mon 7" })).toHaveAttribute("href", "/plan/2026-09-07");
+    expect(screen.getByRole("link", { name: "Monday" })).toHaveAttribute(
+      "href",
+      "/plan/2026-09-07",
+    );
   });
 
   it("treats an unplanned week as normal, and offers the way out", async () => {
@@ -111,7 +113,7 @@ describe("the home screen", () => {
       ],
     });
 
-    expect(screen.getByRole("link", { name: "Mon 7" })).toBeInTheDocument();
+    expect(within(dayRow("Monday")).getByText("Sep 7")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Chicken Fajitas" })).toHaveAttribute(
       "href",
       "/recipes/fajitas",
@@ -198,7 +200,7 @@ describe("the home screen", () => {
 
     expect(empty).toHaveLength(6);
     expect(empty[0]).toHaveAttribute("href", "/plan/2026-09-08");
-    expect(screen.getByRole("link", { name: "Sun 13" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sunday" })).toBeInTheDocument();
   });
 
   it("does not call a day with only a lunch unplanned", async () => {
@@ -210,7 +212,7 @@ describe("the home screen", () => {
       ],
     });
 
-    const monday = dayRow("Mon 7");
+    const monday = dayRow("Monday");
 
     expect(within(monday).getByRole("link", { name: "Soup" })).toBeInTheDocument();
     expect(within(monday).queryByText("Nothing planned")).toBeNull();
@@ -226,7 +228,7 @@ describe("the home screen", () => {
       ],
     });
 
-    const monday = dayRow("Mon 7");
+    const monday = dayRow("Monday");
 
     expect(within(monday).getByRole("link", { name: "Oats" })).toBeInTheDocument();
     expect(within(monday).getByRole("link", { name: "Ziti" })).toBeInTheDocument();
@@ -238,10 +240,9 @@ describe("the home screen", () => {
 
     await renderHome({ planId: "2026-W37", isCurrentWeek: true });
 
-    expect(dayRow("Wed 9")).toHaveAttribute("aria-current", "date");
-    expect(within(dayRow("Wed 9")).getByText("Today")).toBeInTheDocument();
-    expect(dayRow("Mon 7")).toHaveClass("text-muted-foreground");
-    expect(dayRow("Thu 10")).not.toHaveClass("text-muted-foreground");
+    expect(dayRow("Wednesday")).toHaveAttribute("aria-current", "date");
+    expect(dayRow("Monday")).toHaveClass("text-muted-foreground");
+    expect(dayRow("Thursday")).not.toHaveClass("text-muted-foreground");
   });
 
   it("keeps today on the local date after UTC has rolled over", async () => {
@@ -252,7 +253,7 @@ describe("the home screen", () => {
 
     await renderHome({ planId: "2026-W37", isCurrentWeek: true });
 
-    expect(screen.getByRole("link", { name: "Wed 9" }).closest("li")).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Wednesday" }).closest("li")).toHaveAttribute(
       "aria-current",
       "date",
     );
@@ -264,8 +265,8 @@ describe("the home screen", () => {
 
     await renderHome({ planId: "2026-W37", isCurrentWeek: false });
 
-    expect(screen.queryByText("Today")).toBeNull();
-    expect(screen.getByRole("link", { name: "Sun 13" }).closest("li")).toHaveClass(
+    expect(document.querySelector('[aria-current="date"]')).toBeNull();
+    expect(screen.getByRole("link", { name: "Sunday" }).closest("li")).toHaveClass(
       "text-muted-foreground",
     );
   });

@@ -6,8 +6,8 @@ import { useSyncExternalStore } from "react";
 
 import { cn } from "@/lib/utils";
 
-const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
-const DAY_NUMBER = new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: "UTC" });
+const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" });
+const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 const FOCUS = "focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-visible:outline-none";
 
@@ -49,11 +49,7 @@ function DayMeals({ date, meals }: DayMealsProps) {
   return (
     <ul className="min-w-0 flex-1 space-y-1">
       {meals.map((meal) => (
-        <li key={meal.mealSlot} className="flex items-baseline gap-2">
-          {/* Dinner is the default, so only the other meals are named. */}
-          {meal.mealSlot === "dinner" ? null : (
-            <span className="text-muted-foreground shrink-0 text-sm">{meal.mealSlot}</span>
-          )}
+        <li key={meal.mealSlot}>
           {meal.mainRecipeId === null ? (
             <span className="text-muted-foreground text-sm">
               {meal.status === "planned" ? "No main" : meal.status}
@@ -67,6 +63,10 @@ function DayMeals({ date, meals }: DayMealsProps) {
               {meal.mainTitle ?? meal.mainRecipeId}
             </Link>
           )}
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
+            {" "}
+            · {meal.mealSlot}
+          </span>
         </li>
       ))}
     </ul>
@@ -99,18 +99,21 @@ export function WeekDays({ dates, days }: Props) {
               isPast && "text-muted-foreground",
             )}
           >
-            <span className="relative flex min-h-11 w-16 shrink-0 flex-col justify-center font-mono text-sm">
+            <span className="relative flex min-h-11 w-24 shrink-0 items-center text-sm font-medium">
               {/* The overlay stretches the link's hit area over the span's full height. */}
               <Link
                 href={`/plan/${date}`}
                 className="focus-visible:after:ring-ring underline after:absolute after:inset-0 after:rounded-sm focus-visible:outline-none focus-visible:after:ring-3"
               >
-                {WEEKDAY.format(calendarDay)} {DAY_NUMBER.format(calendarDay)}
+                {WEEKDAY.format(calendarDay)}
               </Link>
-              {isToday ? <span className="text-accent font-sans text-xs">Today</span> : null}
             </span>
 
             <DayMeals date={date} meals={meals} />
+
+            <span className="text-muted-foreground shrink-0 font-mono text-xs">
+              {DAY.format(calendarDay)}
+            </span>
           </li>
         );
       })}
