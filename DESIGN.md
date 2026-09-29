@@ -32,30 +32,33 @@ When a rule below conflicts with something else:
 
 ## The palette
 
-**Illuminated.** A medieval manuscript page: iron-gall ink on vellum, vermilion for what the
-scribe wanted you to notice, gold leaf for what mattered most, verdigris for the rest. The name
+**Illuminated, in the logo's colors.** A manuscript page: teal-black ink on the logo's cream, its
+teal for what you act on, and its gold for the one line the scribe wanted you to notice. The name
 fits the app — *provender* is the word in Genesis 42:27 for the fodder Joseph's brothers fed their
 donkeys, and rubrication is genuinely how a scribe marked the important line in a body of text,
 which is the same job a status color does here.
 
 | Token | Light | Dark | Used for |
 | ----- | ----- | ---- | -------- |
-| `background` | vellum `#F5EEDD` | `#181310` | the page |
-| `foreground` | iron gall `#2B2118` | parchment `#EDE3CC` | body text |
-| `primary` | iron gall `#2B2118` | pale gold `#E8D9A8` | buttons, a ticked box |
-| `muted-foreground` | faded ink `#6E5F49` | `#AB9A7D` | secondary text, quantities |
+| `background` | cream `#F9F0DE` | `#0F1C1D` | the page |
+| `foreground` | teal-black `#17302F` | parchment `#EDE3CC` | body text |
+| `primary` | teal `#1F4E54` | `#6FB0B0` | buttons, a ticked box |
+| `muted-foreground` | faded ink `#6E5F49` | `#9DB0A8` | secondary text, quantities, past days |
+| `accent` | gold `#85642F` | `#E1C17A` | the one thing per screen that matters most |
 | `destructive` | vermilion `#8B2E1F` | `#DA6C55` | over budget, a failed write |
-| `accent` | verdigris `#2C5D62` | `#5FA0AF` | a second status, sparingly |
-| `ring` | old gold `#9C7B15` | leaf gold `#C9A227` | focus |
+| `ring` | teal `#2C5D62` | `#6FB0B0` | focus |
 
-Dark mode is the scriptorium at night, not an inverted page: a warm ink-stained ground under
-parchment text. Inverting the light ramp yields a blue-grey that fights every warm hue in it.
+Every value is sampled from `scripts/logo.jpg`, then darkened or lifted until it meets AA. Dark
+mode is the logo's teal at night: a teal-black ground under parchment text. Inverting the light
+ramp would give a flat grey that loses the teal.
 
 - **Contrast is checked, not assumed.** Body text clears 4.5:1 on the surface behind it and focus
-  rings clear 3:1, both verified before a token lands. Leaf gold is the worked example — it reads
-  beautifully and manages only 2.09:1 on vellum, so light mode uses a darker gold and keeps the
-  leaf for dark backgrounds.
-- **Gold is for one thing per screen.** A page where three elements are gold has none.
+  rings clear 3:1, both verified before a token lands. The logo's gold is the worked example: its
+  own `#AA8348` manages 3.07:1 on the cream, enough for a rule but not for text, so the token is
+  the darker `#85642F`.
+- **Gold is for one thing per screen.** A page where three elements are gold has none. That is
+  also why the focus ring is teal: a gold ring would make a focused row look like today's.
+- **The wordmark's copper stays in the logo.** At 2.91:1 on the cream it fails even as a rule.
 - Hairline `border` sits below 3:1 on purpose. It separates rows; it never carries meaning on its
   own, and a control that needs a visible boundary gets `ring` or `muted-foreground`, not `border`.
 

@@ -1,5 +1,5 @@
 /** The installed app's status bar color per theme: each theme's `background` token. */
-export const THEME_COLORS = { light: "#F5EEDD", dark: "#181310" };
+export const THEME_COLORS = { light: "#F9F0DE", dark: "#0F1C1D" };
 
 /**
  * Moves the status bar onto a saved light or dark choice before first paint, the way next-themes'

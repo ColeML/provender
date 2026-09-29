@@ -9,8 +9,8 @@ import { addThemeColorTags, emulateDevice, statusBarColor } from "./testing";
 import { ThemeColor } from "./theme-color";
 import { ThemePicker } from "./theme-picker";
 
-const VELLUM = "#F5EEDD";
-const NIGHT = "#181310";
+const CREAM = "#F9F0DE";
+const NIGHT = "#0F1C1D";
 
 function renderApp() {
   return render(
@@ -49,7 +49,7 @@ describe("ThemeColor", () => {
 
     await user.click(screen.getByRole("radio", { name: "Light" }));
 
-    expect(statusBarColor("dark")).toBe(VELLUM);
+    expect(statusBarColor("dark")).toBe(CREAM);
   });
 
   it("follows the device again when match device is picked", async () => {
@@ -61,7 +61,7 @@ describe("ThemeColor", () => {
     await user.click(screen.getByRole("radio", { name: "Match device" }));
 
     expect(statusBarColor("dark")).toBe(NIGHT);
-    expect(statusBarColor("light")).toBe(VELLUM);
+    expect(statusBarColor("light")).toBe(CREAM);
   });
 
   it("keeps the choice when a navigation renders the tags again", async () => {
