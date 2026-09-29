@@ -1,5 +1,5 @@
 import { Charis_SIL } from "next/font/google";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
 
 import { Providers } from "@/lib/trpc/client";
@@ -23,6 +23,15 @@ const display = Charis_SIL({
 export const metadata: Metadata = {
   title: "Provender",
   description: "Weekly meal planning, provisioned.",
+};
+
+// The manifest's theme_color can't follow the theme, so the installed app's status bar takes its
+// color from here. The theme is system-only, so the media query always agrees with next-themes.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F5EEDD" },
+    { media: "(prefers-color-scheme: dark)", color: "#181310" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
