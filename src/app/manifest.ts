@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { THEME_COLORS } from "@/components/theme/theme-colors";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Provender",
@@ -7,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Weekly meal planning, provisioned.",
     start_url: "/",
     display: "standalone",
-    background_color: "#F5EEDD",
-    theme_color: "#F5EEDD",
+    background_color: THEME_COLORS.light,
+    theme_color: THEME_COLORS.light,
     // The glyph sits inside the maskable safe zone, so one image serves both purposes.
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
