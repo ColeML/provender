@@ -25,7 +25,7 @@
 
   /**
    * The logo's gold, darkened. Its own #AA8348 reaches 3.07:1 on the cream, enough for a rule but
-   * not for the "Today" label beside it. This is 4.80:1 on the page and 5.14:1 on a card.
+   * not for text. This is 4.80:1 on the page and 5.14:1 on a card, so `accent` is safe for either.
    */
   --accent: oklch(0.526 0.082 77.1); /* #85642F */
   --accent-foreground: oklch(0.957 0.026 84.6); /* #F9F0DE */
