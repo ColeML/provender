@@ -1,11 +1,32 @@
 #!/usr/bin/env bash
-# Re-render the manifest and iOS icons in public/ from scripts/icon.svg. Needs ImageMagick 7.
+# Re-render the manifest and iOS icons in public/ from scripts/logo.jpg. Needs ImageMagick 7.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# The logo's mark without its wordmark, which would be illegible at icon size. The crop stops
+# short of the wordmark, which starts at y=1694 in the 2000px source.
+crop=1376x1515+312+150
+# The mark is cut out by its blue channel: the logo's cream and white background never drops below
+# 213 there, and the teal and gold stay below 179 except at anti-aliased edges.
+cutout="70%,83%"
+# Wide enough that the mark's bounding box fits Android's maskable safe zone, a circle of 40%
+# of the icon's width, so one image serves every purpose.
+canvas=2200
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+master="$tmp/master.png"
+
+# The -18 offset centers the mark, which sits 18px below the crop's center.
+magick scripts/logo.jpg -crop "$crop" +repage \
+  \( +clone -channel B -separate +channel -level "$cutout" -negate \) \
+  -alpha off -compose copy-opacity -composite \
+  \( -size "${canvas}x${canvas}" radial-gradient:"#FFFBF3-#F5EEDD" \) +swap \
+  -gravity center -geometry +0-18 -compose over -composite "$master"
+
 render() {
-  magick -density 576 -background none scripts/icon.svg -resize "$1x$1" -strip -depth 8 "PNG24:$2"
+  magick "$master" -resize "$1x$1" -strip -depth 8 "PNG24:$2"
 }
 
 for size in 192 512; do
