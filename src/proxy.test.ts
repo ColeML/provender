@@ -79,14 +79,17 @@ describe("proxy", () => {
 
   // Chrome fetches the manifest without cookies, so a gated manifest redirects to /login and the
   // browser stops offering to install the app.
-  it.each(["/manifest.webmanifest", "/icon-192.png", "/icon-512.png"])(
-    "keeps %s outside the gate, so Android can install the app",
+  it.each(["/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/favicon.ico"])(
+    "keeps the static asset %s outside the gate",
     (url) => {
       expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false);
     },
   );
 
-  it.each(["/", "/shop", "/icon-editor"])("still runs on %s", (url) => {
-    expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true);
-  });
+  it.each(["/", "/shop", "/icon-editor", "/icon-192.png/x", "/recipes/ziti"])(
+    "still runs on %s",
+    (url) => {
+      expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true);
+    },
+  );
 });
