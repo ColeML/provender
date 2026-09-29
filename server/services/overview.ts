@@ -1,7 +1,7 @@
 import { type Database, db as defaultDb } from "@server/db";
 import * as schema from "@server/db/schema";
 import { MEAL_ORDER } from "@server/db/schema/plans";
-import { isoWeekFor } from "@server/lib/iso-week";
+import { isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
 import { currentOrLatestPlan, type MealSlot } from "@server/services/plans";
 import { recipesByIds } from "@server/services/recipes";
 import { and, asc, eq } from "drizzle-orm";
@@ -18,9 +18,17 @@ export interface WeekOverview {
   planId: string | null;
   /** False when the plan shown is an earlier week, so the screen can say which week it is. */
   isCurrentWeek: boolean;
+  /** The plan week's seven dates, Monday first, so the screen can show the days nothing is planned. */
+  dates: string[];
   days: OverviewDay[];
   /** Items still to buy: not ticked, and not flagged as already owned. */
   outstandingItems: number;
+}
+
+function weekDatesFor(planId: string) {
+  const week = parseIsoWeek(planId);
+
+  return week === undefined ? [] : weekDates(week);
 }
 
 /**
@@ -36,7 +44,7 @@ export async function weekOverview(
   const plan = await currentOrLatestPlan(householdId, db);
 
   if (!plan) {
-    return { planId: null, isCurrentWeek: false, days: [], outstandingItems: 0 };
+    return { planId: null, isCurrentWeek: false, dates: [], days: [], outstandingItems: 0 };
   }
 
   // Days come from `plan_days`, not from the recipe rows: a main is optional, so a potluck day
@@ -92,6 +100,7 @@ export async function weekOverview(
   return {
     planId: plan.id,
     isCurrentWeek: plan.id === isoWeekFor(new Date().toISOString().slice(0, 10)),
+    dates: weekDatesFor(plan.id),
     days: [...days]
       .sort(
         (a, b) =>

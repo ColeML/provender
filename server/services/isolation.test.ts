@@ -601,6 +601,7 @@ describe("week overview", () => {
     await expect(weekOverview(B, db)).resolves.toEqual({
       planId: null,
       isCurrentWeek: false,
+      dates: [],
       days: [],
       outstandingItems: 0,
     });
@@ -615,6 +616,15 @@ describe("week overview", () => {
     await expect(weekOverview(B, db)).resolves.toEqual({
       planId: WEEK,
       isCurrentWeek: false,
+      dates: [
+        "2026-08-31",
+        "2026-09-01",
+        "2026-09-02",
+        "2026-09-03",
+        "2026-09-04",
+        "2026-09-05",
+        "2026-09-06",
+      ],
       days: [
         {
           date: MONDAY,
