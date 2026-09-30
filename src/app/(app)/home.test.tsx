@@ -95,7 +95,7 @@ describe("the home screen", () => {
     expect(within(monday).queryByText("lunch")).toBeNull();
   });
 
-  it("links every meal to its day, not only the dinner", async () => {
+  it("links a day's header to its plan page, even with no dinner", async () => {
     await renderHome({
       planId: "2026-W37",
       isCurrentWeek: true,
@@ -249,6 +249,7 @@ describe("the home screen", () => {
   });
 
   it("marks today, and fades the days already past", async () => {
+    vi.stubEnv("TZ", "UTC");
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
 
