@@ -32,7 +32,8 @@ in place of the brown one. Values were sampled from the logo (cream `#F9F0DE`, t
   free to take the gold. If the focus ring stayed gold, a focused row would look like the today
   row. This keeps DESIGN.md's rule that gold marks one thing per screen.
 - **Light gold is `#85642F`, not the logo's `#AA8348`.** The logo value measures 3.07:1 on the
-  cream. That passes for a rule, but not for the "Today" label, which is text.
+  cream. That passes for a rule, but not for text, and the darker value keeps `accent` safe for
+  both.
 - **The wordmark's copper (`#BD8052`) stays out of the UI.** It measures 2.91:1 on the cream, and
   cream with serif and copper is a common generated look.
 - `src/app/globals.css` keeps its convention: an `oklch()` value with the source hex and its
@@ -52,10 +53,11 @@ Hours: one ruled line per day.
 - **Header:** the "This week" `h1`, then the week as a date range ("Sep 28 – Oct 4") in place of
   `2026-W40`, then the existing items-to-buy link. When the week shown isn't the current one, the
   range is followed by "the most recent week planned", as now.
-- **Rows:** Monday through Sunday, always seven. The left column has the short weekday and day
-  number in mono. The right column links the main dish. A date with a breakfast or lunch stacks
-  those meals in the same row, and labels non-dinner slots as it does now.
-- **Today:** a 3px `accent` rule on the row's left edge, plus a "Today" label in `accent`.
+- **Rows:** Monday through Sunday, always seven. Each row opens with a header line: the full
+  weekday on the left and the short date ("Sep 28") in mono on the right. Beneath it, each planned
+  meal gets a line with its slot ("breakfast", "lunch", "dinner") in a label column and the main
+  dish beside it, in meal order. Slots with nothing planned are left out.
+- **Today:** a 3px `accent` rule on the row's left edge. No label; the rule is enough.
 - **Past days:** `muted-foreground`, still links.
 - **Unplanned dates:** "Nothing planned" in `muted-foreground`, linking to `/plan/[date]`.
 - **No plan at all:** the existing empty state is unchanged. The "week exists but no days are
