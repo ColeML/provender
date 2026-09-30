@@ -53,10 +53,10 @@ Hours: one ruled line per day.
 - **Header:** the "This week" `h1`, then the week as a date range ("Sep 28 – Oct 4") in place of
   `2026-W40`, then the existing items-to-buy link. When the week shown isn't the current one, the
   range is followed by "the most recent week planned", as now.
-- **Rows:** Monday through Sunday, always seven. The left column has the full weekday, the middle
-  links the main dish, and the short date ("Sep 28") sits at the right edge in mono. A date with a
-  breakfast or lunch stacks those meals in the same row. Every meal, dinner included, carries its
-  slot after the title ("Butter Chicken · dinner").
+- **Rows:** Monday through Sunday, always seven. Each row opens with a header line: the full
+  weekday on the left and the short date ("Sep 28") in mono on the right. Beneath it, each planned
+  meal gets a line with its slot ("breakfast", "lunch", "dinner") in a label column and the main
+  dish beside it, in meal order. Slots with nothing planned are left out.
 - **Today:** a 3px `accent` rule on the row's left edge. No label; the rule is enough.
 - **Past days:** `muted-foreground`, still links.
 - **Unplanned dates:** "Nothing planned" in `muted-foreground`, linking to `/plan/[date]`.

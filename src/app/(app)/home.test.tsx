@@ -76,9 +76,23 @@ describe("the home screen", () => {
       ],
     });
 
-    expect(screen.getByText("· breakfast")).toBeInTheDocument();
-    expect(screen.getByText("· lunch")).toBeInTheDocument();
-    expect(screen.getByText("· dinner")).toBeInTheDocument();
+    expect(screen.getByText("breakfast")).toBeInTheDocument();
+    expect(screen.getByText("lunch")).toBeInTheDocument();
+    expect(screen.getByText("dinner")).toBeInTheDocument();
+  });
+
+  it("lists only the meals that are planned, not every slot", async () => {
+    await renderHome({
+      planId: "2026-W37",
+      isCurrentWeek: true,
+      days: [day({ date: "2026-09-07", mainRecipeId: "ziti", mainTitle: "Ziti" })],
+    });
+
+    const monday = dayRow("Monday");
+
+    expect(within(monday).getByText("dinner")).toBeInTheDocument();
+    expect(within(monday).queryByText("breakfast")).toBeNull();
+    expect(within(monday).queryByText("lunch")).toBeNull();
   });
 
   it("links every meal to its day, not only the dinner", async () => {
