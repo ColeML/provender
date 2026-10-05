@@ -7,8 +7,11 @@ import {
   addWeekNote,
   BlankNoteError,
   DateOutsideWeekError,
+  deleteWeekNote,
   InvalidWeekIdError,
   listWeekNotes,
+  updateWeekNote,
+  WeekNoteNotFoundError,
 } from "@server/services/week-notes";
 
 const A = "loewer";
@@ -116,5 +119,114 @@ describe("listWeekNotes", () => {
 
   it("refuses a week that is not an ISO week", async () => {
     await expect(listWeekNotes(A, "not-a-week", db)).rejects.toBeInstanceOf(InvalidWeekIdError);
+  });
+});
+
+describe("updateWeekNote", () => {
+  it("changes the text, trimmed, and keeps the day", async () => {
+    const note = await addWeekNote(A, W42, { date: "2026-10-15", body: "Socer" }, db);
+
+    const updated = await updateWeekNote(A, W42, note.id, { body: " Soccer until 7 " }, db);
+
+    expect(updated).toMatchObject({ id: note.id, date: "2026-10-15", body: "Soccer until 7" });
+    await expect(listWeekNotes(A, W42, db)).resolves.toMatchObject([{ body: "Soccer until 7" }]);
+  });
+
+  it("moves the note to another day of the week and keeps the text", async () => {
+    const note = await addWeekNote(A, W42, { date: "2026-10-15", body: "Soccer" }, db);
+
+    const updated = await updateWeekNote(A, W42, note.id, { date: "2026-10-16" }, db);
+
+    expect(updated).toMatchObject({ date: "2026-10-16", body: "Soccer" });
+  });
+
+  it("moves the note to any day", async () => {
+    const note = await addWeekNote(A, W42, { date: "2026-10-15", body: "Soccer" }, db);
+
+    await expect(updateWeekNote(A, W42, note.id, { date: null }, db)).resolves.toMatchObject({
+      date: null,
+    });
+  });
+
+  it("records when the note was changed", async () => {
+    const note = await addWeekNote(A, W42, { body: "Pot roast" }, db);
+
+    await db.execute(sql`update week_notes set update_time = '2026-01-01T00:00:00Z'`);
+
+    const updated = await updateWeekNote(A, W42, note.id, { body: "Pot roast, Sunday" }, db);
+
+    expect(updated.updateTime.getTime()).toBeGreaterThan(Date.parse("2026-01-02T00:00:00Z"));
+  });
+
+  it("refuses a blank text and keeps the note as it was", async () => {
+    const note = await addWeekNote(A, W42, { body: "Pot roast" }, db);
+
+    await expect(updateWeekNote(A, W42, note.id, { body: "  " }, db)).rejects.toBeInstanceOf(
+      BlankNoteError,
+    );
+    await expect(listWeekNotes(A, W42, db)).resolves.toMatchObject([{ body: "Pot roast" }]);
+  });
+
+  it("refuses a day outside the week", async () => {
+    const note = await addWeekNote(A, W42, { body: "Pot roast" }, db);
+
+    await expect(
+      updateWeekNote(A, W42, note.id, { date: "2026-10-19" }, db),
+    ).rejects.toBeInstanceOf(DateOutsideWeekError);
+    await expect(listWeekNotes(A, W42, db)).resolves.toMatchObject([{ date: null }]);
+  });
+
+  it("refuses a week that is not an ISO week", async () => {
+    await expect(updateWeekNote(A, "2026-W99", "any", { body: "Nope" }, db)).rejects.toBeInstanceOf(
+      InvalidWeekIdError,
+    );
+  });
+
+  it("does not find a note that does not exist", async () => {
+    await expect(updateWeekNote(A, W42, "missing", { body: "Nope" }, db)).rejects.toBeInstanceOf(
+      WeekNoteNotFoundError,
+    );
+  });
+
+  // The week is part of the note's name, so a note reached through the wrong week is not found.
+  it("does not find a note through another week", async () => {
+    const note = await addWeekNote(A, "2026-W43", { body: "Next week's" }, db);
+
+    await expect(updateWeekNote(A, W42, note.id, { body: "Changed" }, db)).rejects.toBeInstanceOf(
+      WeekNoteNotFoundError,
+    );
+    await expect(listWeekNotes(A, "2026-W43", db)).resolves.toMatchObject([
+      { body: "Next week's" },
+    ]);
+  });
+});
+
+describe("deleteWeekNote", () => {
+  it("deletes the note and leaves the rest", async () => {
+    const note = await addWeekNote(A, W42, { body: "Canceled" }, db);
+
+    await addWeekNote(A, W42, { body: "Still on" }, db);
+    await deleteWeekNote(A, W42, note.id, db);
+
+    await expect(listWeekNotes(A, W42, db)).resolves.toMatchObject([{ body: "Still on" }]);
+  });
+
+  it("does not find a note that does not exist", async () => {
+    await expect(deleteWeekNote(A, W42, "missing", db)).rejects.toBeInstanceOf(
+      WeekNoteNotFoundError,
+    );
+  });
+
+  it("does not find a note through another week", async () => {
+    const note = await addWeekNote(A, "2026-W43", { body: "Next week's" }, db);
+
+    await expect(deleteWeekNote(A, W42, note.id, db)).rejects.toBeInstanceOf(WeekNoteNotFoundError);
+    await expect(listWeekNotes(A, "2026-W43", db)).resolves.toHaveLength(1);
+  });
+
+  it("refuses a week that is not an ISO week", async () => {
+    await expect(deleteWeekNote(A, "2026-W99", "any", db)).rejects.toBeInstanceOf(
+      InvalidWeekIdError,
+    );
   });
 });

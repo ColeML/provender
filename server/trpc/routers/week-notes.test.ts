@@ -48,4 +48,47 @@ describe("weekNotes", () => {
       code: "BAD_REQUEST",
     });
   });
+
+  it("edits a note and lists the change", async () => {
+    const note = await caller().weekNotes.add({ weekId: "2026-W42", body: "Socer" });
+
+    await caller().weekNotes.update({
+      weekId: "2026-W42",
+      noteId: note.id,
+      date: "2026-10-15",
+      body: "Soccer",
+    });
+
+    await expect(caller().weekNotes.list({ weekId: "2026-W42" })).resolves.toMatchObject([
+      { id: note.id, date: "2026-10-15", body: "Soccer" },
+    ]);
+  });
+
+  it("removes a note", async () => {
+    const note = await caller().weekNotes.add({ weekId: "2026-W42", body: "Canceled" });
+
+    await caller().weekNotes.remove({ weekId: "2026-W42", noteId: note.id });
+
+    await expect(caller().weekNotes.list({ weekId: "2026-W42" })).resolves.toEqual([]);
+  });
+
+  it.each([{ body: "   " }, { date: "2026-10-19" }])(
+    "answers a bad edit with BAD_REQUEST: %o",
+    async (update) => {
+      const note = await caller().weekNotes.add({ weekId: "2026-W42", body: "Pot roast" });
+
+      await expect(
+        caller().weekNotes.update({ weekId: "2026-W42", noteId: note.id, ...update }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    },
+  );
+
+  it("answers an edit or removal of a missing note with NOT_FOUND", async () => {
+    await expect(
+      caller().weekNotes.update({ weekId: "2026-W42", noteId: "missing", body: "Nope" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      caller().weekNotes.remove({ weekId: "2026-W42", noteId: "missing" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });

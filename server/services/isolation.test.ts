@@ -58,7 +58,13 @@ import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
-import { addWeekNote, listWeekNotes } from "@server/services/week-notes";
+import {
+  addWeekNote,
+  deleteWeekNote,
+  listWeekNotes,
+  updateWeekNote,
+  WeekNoteNotFoundError,
+} from "@server/services/week-notes";
 import { schema } from "@server/db";
 
 /**
@@ -721,5 +727,25 @@ describe("week notes", () => {
     await expect(listWeekNotes(B, "2026-W42", db)).resolves.toMatchObject([
       { householdId: B, body: "Their soccer night" },
     ]);
+  });
+
+  it("will not let one household edit another's note", async () => {
+    const note = await addWeekNote(A, "2026-W42", { body: "Mom asked for pot roast" }, db);
+
+    await expect(
+      updateWeekNote(B, "2026-W42", note.id, { date: "2026-10-15", body: "Changed" }, db),
+    ).rejects.toBeInstanceOf(WeekNoteNotFoundError);
+    await expect(listWeekNotes(A, "2026-W42", db)).resolves.toMatchObject([
+      { date: null, body: "Mom asked for pot roast" },
+    ]);
+  });
+
+  it("will not let one household delete another's note", async () => {
+    const note = await addWeekNote(A, "2026-W42", { body: "Mom asked for pot roast" }, db);
+
+    await expect(deleteWeekNote(B, "2026-W42", note.id, db)).rejects.toBeInstanceOf(
+      WeekNoteNotFoundError,
+    );
+    await expect(listWeekNotes(A, "2026-W42", db)).resolves.toHaveLength(1);
   });
 });

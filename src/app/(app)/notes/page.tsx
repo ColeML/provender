@@ -4,6 +4,7 @@ import { listWeekNotes, type WeekNote } from "@server/services/week-notes";
 import { redirect } from "next/navigation";
 
 import { AddNote } from "@/components/notes/add-note";
+import { WeekNoteItem } from "@/components/notes/note-item";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WeekNav } from "@/components/ui/week-nav";
 import { loginUrl } from "@/lib/login-url";
@@ -104,13 +105,21 @@ export default async function Notes({
       {notes.length === 0 ? (
         <EmptyState>Nothing noted for this week.</EmptyState>
       ) : (
-        <NoteGroups notes={notes} dates={dates} />
+        <NoteGroups weekId={weekId} notes={notes} dates={dates} />
       )}
     </main>
   );
 }
 
-function NoteGroups({ notes, dates }: { notes: WeekNote[]; dates: string[] }) {
+function NoteGroups({
+  weekId,
+  notes,
+  dates,
+}: {
+  weekId: string;
+  notes: WeekNote[];
+  dates: string[];
+}) {
   const groups = [null, ...dates]
     .map((date) => ({ date, notes: notes.filter((note) => note.date === date) }))
     .filter((group) => group.notes.length > 0);
@@ -130,8 +139,8 @@ function NoteGroups({ notes, dates }: { notes: WeekNote[]; dates: string[] }) {
 
             <ul className="divide-border border-border mt-1 divide-y border-t">
               {group.notes.map((note) => (
-                <li key={note.id} className="py-3 text-base break-words">
-                  {note.body}
+                <li key={note.id}>
+                  <WeekNoteItem weekId={weekId} dates={dates} note={note} />
                 </li>
               ))}
             </ul>
