@@ -69,8 +69,12 @@ describe("notes", () => {
     expect(screen.getByRole("form", { name: "Add a note to 2026-W42" })).toBeInTheDocument();
   });
 
-  // Sunday 23:59 UTC is still W41; a minute later W42 is this week and W43 is next.
+  // Sunday 23:59 UTC is still W41; a minute later W42 is this week and W43 is next. Run in
+  // Chicago, where that minute is Sunday evening: a page reading the local date would still be
+  // in W41 there. CI runs in UTC, where local and UTC agree and the test would prove nothing.
   it("moves to the new next week when the UTC week flips", async () => {
+    vi.stubEnv("TZ", "America/Chicago");
+
     vi.setSystemTime(new Date("2026-10-11T23:59:00Z"));
     await renderNotes();
     expect(listWeekNotes).toHaveBeenLastCalledWith("loewer", "2026-W42");

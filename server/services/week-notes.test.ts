@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { Database } from "@server/db";
@@ -90,6 +91,20 @@ describe("listWeekNotes", () => {
       "Thursday, second",
       "Sunday",
     ]);
+  });
+
+  // Rows usually come back in the order they were stored, which is also insert order, so a test
+  // of ordinary inserts passes with no sort at all. Storing them against `create_order` does not.
+  it("sorts on insert order rather than on how the rows are stored", async () => {
+    await db.execute(sql`
+      insert into week_notes (household_id, id, week_id, body, create_order)
+      overriding system value
+      values (${A}, 'second', ${W42}, 'Second', 2), (${A}, 'first', ${W42}, 'First', 1)
+    `);
+
+    const notes = await listWeekNotes(A, W42, db);
+
+    expect(notes.map((note) => note.body)).toEqual(["First", "Second"]);
   });
 
   it("lists only the week asked for", async () => {

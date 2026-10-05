@@ -42,4 +42,10 @@ describe("weekNotes", () => {
   ])("answers a bad note with BAD_REQUEST: %o", async (input) => {
     await expect(caller().weekNotes.add(input)).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
+
+  it("answers a list for a week that is not an ISO week with BAD_REQUEST", async () => {
+    await expect(caller().weekNotes.list({ weekId: "2026-W99" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+  });
 });
