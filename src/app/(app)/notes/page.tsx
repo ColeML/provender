@@ -26,8 +26,11 @@ function utcDate(date: string) {
   return new Date(`${date}T00:00:00Z`);
 }
 
-/** `Oct 12–18`, or `Sep 28–Oct 4` when the week spans two months. */
-function weekRange(dates: string[]) {
+/**
+ * `Oct 12–18`, or `Sep 28–Oct 4` when the week spans two months. A week outside `currentYear`
+ * names its year, `Oct 18–24, 2027`, and one spanning two years names both.
+ */
+function weekRange(dates: string[], currentYear: number) {
   const first = dates.at(0);
   const last = dates.at(-1);
 
@@ -37,8 +40,18 @@ function weekRange(dates: string[]) {
 
   const start = utcDate(first);
   const end = utcDate(last);
+  const startYear = start.getUTCFullYear();
+  const endYear = end.getUTCFullYear();
   const endLabel =
     start.getUTCMonth() === end.getUTCMonth() ? String(end.getUTCDate()) : MONTH_DAY.format(end);
+
+  if (startYear !== endYear) {
+    return `${MONTH_DAY.format(start)}, ${startYear}–${endLabel}, ${endYear}`;
+  }
+
+  if (startYear !== currentYear) {
+    return `${MONTH_DAY.format(start)}–${endLabel}, ${endYear}`;
+  }
 
   return `${MONTH_DAY.format(start)}–${endLabel}`;
 }
@@ -57,7 +70,8 @@ export default async function Notes({
   const householdId = householdForSession(session);
   const { week } = await searchParams;
   // The same UTC clock `/plan` reads, so the two tabs move to a new week at the same moment.
-  const currentWeek = isoWeekFor(new Date().toISOString().slice(0, 10));
+  const today = new Date();
+  const currentWeek = isoWeekFor(today.toISOString().slice(0, 10));
   const nextWeek = shiftIsoWeek(currentWeek, 1) ?? currentWeek;
   // `?week=` is user-editable, so a typo falls back to the default view rather than an error.
   const weekId = week !== undefined && parseIsoWeek(week) !== undefined ? week : nextWeek;
@@ -72,7 +86,9 @@ export default async function Notes({
       {isNextWeek ? <p className="text-accent text-sm font-medium">Next week</p> : null}
 
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="font-display text-2xl font-semibold">Notes for {weekRange(dates)}</h1>
+        <h1 className="font-display text-2xl font-semibold">
+          Notes for {weekRange(dates, today.getUTCFullYear())}
+        </h1>
         <WeekNav
           basePath="/notes"
           planId={weekId}

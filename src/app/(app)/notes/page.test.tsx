@@ -100,6 +100,22 @@ describe("notes", () => {
     expect(screen.getByRole("form", { name: "Add a note to 2026-W40" })).toBeInTheDocument();
   });
 
+  it("names the year for a week in another year", async () => {
+    await renderNotes("2027-W42");
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Notes for Oct 18–24, 2027",
+    );
+  });
+
+  it("names both years for a week that crosses into another year", async () => {
+    await renderNotes("2026-W53");
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Notes for Dec 28, 2026–Jan 3, 2027",
+    );
+  });
+
   it("falls back to next week for a ?week= that is not an ISO week", async () => {
     await renderNotes("not-a-week");
 
