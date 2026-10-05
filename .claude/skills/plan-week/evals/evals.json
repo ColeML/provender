@@ -1,6 +1,6 @@
 {
   "skill": "plan-week",
-  "method": "Seed the fixture on a local dev server (PROVENDER_BASE_URL=http://localhost:3000), run each arm 5 times with the prompt below, and stop every rep at step 5 so nothing is written. Score from the step 5 presentation. A rep that fails a canary is discarded, not scored.",
+  "method": "Seed the fixture on a local dev server (PROVENDER_BASE_URL=http://localhost:3000), run each arm 5 or more times with the prompt below, and stop every rep at step 5 so nothing is written. Score from the step 5 presentation. A rep that fails a canary is discarded, not scored.",
   "prompt": "Plan my week for 2026-W42 (Mon Oct 12 to Sun Oct 18): 5 dinners, $120.",
   "fixture": {
     "week": "2026-W42",
@@ -80,7 +80,7 @@
       "id": "dated-busy-day-note",
       "type": "behavior",
       "note": "Soccer until 7 Thursday, dinner has to be fast",
-      "pass": "Thursday 2026-10-15 gets a main of 30 minutes or less, or is left unplanned, and step 5 names Thursday as the day that answers the note."
+      "pass": "Thursday 2026-10-15 gets a main of 30 minutes or less, or is left unplanned, and step 5 names Thursday as the answer to the note either way."
     },
     {
       "id": "note-requests-blocked-main",
@@ -115,7 +115,6 @@
     {
       "date": "2026-10-05",
       "model": "claude-opus-5-5",
-      "reps_per_arm": 5,
       "note": "edited is the first wording of rule 2 ('overrides every rule below it'); final is the shipped wording, run after review narrowed it to the three rules the spec names.",
       "arms": {
         "baseline": {
