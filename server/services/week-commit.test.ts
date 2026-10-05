@@ -69,7 +69,7 @@ describe("commitWeek", () => {
     const day = await getPlanDay(H, WEEK, MONDAY, "dinner", db);
     expect(day).toMatchObject({ servings: 8, main: "gnocchi", notes: "58F and wet" });
 
-    const history = await listHistory(H, {}, db);
+    const history = await listHistory(H, { withinDays: 10_000 }, db);
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({
       date: MONDAY,
@@ -93,7 +93,9 @@ describe("commitWeek", () => {
       db,
     );
 
-    expect((await listHistory(H, {}, db)).map((entry) => entry.recipeId)).toEqual(["gnocchi"]);
+    expect(
+      (await listHistory(H, { withinDays: 10_000 }, db)).map((entry) => entry.recipeId),
+    ).toEqual(["gnocchi"]);
   });
 
   it("writes no history for a day with no main", async () => {
@@ -107,7 +109,7 @@ describe("commitWeek", () => {
     );
 
     expect(result.historyEntryIds).toEqual([]);
-    expect(await listHistory(H, {}, db)).toHaveLength(0);
+    expect(await listHistory(H, { withinDays: 10_000 }, db)).toHaveLength(0);
   });
 
   it("rolls the whole commit back when a later recipe id is taken", async () => {
@@ -133,7 +135,7 @@ describe("commitWeek", () => {
 
     // The first recipe, the plan, the days and the history are all absent: one transaction.
     await expect(getRecipe(H, "gnocchi", db)).rejects.toThrow(RecipeNotFoundError);
-    expect(await listHistory(H, {}, db)).toHaveLength(0);
+    expect(await listHistory(H, { withinDays: 10_000 }, db)).toHaveLength(0);
     expect(await db.query.plans.findFirst()).toBeUndefined();
     expect(await db.query.planDays.findFirst()).toBeUndefined();
   });
@@ -214,7 +216,7 @@ describe("commitWeek", () => {
       db,
     );
 
-    const history = await listHistory(H, {}, db);
+    const history = await listHistory(H, { withinDays: 10_000 }, db);
 
     expect(history).toHaveLength(1);
     expect(history[0].recipeId).toBe("salad");
@@ -258,7 +260,7 @@ describe("commitWeek", () => {
     await rateMeal(H, first.historyEntryIds[0], { rating: 5 }, ["rating"], db);
     await commitWeek(H, WEEK, { replaceExistingDays: true, days: oneDay().days }, db);
 
-    const history = await listHistory(H, {}, db);
+    const history = await listHistory(H, { withinDays: 10_000 }, db);
 
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({ rating: 5 });

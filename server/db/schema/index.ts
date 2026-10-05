@@ -12,3 +12,4 @@ export * from "./prices";
 export * from "./recipes";
 export * from "./shares";
 export * from "./shopping";
+export * from "./week-notes";

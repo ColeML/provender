@@ -42,6 +42,23 @@ describe("WeekNav", () => {
     expect(screen.getByRole("link", { name: /this week/i })).toHaveAttribute("href", "/shop");
   });
 
+  // `/notes` defaults to next week, and an arrow is already named "Next week", so the way back
+  // keeps its visible label inside a name that cannot be mistaken for the arrow's.
+  it("names the way back after the default it returns to", () => {
+    render(
+      <WeekNav basePath="/notes" planId="2026-W45" atDefault={false} resetLabel="Next week" />,
+    );
+
+    const back = screen.getByRole("link", { name: "Back to next week" });
+
+    expect(back).toHaveAttribute("href", "/notes");
+    expect(back).toHaveTextContent("Next week");
+    expect(screen.getByRole("link", { name: "Next week" })).toHaveAttribute(
+      "href",
+      "/notes?week=2026-W46",
+    );
+  });
+
   it("omits that way back while already on the default view", () => {
     render(<WeekNav basePath="/shop" planId="2026-W39" atDefault />);
 

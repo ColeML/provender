@@ -4,15 +4,20 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const params = { current: new URLSearchParams() };
+const pathname = { current: "/plan" };
 
-vi.mock("next/navigation", () => ({ useSearchParams: () => params.current }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => params.current,
+  usePathname: () => pathname.current,
+}));
 
 const { BareSurfaceLinks, SurfaceLinks } = await import("./surface-links");
 
 afterEach(cleanup);
 
-function renderAt(query: string) {
+function renderAt(query: string, path = "/plan") {
   params.current = new URLSearchParams(query);
+  pathname.current = path;
 
   render(<SurfaceLinks />);
 }
@@ -42,8 +47,17 @@ describe("SurfaceLinks", () => {
   it("leaves the surfaces that have no week alone", () => {
     renderAt("week=2026-W40");
 
+    expect(screen.getByRole("link", { name: "Notes" })).toHaveAttribute("href", "/notes");
+
     expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute("href", "/recipes");
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+  });
+
+  // Notes steps through its own weeks; one picked there is not the week to plan or shop for.
+  it("does not carry a week picked on Notes to Plan or Shop", () => {
+    renderAt("week=2026-W44", "/notes");
+
+    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+    expect(screen.getByRole("link", { name: "Shop" })).toHaveAttribute("href", "/shop");
   });
 
   // A junk parameter must not be propagated across the app by the header.
@@ -51,6 +65,17 @@ describe("SurfaceLinks", () => {
     renderAt("week=not-a-week");
 
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+  });
+
+  it("sits Notes between Plan and Shop, and leaves Settings to the header's gear", () => {
+    renderAt("");
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Plan",
+      "Notes",
+      "Shop",
+      "Recipes",
+    ]);
   });
 });
 
@@ -62,6 +87,5 @@ describe("BareSurfaceLinks", () => {
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
     expect(screen.getByRole("link", { name: "Shop" })).toHaveAttribute("href", "/shop");
     expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute("href", "/recipes");
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 });
