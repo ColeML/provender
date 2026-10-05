@@ -1,0 +1,144 @@
+{
+  "skill": "plan-week",
+  "method": "Seed the fixture on a local dev server (PROVENDER_BASE_URL=http://localhost:3000), run each arm 5 times with the prompt below, and stop every rep at step 5 so nothing is written. Score from the step 5 presentation. A rep that fails a canary is discarded, not scored.",
+  "prompt": "Plan my week for 2026-W42 (Mon Oct 12 to Sun Oct 18): 5 dinners, $120.",
+  "fixture": {
+    "week": "2026-W42",
+    "config": {
+      "people": "2 adults, 2 kids (4 and 7)",
+      "location": "Tulsa, OK",
+      "default_budget": "120",
+      "default_meals": "5",
+      "dislikes": "mushrooms",
+      "allergies": "peanuts",
+      "dietary_restrictions": "none",
+      "equipment": "Instant Pot, sheet pans, outdoor grill",
+      "preferences": "kid-friendly weeknights",
+      "no_repeat_days": "21",
+      "new_mains_per_week": "2"
+    },
+    "recipes": {
+      "unplanned_mains": [
+        "sheet-pan-chicken-fajitas",
+        "one-pot-chicken-alfredo",
+        "honey-garlic-salmon",
+        "black-bean-quesadillas",
+        "baked-ziti",
+        "chicken-tortilla-soup",
+        "teriyaki-meatballs",
+        "lemon-herb-pork-chops",
+        "white-chicken-chili",
+        "thai-peanut-chicken",
+        "chicken-pad-thai"
+      ],
+      "eligible_mains": [
+        "chicken-pot-pie",
+        "spaghetti-and-meatballs",
+        "bbq-pulled-pork",
+        "cheeseburger-sliders"
+      ],
+      "blocked_mains": [
+        "pot-roast",
+        "beef-tacos",
+        "lasagna"
+      ],
+      "sides": [
+        "garlic-green-beans",
+        "caesar-salad",
+        "roasted-potatoes",
+        "cornbread",
+        "steamed-rice",
+        "cucumber-salad"
+      ],
+      "why": "Eleven unplanned mains cover the novelty quota, so step 3 never scrapes. thai-peanut-chicken and chicken-pad-thai contain peanuts; pot-roast stays blocked through 2026-10-18."
+    },
+    "notes": {
+      "2026-W42": [
+        {
+          "date": "2026-10-15",
+          "body": "Soccer until 7 Thursday, dinner has to be fast"
+        },
+        {
+          "date": null,
+          "body": "Mom asked for pot roast this week"
+        },
+        {
+          "date": null,
+          "body": "Kids keep asking for pad thai"
+        }
+      ],
+      "2026-W43": [
+        {
+          "date": "2026-10-20",
+          "body": "Make lasagna, the Hendersons are coming Tuesday"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "dated-busy-day-note",
+      "type": "behavior",
+      "note": "Soccer until 7 Thursday, dinner has to be fast",
+      "pass": "Thursday 2026-10-15 gets a main of 30 minutes or less, or is left unplanned, and step 5 names Thursday as the day that answers the note."
+    },
+    {
+      "id": "note-requests-blocked-main",
+      "type": "behavior",
+      "note": "Mom asked for pot roast this week",
+      "pass": "pot-roast, a blocked main, is planned on a day, and step 5 names that day as the one that answers the note."
+    },
+    {
+      "id": "note-conflicts-with-allergy",
+      "type": "behavior",
+      "note": "Kids keep asking for pad thai",
+      "pass": "chicken-pad-thai is not planned, and step 5 names the note as unhonored because of the peanut allergy."
+    }
+  ],
+  "canaries": [
+    {
+      "id": "allergy-holds",
+      "pass": "thai-peanut-chicken is not planned, and no planned side contains peanuts."
+    },
+    {
+      "id": "blocked-main-without-note-stays-out",
+      "pass": "beef-tacos, blocked and named by no note, is not planned."
+    }
+  ],
+  "decoys": [
+    {
+      "id": "other-weeks-note-ignored",
+      "pass": "lasagna, blocked and named only by a 2026-W43 note, is not planned, and the 2026-W43 note is not presented as answered."
+    }
+  ],
+  "runs": [
+    {
+      "date": "2026-10-05",
+      "model": "claude-opus-5-5",
+      "reps_per_arm": 5,
+      "note": "edited is the first wording of rule 2 ('overrides every rule below it'); final is the shipped wording, run after review narrowed it to the three rules the spec names.",
+      "arms": {
+        "baseline": {
+          "live": 5,
+          "cases_passed": 2,
+          "of": 15
+        },
+        "edited": {
+          "live": 5,
+          "cases_passed": 15,
+          "of": 15
+        },
+        "agents-line": {
+          "live": 5,
+          "cases_passed": 15,
+          "of": 15
+        },
+        "final": {
+          "live": 3,
+          "cases_passed": 9,
+          "of": 9
+        }
+      }
+    }
+  ]
+}

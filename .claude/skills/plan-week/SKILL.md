@@ -13,6 +13,7 @@ You choose the menu. The API stores it. Nothing is written until the user approv
 ./scripts/prov GET /config
 ./scripts/prov GET /weather
 ./scripts/prov GET /planning/rotation
+./scripts/prov GET /weeks/<iso-week>/notes
 ```
 
 `config` carries `people`, `location`, `default_budget`, `default_meals`, `dislikes`, `allergies`,
@@ -24,32 +25,39 @@ planned, `eligible` is outside `no_repeat_days`, `blocked` is inside it and says
 The tier is the answer — do not recompute it from dates. Each row also carries `baseServings`,
 the yield the recipe is stored at, which is what a day's `servings` takes in step 6.
 
+`notes` are what the household wrote down for the week being planned, so read the week you are
+planning and no other. Each has a `body` and a `date`; a null `date` means any day. An empty list
+changes nothing.
+
 ## 2. Choose the menu
 
 Apply in order:
 
 1. **Allergies and dietary restrictions** — absolute.
-2. **Dislikes** — avoid unless the user asks.
-3. **Weather.** Cold or wet → soups, braises, comfort food. Hot → grill, salads, no oven. Match the
+2. **Notes.** A note is the household asking, so it overrides dislikes, repeat-avoidance and the
+   novelty quota: plan the `blocked` main it names, the disliked dish it asks for, a known dish over
+   a new one. A dated note applies to its day. A note that conflicts with rule 1 goes unhonored.
+3. **Dislikes** — avoid unless the user asks.
+4. **Weather.** Cold or wet → soups, braises, comfort food. Hot → grill, salads, no oven. Match the
    day to its forecast, not the week to an average.
-4. **Day preferences.** "Quick Monday" means ≤30 minutes, and say the number.
-5. **Equipment honesty.** Cite a device in a day's note only if that recipe uses it. Verify after
+5. **Day preferences.** "Quick Monday" means ≤30 minutes, and say the number.
+6. **Equipment honesty.** Cite a device in a day's note only if that recipe uses it. Verify after
    scraping, and change the note rather than the recipe.
-6. **Repeat-avoidance, mains only.** Do not plan a `blocked` main. Offer them as a list the
+7. **Repeat-avoidance, mains only.** Do not plan a `blocked` main. Offer them as a list the
    household can pull from — history records what was *planned*, not what was eaten. Sides may
    repeat freely.
-7. **Novelty quota.** `new_mains_per_week` mains come from the `unplanned` tier — saved recipes the
+8. **Novelty quota.** `new_mains_per_week` mains come from the `unplanned` tier — saved recipes the
    household already owns and has never planned. Scrape the web only once `unplanned` runs dry, or
    when the user asks for something new. Absent `new_mains_per_week`, the quota is a third of the
    week's mains, rounded up — 2 of 5, 3 of 7.
-8. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
+9. **Ratings.** Each rotation row carries `rating`, the most recent rated entry for that recipe
    (a dish can have a `lastPlanned` newer than its `rating` if the latest planning wasn't rated).
    Drop mains rated 1–2 from the pool unless the user asks for one; favour 4–5. `rating: null`
    means unrated, not low-rated.
-9. **Rotation for the rest.** Order whatever the earlier rules left in the pool — oldest
-   `lastPlanned` first by default, overridden by weather, time or ingredient overlap. For mains, do
-   not reach back into a tier or rating excluded above.
-10. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
+10. **Rotation for the rest.** Order whatever the earlier rules left in the pool — oldest
+    `lastPlanned` first by default, overridden by weather, time or ingredient overlap. For mains, do
+    not reach back into a tier or rating excluded above.
+11. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
     waste.
 
 ## 3. Source the recipes
@@ -102,7 +110,7 @@ arithmetic and mark which lines came from `./scripts/prov GET /prices` rather th
 ## 5. Present the week and STOP
 
 One line per day: the main, the side, the time, the cost, and why that day. Then the total against
-the budget.
+the budget. Then one line per note: the day that answers it, or why it went unhonored.
 
 Wait for approval. Write nothing yet.
 
