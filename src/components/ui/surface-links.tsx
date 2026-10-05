@@ -2,7 +2,7 @@
 
 import { parseIsoWeek } from "@server/lib/iso-week";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 /**
  * `carriesWeek` marks the surfaces that share a selected week. Notes reads `?week=` too, but is
@@ -45,8 +45,14 @@ export function BareSurfaceLinks() {
  */
 export function SurfaceLinks() {
   const week = useSearchParams().get("week");
-  // A hand-typed `?week=` reaches here, and the header must not spread a junk value app-wide.
-  const carried = week !== null && parseIsoWeek(week) !== undefined ? week : undefined;
+  const pathname = usePathname();
+  // Only a week picked on a surface that shares one is carried; Notes steps through its own. A
+  // hand-typed `?week=` also reaches here, and the header must not spread a junk value app-wide.
+  const onSharingSurface = SURFACES.some(
+    (surface) => surface.carriesWeek && surface.href === pathname,
+  );
+  const carried =
+    onSharingSurface && week !== null && parseIsoWeek(week) !== undefined ? week : undefined;
 
   return (
     <>
