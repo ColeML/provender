@@ -17,8 +17,9 @@ export interface NoteChange {
 }
 
 /**
- * The note whose edit button takes focus when it next mounts. Module-level rather than state, since
- * a note moved to another day remounts under that day's heading and this instance does not survive.
+ * The note whose edit field was removed while it had focus, so its edit button takes focus when it
+ * mounts in the same commit. Module-level rather than state, since a note moved to another day
+ * remounts under that day's heading and this instance does not survive.
  */
 let focusOnMount: string | null = null;
 
@@ -40,18 +41,7 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
   // so the old text is not shown again in the moment between the save and the new list.
   const [pending, startTransition] = useTransition();
 
-  // Enter and Escape hand focus back to the note. Leaving the field does not: focus already went
-  // where the household tapped.
-  function close(returnFocus: boolean) {
-    if (returnFocus) {
-      focusOnMount = id;
-    }
-
-    setDraft(null);
-  }
-
-  /** `submittedFrom` is the form when Enter saved, and absent when leaving the field did. */
-  function save(submittedFrom?: HTMLFormElement) {
+  function save() {
     if (draft === null || pending) {
       return;
     }
@@ -70,7 +60,7 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
     }
 
     if (change.body === undefined && change.date === undefined) {
-      close(submittedFrom !== undefined);
+      setDraft(null);
       return;
     }
 
@@ -78,9 +68,7 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
     startTransition(async () => {
       try {
         await onSave(change);
-        // A slow save may finish after the household has moved on, so only take focus back if it
-        // is still in the editor.
-        startTransition(() => close(submittedFrom?.contains(document.activeElement) ?? false));
+        startTransition(() => setDraft(null));
       } catch {
         setFailed("save");
       }
@@ -101,7 +89,7 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
   function cancelOnEscape(event: React.KeyboardEvent) {
     if (event.key === "Escape" && !pending) {
       setFailed(null);
-      close(true);
+      setDraft(null);
     }
   }
 
@@ -123,11 +111,22 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
         aria-label="Edit note"
         onSubmit={(event) => {
           event.preventDefault();
-          save(event.currentTarget);
+          save();
         }}
         className="flex flex-col gap-2 py-2"
       >
         <input
+          // Enter and Escape close the editor with focus still here. Leaving the field, or moving
+          // on while a save was in flight, does not, so focus stays where the household put it.
+          ref={(input) => () => {
+            if (document.activeElement === input) {
+              focusOnMount = id;
+              // Only the commit that removed the field may use it.
+              queueMicrotask(() => {
+                focusOnMount = null;
+              });
+            }
+          }}
           aria-label="Note"
           type="text"
           value={draft.body}

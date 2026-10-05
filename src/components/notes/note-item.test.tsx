@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { startTransition, use, useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NoteItem, type NoteChange } from "./note-item";
@@ -41,6 +42,35 @@ function setup({
   );
 
   return { user, onSave, onDelete };
+}
+
+/**
+ * Holds its children's commit until `land` is called, as Next's `router.refresh()` does: it sets
+ * router state to a pending promise inside a transition and reads it with `use`.
+ */
+function refreshingPage() {
+  const page = { refresh: () => {}, land: () => {} };
+
+  function Page({ children }: { children: React.ReactNode }) {
+    const [payload, setPayload] = useState<Promise<void> | null>(null);
+
+    useEffect(() => {
+      page.refresh = () => {
+        const loaded = Promise.withResolvers<void>();
+
+        page.land = () => loaded.resolve();
+        startTransition(() => setPayload(loaded.promise));
+      };
+    }, []);
+
+    if (payload !== null) {
+      use(payload);
+    }
+
+    return children;
+  }
+
+  return { page, Page };
 }
 
 function editor() {
@@ -225,6 +255,86 @@ describe("NoteItem", () => {
 
     await waitFor(() => expect(screen.queryByRole("form", { name: "Edit note" })).toBeNull());
     expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+  });
+
+  // The save request can finish well before the refreshed page arrives, and the editor stays open
+  // until it does, so the household may already be somewhere else by then.
+  it("leaves focus alone when it moved on while the page was refreshing", async () => {
+    const { page, Page } = refreshingPage();
+    const user = userEvent.setup();
+
+    render(
+      <Page>
+        <NoteItem
+          id="note-1"
+          body="Socer until 7"
+          date={null}
+          dates={W42}
+          onSave={async () => page.refresh()}
+          onDelete={async () => {}}
+        />
+        <button type="button">Elsewhere</button>
+      </Page>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.type(editor().note, "!{Enter}");
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+    await act(async () => page.land());
+
+    await waitFor(() => expect(screen.queryByRole("form", { name: "Edit note" })).toBeNull());
+    expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+  });
+
+  it("returns focus to the note once the refreshed page arrives", async () => {
+    const { page, Page } = refreshingPage();
+    const user = userEvent.setup();
+
+    render(
+      <Page>
+        <NoteItem
+          id="note-1"
+          body="Socer until 7"
+          date={null}
+          dates={W42}
+          onSave={async () => page.refresh()}
+          onDelete={async () => {}}
+        />
+      </Page>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.type(editor().note, "!{Enter}");
+
+    expect(screen.getByRole("form", { name: "Edit note" })).toBeInTheDocument();
+
+    await act(async () => page.land());
+
+    expect(await screen.findByRole("button", { name: /^Edit note: / })).toHaveFocus();
+  });
+
+  // Leaving the week mid-save removes the field with focus in it, and no button replaces it.
+  it("does not take focus when the note returns later", async () => {
+    const user = userEvent.setup();
+    const note = (
+      <NoteItem
+        id="note-1"
+        body="Socer until 7"
+        date={null}
+        dates={W42}
+        onSave={() => new Promise(() => {})}
+        onDelete={async () => {}}
+      />
+    );
+    const { unmount } = render(note);
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.type(editor().note, "!{Enter}");
+    unmount();
+    await act(async () => {});
+    render(note);
+
+    expect(screen.getByRole("button", { name: "Edit note: Socer until 7" })).not.toHaveFocus();
   });
 
   it("deletes the note from its delete control", async () => {
