@@ -51,3 +51,43 @@ test("steps to another week and back to next week", async ({ page }) => {
   await page.getByRole("link", { name: "Back to next week" }).click();
   await expect(page).toHaveURL("/notes");
 });
+
+test("edits a note in place, keeps its text on a blank edit, and deletes it", async ({ page }) => {
+  const run = Date.now();
+  const add = page.getByRole("textbox", { name: "Note" });
+
+  await page.goto(`/notes?week=${FAR_WEEK}`);
+  await add.fill(`Socer ${run}`);
+  await add.press("Enter");
+  await page.getByRole("button", { name: `Edit note: Socer ${run}` }).click();
+
+  const editor = page.getByRole("form", { name: "Edit note" });
+
+  await editor.getByRole("textbox", { name: "Note" }).fill(`Soccer ${run}`);
+  await editor.getByRole("combobox", { name: "Day" }).selectOption({ label: "Thu 6" });
+  await editor.getByRole("textbox", { name: "Note" }).press("Enter");
+
+  const thursday = page.getByRole("region", { name: "Thursday, Mar 6" });
+
+  // The note moved to Thursday, so it remounted there; focus follows it rather than the page.
+  await expect(thursday.getByRole("button", { name: `Edit note: Soccer ${run}` })).toBeFocused();
+
+  await page.reload();
+  await thursday.getByRole("button", { name: `Edit note: Soccer ${run}` }).click();
+  await editor.getByRole("textbox", { name: "Note" }).fill("");
+  await page.getByRole("heading", { level: 1 }).click();
+  await expect(editor).toBeHidden();
+
+  await page.reload();
+  await thursday.getByRole("button", { name: `Edit note: Soccer ${run}` }).click();
+  await editor.getByRole("textbox", { name: "Note" }).fill(`Canceled ${run}`);
+  await editor.getByRole("textbox", { name: "Note" }).press("Escape");
+  await expect(thursday.getByRole("button", { name: `Edit note: Soccer ${run}` })).toBeFocused();
+
+  await thursday.getByRole("button", { name: `Delete note: Soccer ${run}` }).click();
+  await expect(page.getByText(`Soccer ${run}`)).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByText(`Soccer ${run}`)).toBeHidden();
+});

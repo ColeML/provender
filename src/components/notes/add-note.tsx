@@ -8,7 +8,7 @@ import { useTRPC } from "@/lib/trpc/client";
 
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
 
-const FIELD =
+export const FIELD =
   "border-muted-foreground bg-background focus-visible:ring-ring placeholder:text-muted-foreground h-11 rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none";
 
 /** `Mon 12`. en-US puts the day number first when asked for both parts at once. */
@@ -16,6 +16,20 @@ function dayLabel(date: string) {
   const parsed = new Date(`${date}T00:00:00Z`);
 
   return `${WEEKDAY.format(parsed)} ${parsed.getUTCDate()}`;
+}
+
+/** Any day, then the week's seven dates, which are the only days a note can name. */
+export function DayOptions({ dates }: { dates: string[] }) {
+  return (
+    <>
+      <option value="">Any day</option>
+      {dates.map((day) => (
+        <option key={day} value={day}>
+          {dayLabel(day)}
+        </option>
+      ))}
+    </>
+  );
 }
 
 interface NoteFormProps {
@@ -92,12 +106,7 @@ export function NoteForm({ dates, onAdd }: NoteFormProps) {
           onChange={(event) => setDraft({ ...draft, date: event.target.value })}
           className={FIELD}
         >
-          <option value="">Any day</option>
-          {dates.map((day) => (
-            <option key={day} value={day}>
-              {dayLabel(day)}
-            </option>
-          ))}
+          <DayOptions dates={dates} />
         </select>
       </div>
 

@@ -13,8 +13,11 @@ import {
   addWeekNote,
   BlankNoteError,
   DateOutsideWeekError,
+  deleteWeekNote,
   InvalidWeekIdError,
   listWeekNotes,
+  updateWeekNote,
+  WeekNoteNotFoundError,
 } from "@server/services/week-notes";
 import { TRPCError } from "@trpc/server";
 
@@ -22,8 +25,12 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "../init";
 
-/** The caller's mistake, so a 400 rather than the 500 tRPC gives any thrown error. */
+/** The caller's mistake, so a 400 or 404 rather than the 500 tRPC gives any thrown error. */
 function rejectBadNote(error: unknown): never {
+  if (error instanceof WeekNoteNotFoundError) {
+    throw new TRPCError({ code: "NOT_FOUND", message: error.message, cause: error });
+  }
+
   if (
     error instanceof InvalidWeekIdError ||
     error instanceof DateOutsideWeekError ||
@@ -159,6 +166,25 @@ export const appRouter = router({
 
         return addWeekNote(ctx.householdId, weekId, note, ctx.db).catch(rejectBadNote);
       }),
+    update: protectedProcedure
+      .input(
+        z.object({
+          weekId: z.string().min(1),
+          noteId: z.string().min(1),
+          date: z.string().nullable().optional(),
+          body: z.string().optional(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const { weekId, noteId, ...update } = input;
+
+        return updateWeekNote(ctx.householdId, weekId, noteId, update, ctx.db).catch(rejectBadNote);
+      }),
+    remove: protectedProcedure
+      .input(z.object({ weekId: z.string().min(1), noteId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteWeekNote(ctx.householdId, input.weekId, input.noteId, ctx.db).catch(rejectBadNote),
+      ),
   }),
   recipes: router({
     list: protectedProcedure

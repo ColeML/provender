@@ -14,9 +14,12 @@ vi.mock("@server/auth/household", () => ({ householdForSession: () => "loewer" }
 vi.mock("@server/services/week-notes", () => ({
   listWeekNotes: (householdId: string, weekId: string) => listWeekNotes(householdId, weekId),
 }));
-// The add row is a client component wired to tRPC; its own test covers it.
+// The add row and each note are client components wired to tRPC; their own tests cover them.
 vi.mock("@/components/notes/add-note", () => ({
   AddNote: ({ weekId }: { weekId: string }) => <form aria-label={`Add a note to ${weekId}`} />,
+}));
+vi.mock("@/components/notes/note-item", () => ({
+  WeekNoteItem: ({ note }: { note: { body: string } }) => <>{note.body}</>,
 }));
 
 const { default: Notes } = await import("./page");
