@@ -27,8 +27,8 @@ interface NoteFormProps {
 
 /** The add row, with no data layer, so its behavior is testable without tRPC. */
 export function NoteForm({ dates, onAdd }: NoteFormProps) {
-  const [body, setBody] = useState("");
-  const [date, setDate] = useState("");
+  // One state, because the day belongs to the text it was picked for and they clear together.
+  const [draft, setDraft] = useState({ body: "", date: "" });
   const [failed, setFailed] = useState(false);
   // A transition rather than a flag, so the form stays pending through the page refresh `onAdd`
   // starts and clears in the same commit that lists the note. Cleared earlier, the note is on
@@ -37,7 +37,7 @@ export function NoteForm({ dates, onAdd }: NoteFormProps) {
   const noteId = useId();
   const dayId = useId();
 
-  const blank = body.trim() === "";
+  const blank = draft.body.trim() === "";
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,17 +46,18 @@ export function NoteForm({ dates, onAdd }: NoteFormProps) {
       return;
     }
 
-    const submitted = { body, date };
+    const submitted = draft;
 
     setFailed(false);
     startTransition(async () => {
       try {
-        await onAdd({ date: date === "" ? null : date, body });
-        // State set after an `await` leaves the transition unless it is wrapped again. Only what
-        // was saved is cleared: the field stays editable while saving, so it may hold the next note.
+        await onAdd({ date: submitted.date === "" ? null : submitted.date, body: submitted.body });
+        // State set after an `await` leaves the transition unless it is wrapped again. The field
+        // stays editable while saving, so if it now holds the next note, that note keeps its day.
         startTransition(() => {
-          setBody((current) => (current === submitted.body ? "" : current));
-          setDate((current) => (current === submitted.date ? "" : current));
+          setDraft((current) =>
+            current.body === submitted.body ? { body: "", date: "" } : current,
+          );
         });
       } catch {
         setFailed(true);
@@ -73,8 +74,8 @@ export function NoteForm({ dates, onAdd }: NoteFormProps) {
         <input
           id={noteId}
           type="text"
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
+          value={draft.body}
+          onChange={(event) => setDraft({ ...draft, body: event.target.value })}
           placeholder="Soccer until 7 Thursday"
           autoComplete="off"
           className={FIELD}
@@ -87,8 +88,8 @@ export function NoteForm({ dates, onAdd }: NoteFormProps) {
         </label>
         <select
           id={dayId}
-          value={date}
-          onChange={(event) => setDate(event.target.value)}
+          value={draft.date}
+          onChange={(event) => setDraft({ ...draft, date: event.target.value })}
           className={FIELD}
         >
           <option value="">Any day</option>

@@ -102,6 +102,29 @@ describe("NoteForm", () => {
     expect(screen.getByRole("combobox", { name: "Day" })).toHaveValue("2026-10-15");
   });
 
+  // The day belongs to the note being typed, so it is kept with that note, not reset on its own.
+  it("keeps the day with a note typed while the previous one was saving", async () => {
+    const onAdd = vi.fn<(note: { date: string | null; body: string }) => Promise<void>>();
+    const saved = Promise.withResolvers<void>();
+    const user = userEvent.setup();
+
+    onAdd.mockReturnValue(saved.promise);
+    render(<NoteForm dates={W42} onAdd={onAdd} />);
+
+    const note = screen.getByRole("textbox", { name: "Note" });
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Day" }), "Thu 15");
+    await user.type(note, "Soccer{Enter}");
+    await user.clear(note);
+    await user.type(note, "Pizza night");
+
+    saved.resolve();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
+    expect(note).toHaveValue("Pizza night");
+    expect(screen.getByRole("combobox", { name: "Day" })).toHaveValue("2026-10-15");
+  });
+
   // The note is the household's words; a failed write must not throw them away.
   it("keeps the note and says so when saving fails", async () => {
     const onAdd = vi.fn<(note: { date: string | null; body: string }) => Promise<void>>();
