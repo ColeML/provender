@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -77,6 +77,29 @@ describe("NoteForm", () => {
 
     expect(onAdd).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  });
+
+  it("keeps what was typed while the previous note was still saving", async () => {
+    const onAdd = vi.fn<(note: { date: string | null; body: string }) => Promise<void>>();
+    const saved = Promise.withResolvers<void>();
+    const user = userEvent.setup();
+
+    onAdd.mockReturnValue(saved.promise);
+    render(<NoteForm dates={W42} onAdd={onAdd} />);
+
+    const note = screen.getByRole("textbox", { name: "Note" });
+
+    await user.type(note, "Pot roast{Enter}");
+    await user.clear(note);
+    await user.type(note, "Soccer{Enter}");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Day" }), "Thu 15");
+
+    saved.resolve();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toBeEnabled());
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    expect(note).toHaveValue("Soccer");
+    expect(screen.getByRole("combobox", { name: "Day" })).toHaveValue("2026-10-15");
   });
 
   // The note is the household's words; a failed write must not throw them away.

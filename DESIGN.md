@@ -124,8 +124,8 @@ Teriyaki Chicken and Rice" has to wrap inside 390px.
   `/login` use it.
 - **The logo's mark appears in three places only:** above the wordmark on `/login`, beside it at
   the top of a shared recipe, and as the favicon. `LogoMark` in `src/components/ui/logo-mark.tsx`
-  renders it, on a parchment tile in dark mode. The app's own header stays text-only, because on a
-  phone that space belongs to the page. `scripts/render-icons` regenerates every logo asset from
+  renders it, on a parchment tile in dark mode. The app's own header carries no mark, only the
+  wordmark, the text tabs and a settings gear, because on a phone that space belongs to the page. `scripts/render-icons` regenerates every logo asset from
   `scripts/logo.jpg`.
 
 ## The manuscript reference

@@ -46,14 +46,17 @@ export function NoteForm({ dates, onAdd }: NoteFormProps) {
       return;
     }
 
+    const submitted = { body, date };
+
     setFailed(false);
     startTransition(async () => {
       try {
         await onAdd({ date: date === "" ? null : date, body });
-        // State set after an `await` leaves the transition unless it is wrapped again.
+        // State set after an `await` leaves the transition unless it is wrapped again. Only what
+        // was saved is cleared: the field stays editable while saving, so it may hold the next note.
         startTransition(() => {
-          setBody("");
-          setDate("");
+          setBody((current) => (current === submitted.body ? "" : current));
+          setDate((current) => (current === submitted.date ? "" : current));
         });
       } catch {
         setFailed(true);
