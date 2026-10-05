@@ -58,6 +58,7 @@ import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
+import { addWeekNote, listWeekNotes } from "@server/services/week-notes";
 import { schema } from "@server/db";
 
 /**
@@ -706,5 +707,19 @@ describe("shares", () => {
     await expect(getSharedRecipe(theirs.token, db)).resolves.toMatchObject({
       recipe: { householdId: B, title: "Their Fajitas" },
     });
+  });
+});
+
+describe("week notes", () => {
+  it("hides another household's notes on a week both have written for", async () => {
+    await addWeekNote(A, "2026-W42", { body: "Mom asked for pot roast" }, db);
+    await addWeekNote(B, "2026-W42", { date: "2026-10-15", body: "Their soccer night" }, db);
+
+    await expect(listWeekNotes(A, "2026-W42", db)).resolves.toMatchObject([
+      { householdId: A, body: "Mom asked for pot roast" },
+    ]);
+    await expect(listWeekNotes(B, "2026-W42", db)).resolves.toMatchObject([
+      { householdId: B, body: "Their soccer night" },
+    ]);
   });
 });

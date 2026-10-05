@@ -4,9 +4,13 @@ import { parseIsoWeek } from "@server/lib/iso-week";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-/** `carriesWeek` marks the surfaces that read `?week=`; the others have no week to keep. */
+/**
+ * `carriesWeek` marks the surfaces that share a selected week. Notes reads `?week=` too, but is
+ * left bare on purpose: it always opens on next week, whatever week Plan or Shop is showing.
+ */
 const SURFACES = [
   { href: "/plan", label: "Plan", carriesWeek: true },
+  { href: "/notes", label: "Notes", carriesWeek: false },
   { href: "/shop", label: "Shop", carriesWeek: true },
   { href: "/recipes", label: "Recipes", carriesWeek: false },
   { href: "/settings", label: "Settings", carriesWeek: false },

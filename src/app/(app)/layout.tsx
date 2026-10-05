@@ -14,7 +14,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="border-border border-b">
-        <nav className="mx-auto flex max-w-2xl items-center gap-4 px-4 py-3">
+        {/* Wraps so the surface links drop to a second row on a phone rather than run off it. */}
+        <nav className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
           <Link
             href="/"
             className="focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-visible:outline-none"
@@ -27,9 +28,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* `SurfaceLinks` reads the query string, which Next requires a boundary around. The
               fallback is the same links without the week, so a route that is not dynamic loses
               the carried week rather than the whole nav. */}
-          <Suspense fallback={<BareSurfaceLinks />}>
-            <SurfaceLinks />
-          </Suspense>
+          <div className="flex gap-4">
+            <Suspense fallback={<BareSurfaceLinks />}>
+              <SurfaceLinks />
+            </Suspense>
+          </div>
         </nav>
       </header>
 

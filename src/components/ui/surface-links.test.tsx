@@ -42,6 +42,8 @@ describe("SurfaceLinks", () => {
   it("leaves the surfaces that have no week alone", () => {
     renderAt("week=2026-W40");
 
+    expect(screen.getByRole("link", { name: "Notes" })).toHaveAttribute("href", "/notes");
+
     expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute("href", "/recipes");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
@@ -51,6 +53,18 @@ describe("SurfaceLinks", () => {
     renderAt("week=not-a-week");
 
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
+  });
+
+  it("sits Notes between Plan and Shop", () => {
+    renderAt("");
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Plan",
+      "Notes",
+      "Shop",
+      "Recipes",
+      "Settings",
+    ]);
   });
 });
 
