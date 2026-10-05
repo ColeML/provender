@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useState, useTransition } from "react";
 
 import { useTRPC } from "@/lib/trpc/client";
 
@@ -29,32 +29,36 @@ interface NoteFormProps {
 export function NoteForm({ dates, onAdd }: NoteFormProps) {
   const [body, setBody] = useState("");
   const [date, setDate] = useState("");
-  const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  // A transition rather than a flag, so the form stays pending through the page refresh `onAdd`
+  // starts and clears in the same commit that lists the note. Cleared earlier, the note is on
+  // screen nowhere for a moment, and the household types it again.
+  const [pending, startTransition] = useTransition();
   const noteId = useId();
   const dayId = useId();
 
   const blank = body.trim() === "";
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (blank || pending) {
       return;
     }
 
-    setPending(true);
     setFailed(false);
-
-    try {
-      await onAdd({ date: date === "" ? null : date, body });
-      setBody("");
-      setDate("");
-    } catch {
-      setFailed(true);
-    } finally {
-      setPending(false);
-    }
+    startTransition(async () => {
+      try {
+        await onAdd({ date: date === "" ? null : date, body });
+        // State set after an `await` leaves the transition unless it is wrapped again.
+        startTransition(() => {
+          setBody("");
+          setDate("");
+        });
+      } catch {
+        setFailed(true);
+      }
+    });
   }
 
   return (
