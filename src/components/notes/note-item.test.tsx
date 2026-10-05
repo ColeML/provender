@@ -229,6 +229,16 @@ describe("NoteItem", () => {
     expect(await screen.findByRole("button", { name: /^Edit note: / })).toHaveFocus();
   });
 
+  it("returns focus to the note after Escape from the day", async () => {
+    const { user } = setup();
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.selectOptions(editor().day, "Fri 16");
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByRole("button", { name: "Edit note: Socer until 7" })).toHaveFocus();
+  });
+
   it("leaves focus where it went when the edit is saved by leaving", async () => {
     const { user } = setup();
 

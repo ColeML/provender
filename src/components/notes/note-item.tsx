@@ -105,6 +105,20 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
     save();
   }
 
+  // Enter and Escape close the editor with focus still in a field. Leaving the field, or moving on
+  // while a save was in flight, does not, so focus stays where the household put it.
+  function handFocusBack(field: HTMLInputElement | HTMLSelectElement | null) {
+    return () => {
+      if (field !== null && document.activeElement === field) {
+        focusOnMount = id;
+        // Only the commit that removed the field may use it.
+        queueMicrotask(() => {
+          focusOnMount = null;
+        });
+      }
+    };
+  }
+
   if (draft !== null) {
     return (
       <form
@@ -116,17 +130,7 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
         className="flex flex-col gap-2 py-2"
       >
         <input
-          // Enter and Escape close the editor with focus still here. Leaving the field, or moving
-          // on while a save was in flight, does not, so focus stays where the household put it.
-          ref={(input) => () => {
-            if (document.activeElement === input) {
-              focusOnMount = id;
-              // Only the commit that removed the field may use it.
-              queueMicrotask(() => {
-                focusOnMount = null;
-              });
-            }
-          }}
+          ref={handFocusBack}
           aria-label="Note"
           type="text"
           value={draft.body}
@@ -142,6 +146,7 @@ export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemPr
           className={FIELD}
         />
         <select
+          ref={handFocusBack}
           aria-label="Day"
           value={draft.date}
           onChange={(event) => setDraft({ ...draft, date: event.target.value })}
