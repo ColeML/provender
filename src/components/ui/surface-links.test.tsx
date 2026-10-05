@@ -45,7 +45,6 @@ describe("SurfaceLinks", () => {
     expect(screen.getByRole("link", { name: "Notes" })).toHaveAttribute("href", "/notes");
 
     expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute("href", "/recipes");
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 
   // A junk parameter must not be propagated across the app by the header.
@@ -55,7 +54,7 @@ describe("SurfaceLinks", () => {
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
   });
 
-  it("sits Notes between Plan and Shop", () => {
+  it("sits Notes between Plan and Shop, and leaves Settings to the header's gear", () => {
     renderAt("");
 
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
@@ -63,7 +62,6 @@ describe("SurfaceLinks", () => {
       "Notes",
       "Shop",
       "Recipes",
-      "Settings",
     ]);
   });
 });
@@ -76,6 +74,5 @@ describe("BareSurfaceLinks", () => {
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
     expect(screen.getByRole("link", { name: "Shop" })).toHaveAttribute("href", "/shop");
     expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute("href", "/recipes");
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
   });
 });

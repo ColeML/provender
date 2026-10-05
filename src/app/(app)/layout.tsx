@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -14,8 +15,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="border-border border-b">
-        {/* Wraps so the surface links drop to a second row on a phone rather than run off it. */}
-        <nav className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+        {/* On a phone the tabs take a row of their own under the wordmark and gear: the four of
+            them beside both need about 390px, which is wider than the screen. */}
+        <nav className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
           <Link
             href="/"
             className="focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-visible:outline-none"
@@ -28,11 +30,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* `SurfaceLinks` reads the query string, which Next requires a boundary around. The
               fallback is the same links without the week, so a route that is not dynamic loses
               the carried week rather than the whole nav. */}
-          <div className="flex gap-4">
+          <div className="order-last flex w-full gap-4 pb-1 sm:order-none sm:w-auto sm:pb-0">
             <Suspense fallback={<BareSurfaceLinks />}>
               <SurfaceLinks />
             </Suspense>
           </div>
+
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -mr-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm focus-visible:ring-3 focus-visible:outline-none"
+          >
+            <Settings aria-hidden className="size-5" />
+          </Link>
         </nav>
       </header>
 

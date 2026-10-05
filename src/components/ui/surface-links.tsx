@@ -13,7 +13,6 @@ const SURFACES = [
   { href: "/notes", label: "Notes", carriesWeek: false },
   { href: "/shop", label: "Shop", carriesWeek: true },
   { href: "/recipes", label: "Recipes", carriesWeek: false },
-  { href: "/settings", label: "Settings", carriesWeek: false },
 ];
 
 const CLASS = "text-muted-foreground hover:text-foreground text-sm";
