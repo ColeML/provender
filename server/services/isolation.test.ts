@@ -536,8 +536,8 @@ describe("commitWeek", () => {
     );
 
     expect(result.days[0].main).toBe("mine");
-    expect(await listHistory(B, {}, db)).toHaveLength(1);
-    expect(await listHistory(A, {}, db)).toHaveLength(1);
+    expect(await listHistory(B, { withinDays: 10_000 }, db)).toHaveLength(1);
+    expect(await listHistory(A, { withinDays: 10_000 }, db)).toHaveLength(1);
   });
 });
 
