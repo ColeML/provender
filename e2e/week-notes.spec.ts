@@ -69,7 +69,8 @@ test("edits a note in place, keeps its text on a blank edit, and deletes it", as
 
   const thursday = page.getByRole("region", { name: "Thursday, Mar 6" });
 
-  await expect(thursday.getByRole("button", { name: `Edit note: Soccer ${run}` })).toBeVisible();
+  // The note moved to Thursday, so it remounted there; focus follows it rather than the page.
+  await expect(thursday.getByRole("button", { name: `Edit note: Soccer ${run}` })).toBeFocused();
 
   await page.reload();
   await thursday.getByRole("button", { name: `Edit note: Soccer ${run}` }).click();
@@ -81,7 +82,7 @@ test("edits a note in place, keeps its text on a blank edit, and deletes it", as
   await thursday.getByRole("button", { name: `Edit note: Soccer ${run}` }).click();
   await editor.getByRole("textbox", { name: "Note" }).fill(`Canceled ${run}`);
   await editor.getByRole("textbox", { name: "Note" }).press("Escape");
-  await expect(thursday.getByRole("button", { name: `Edit note: Soccer ${run}` })).toBeVisible();
+  await expect(thursday.getByRole("button", { name: `Edit note: Soccer ${run}` })).toBeFocused();
 
   await thursday.getByRole("button", { name: `Delete note: Soccer ${run}` }).click();
   await expect(page.getByText(`Soccer ${run}`)).toBeHidden();

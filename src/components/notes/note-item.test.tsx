@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +28,14 @@ function setup({
 
   render(
     <>
-      <NoteItem body={body} date={date} dates={W42} onSave={onSave} onDelete={onDelete} />
+      <NoteItem
+        id="note-1"
+        body={body}
+        date={date}
+        dates={W42}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
       <button type="button">Elsewhere</button>
     </>,
   );
@@ -176,6 +183,48 @@ describe("NoteItem", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save that note.");
     expect(editor().note).toHaveValue("Socer until 7!");
+  });
+
+  // Without this, focus falls to the page and the next Tab starts again from the header.
+  it.each([
+    { closing: "Escape", keys: " typo{Escape}" },
+    { closing: "Enter with no change", keys: "{Enter}" },
+    { closing: "Enter after a save", keys: "!{Enter}" },
+  ])("returns focus to the note after $closing", async ({ keys }) => {
+    const { user } = setup();
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.type(editor().note, keys);
+
+    expect(await screen.findByRole("button", { name: /^Edit note: / })).toHaveFocus();
+  });
+
+  it("leaves focus where it went when the edit is saved by leaving", async () => {
+    const { user } = setup();
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.type(editor().note, "!");
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+
+    expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+  });
+
+  it("leaves focus alone when it moved on while the save was in flight", async () => {
+    const onSave = vi.fn<(change: NoteChange) => Promise<void>>();
+    const saved = Promise.withResolvers<void>();
+
+    onSave.mockReturnValue(saved.promise);
+
+    const { user } = setup({ onSave });
+
+    await user.click(screen.getByRole("button", { name: "Edit note: Socer until 7" }));
+    await user.type(editor().note, "!{Enter}");
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+
+    saved.resolve();
+
+    await waitFor(() => expect(screen.queryByRole("form", { name: "Edit note" })).toBeNull());
+    expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
   });
 
   it("deletes the note from its delete control", async () => {

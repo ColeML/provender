@@ -16,7 +16,14 @@ export interface NoteChange {
   body?: string;
 }
 
+/**
+ * The note whose edit button takes focus when it next mounts. Module-level rather than state, since
+ * a note moved to another day remounts under that day's heading and this instance does not survive.
+ */
+let focusOnMount: string | null = null;
+
 interface NoteItemProps {
+  id: string;
   body: string;
   date: string | null;
   dates: string[];
@@ -26,14 +33,25 @@ interface NoteItemProps {
 }
 
 /** One note, edited in place, with no data layer so its behavior is testable without tRPC. */
-export function NoteItem({ body, date, dates, onSave, onDelete }: NoteItemProps) {
+export function NoteItem({ id, body, date, dates, onSave, onDelete }: NoteItemProps) {
   const [draft, setDraft] = useState<{ body: string; date: string } | null>(null);
   const [failed, setFailed] = useState<"save" | "delete" | null>(null);
   // A transition for the same reason as the add row: it stays pending through the page refresh,
   // so the old text is not shown again in the moment between the save and the new list.
   const [pending, startTransition] = useTransition();
 
-  function save() {
+  // Enter and Escape hand focus back to the note. Leaving the field does not: focus already went
+  // where the household tapped.
+  function close(returnFocus: boolean) {
+    if (returnFocus) {
+      focusOnMount = id;
+    }
+
+    setDraft(null);
+  }
+
+  /** `submittedFrom` is the form when Enter saved, and absent when leaving the field did. */
+  function save(submittedFrom?: HTMLFormElement) {
     if (draft === null || pending) {
       return;
     }
@@ -52,7 +70,7 @@ export function NoteItem({ body, date, dates, onSave, onDelete }: NoteItemProps)
     }
 
     if (change.body === undefined && change.date === undefined) {
-      setDraft(null);
+      close(submittedFrom !== undefined);
       return;
     }
 
@@ -60,7 +78,9 @@ export function NoteItem({ body, date, dates, onSave, onDelete }: NoteItemProps)
     startTransition(async () => {
       try {
         await onSave(change);
-        startTransition(() => setDraft(null));
+        // A slow save may finish after the household has moved on, so only take focus back if it
+        // is still in the editor.
+        startTransition(() => close(submittedFrom?.contains(document.activeElement) ?? false));
       } catch {
         setFailed("save");
       }
@@ -81,7 +101,7 @@ export function NoteItem({ body, date, dates, onSave, onDelete }: NoteItemProps)
   function cancelOnEscape(event: React.KeyboardEvent) {
     if (event.key === "Escape" && !pending) {
       setFailed(null);
-      setDraft(null);
+      close(true);
     }
   }
 
@@ -103,7 +123,7 @@ export function NoteItem({ body, date, dates, onSave, onDelete }: NoteItemProps)
         aria-label="Edit note"
         onSubmit={(event) => {
           event.preventDefault();
-          save();
+          save(event.currentTarget);
         }}
         className="flex flex-col gap-2 py-2"
       >
@@ -147,6 +167,12 @@ export function NoteItem({ body, date, dates, onSave, onDelete }: NoteItemProps)
     <div className={pending ? "opacity-60" : undefined}>
       <div className="flex items-start gap-2">
         <button
+          ref={(button) => {
+            if (button !== null && focusOnMount === id) {
+              focusOnMount = null;
+              button.focus();
+            }
+          }}
           type="button"
           aria-label={`Edit note: ${body}`}
           onClick={() => {
@@ -193,6 +219,7 @@ export function WeekNoteItem({ weekId, dates, note }: Props) {
 
   return (
     <NoteItem
+      id={note.id}
       body={note.body}
       date={note.date}
       dates={dates}
