@@ -14,10 +14,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className="border-border border-b">
-        <nav className="mx-auto flex max-w-2xl items-center gap-4 px-4 py-3">
+        <nav className="mx-auto flex max-w-2xl items-center py-0.5 pr-2 pl-4">
           <Link
             href="/"
-            className="focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-visible:outline-none"
+            className="focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm focus-visible:ring-3 focus-visible:outline-none"
           >
             <Wordmark />
           </Link>

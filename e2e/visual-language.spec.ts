@@ -11,6 +11,17 @@ test("sets the header wordmark in capitals, in the display face", async ({ page 
   await expect(wordmark).toHaveCSS("font-family", /Charis/);
 });
 
+test("gives every header link a tap target of at least 44px", async ({ page }) => {
+  await page.goto("/recipes");
+
+  for (const name of ["Provender", "Plan", "Shop", "Recipes", "Settings"]) {
+    const box = await page.getByRole("banner").getByRole("link", { name }).boundingBox();
+
+    expect.soft(box?.height, name).toBeGreaterThanOrEqual(44);
+    expect.soft(box?.width, name).toBeGreaterThanOrEqual(44);
+  }
+});
+
 test("draws an unplanned week as a blank page, not an error", async ({ page }) => {
   await page.goto("/plan");
 

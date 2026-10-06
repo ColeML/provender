@@ -12,7 +12,8 @@ const SURFACES = [
   { href: "/settings", label: "Settings", carriesWeek: false },
 ];
 
-const CLASS = "text-muted-foreground hover:text-foreground text-sm";
+const CLASS =
+  "text-muted-foreground hover:text-foreground inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-sm";
 
 /**
  * The same links with no week on them, for the Suspense fallback.
