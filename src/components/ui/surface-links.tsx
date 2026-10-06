@@ -16,7 +16,7 @@ const SURFACES = [
 ];
 
 const CLASS =
-  "text-muted-foreground hover:text-foreground inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-sm";
+  "text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2 text-sm focus-visible:ring-3 focus-visible:outline-none";
 
 /**
  * The same links with no week on them, for the Suspense fallback.
