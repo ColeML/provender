@@ -17,10 +17,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="border-border border-b">
         {/* On a phone the tabs take a row of their own under the wordmark and gear: the four of
             them beside both need about 390px, which is wider than the screen. */}
-        <nav className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
+        <nav className="mx-auto flex max-w-2xl flex-wrap items-center gap-x-4 px-4 pt-2 sm:pb-2">
           <Link
             href="/"
-            className="focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-visible:outline-none"
+            className="focus-visible:ring-ring -mx-1.5 inline-flex min-h-11 items-center rounded-sm px-1.5 focus-visible:ring-3 focus-visible:outline-none"
           >
             <Wordmark />
           </Link>
@@ -30,7 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* `SurfaceLinks` reads the query string, which Next requires a boundary around. The
               fallback is the same links without the week, so a route that is not dynamic loses
               the carried week rather than the whole nav. */}
-          <div className="order-last flex w-full gap-4 pb-1 sm:order-none sm:w-auto sm:pb-0">
+          <div className="order-last -mx-2 flex w-full sm:order-none sm:w-auto">
             <Suspense fallback={<BareSurfaceLinks />}>
               <SurfaceLinks />
             </Suspense>
