@@ -36,9 +36,24 @@ describe("weekOverview", () => {
     expect(await weekOverview(H, db)).toEqual({
       planId: null,
       isCurrentWeek: false,
+      dates: [],
       days: [],
       outstandingItems: 0,
     });
+  });
+
+  it("lists the plan week's seven dates, Monday first", async () => {
+    await createPlan(H, THIS_WEEK, 120, db);
+
+    expect((await weekOverview(H, db)).dates).toEqual([
+      "2026-09-14",
+      "2026-09-15",
+      "2026-09-16",
+      "2026-09-17",
+      "2026-09-18",
+      "2026-09-19",
+      "2026-09-20",
+    ]);
   });
 
   it("names the main for each planned day", async () => {

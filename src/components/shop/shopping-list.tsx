@@ -66,7 +66,7 @@ interface TickBoxProps {
  *
  * The box fills with `primary`, and one element cannot also paint a glyph in
  * `primary-foreground`, so the tick is a sibling drawn over it. Baking the glyph into a
- * background image fixes its color instead, and dark mode's `primary` is a pale gold that a
+ * background image fixes its color instead, and dark mode's `primary` is a pale teal that a
  * white tick disappears against.
  *
  * The focus ring belongs on the input here rather than on each call site's label: the input

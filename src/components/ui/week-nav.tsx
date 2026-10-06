@@ -7,17 +7,18 @@ const LINK =
 /**
  * Steps a week view one ISO week at a time.
  *
- * Both surfaces that use it default to the current week, so the reader who wants next week's
- * shopping list on a Sunday afternoon gets there in one tap. Links rather than buttons, because
- * the week is a URL both pages already read on the server.
+ * `/plan` and `/shop` default to the current week, so the reader who wants next week's shopping
+ * list on a Sunday afternoon gets there in one tap; `/notes` defaults to next week. Links rather
+ * than buttons, because the week is a URL every page using it already reads on the server.
  */
 export function WeekNav({
   basePath,
   planId,
   atDefault,
   showWeek = true,
+  resetLabel = "This week",
 }: {
-  /** `/plan` or `/shop` — the page the arrows stay within. */
+  /** The page the arrows stay within. */
   basePath: string;
   /** The week on screen, which may be unplanned. */
   planId: string;
@@ -29,6 +30,8 @@ export function WeekNav({
   atDefault: boolean;
   /** False where the page's own heading already names the week, so it is not printed twice. */
   showWeek?: boolean;
+  /** What the way back reads, naming the week `basePath` defaults to. */
+  resetLabel?: string;
 }) {
   const previous = shiftIsoWeek(planId, -1);
   const next = shiftIsoWeek(planId, 1);
@@ -50,8 +53,12 @@ export function WeekNav({
       )}
 
       {atDefault ? null : (
-        <Link href={basePath} className={`${LINK} text-muted-foreground px-2 text-sm underline`}>
-          This week
+        <Link
+          href={basePath}
+          className={`${LINK} text-muted-foreground px-2 text-sm underline`}
+          aria-label={`Back to ${resetLabel.toLowerCase()}`}
+        >
+          {resetLabel}
         </Link>
       )}
     </nav>

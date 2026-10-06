@@ -58,6 +58,13 @@ import { weekOverview } from "@server/services/overview";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
+import {
+  addWeekNote,
+  deleteWeekNote,
+  listWeekNotes,
+  updateWeekNote,
+  WeekNoteNotFoundError,
+} from "@server/services/week-notes";
 import { schema } from "@server/db";
 
 /**
@@ -536,8 +543,8 @@ describe("commitWeek", () => {
     );
 
     expect(result.days[0].main).toBe("mine");
-    expect(await listHistory(B, {}, db)).toHaveLength(1);
-    expect(await listHistory(A, {}, db)).toHaveLength(1);
+    expect(await listHistory(B, { withinDays: 10_000 }, db)).toHaveLength(1);
+    expect(await listHistory(A, { withinDays: 10_000 }, db)).toHaveLength(1);
   });
 });
 
@@ -601,6 +608,7 @@ describe("week overview", () => {
     await expect(weekOverview(B, db)).resolves.toEqual({
       planId: null,
       isCurrentWeek: false,
+      dates: [],
       days: [],
       outstandingItems: 0,
     });
@@ -615,6 +623,15 @@ describe("week overview", () => {
     await expect(weekOverview(B, db)).resolves.toEqual({
       planId: WEEK,
       isCurrentWeek: false,
+      dates: [
+        "2026-08-31",
+        "2026-09-01",
+        "2026-09-02",
+        "2026-09-03",
+        "2026-09-04",
+        "2026-09-05",
+        "2026-09-06",
+      ],
       days: [
         {
           date: MONDAY,
@@ -696,5 +713,39 @@ describe("shares", () => {
     await expect(getSharedRecipe(theirs.token, db)).resolves.toMatchObject({
       recipe: { householdId: B, title: "Their Fajitas" },
     });
+  });
+});
+
+describe("week notes", () => {
+  it("hides another household's notes on a week both have written for", async () => {
+    await addWeekNote(A, "2026-W42", { body: "Mom asked for pot roast" }, db);
+    await addWeekNote(B, "2026-W42", { date: "2026-10-15", body: "Their soccer night" }, db);
+
+    await expect(listWeekNotes(A, "2026-W42", db)).resolves.toMatchObject([
+      { householdId: A, body: "Mom asked for pot roast" },
+    ]);
+    await expect(listWeekNotes(B, "2026-W42", db)).resolves.toMatchObject([
+      { householdId: B, body: "Their soccer night" },
+    ]);
+  });
+
+  it("will not let one household edit another's note", async () => {
+    const note = await addWeekNote(A, "2026-W42", { body: "Mom asked for pot roast" }, db);
+
+    await expect(
+      updateWeekNote(B, "2026-W42", note.id, { date: "2026-10-15", body: "Changed" }, db),
+    ).rejects.toBeInstanceOf(WeekNoteNotFoundError);
+    await expect(listWeekNotes(A, "2026-W42", db)).resolves.toMatchObject([
+      { date: null, body: "Mom asked for pot roast" },
+    ]);
+  });
+
+  it("will not let one household delete another's note", async () => {
+    const note = await addWeekNote(A, "2026-W42", { body: "Mom asked for pot roast" }, db);
+
+    await expect(deleteWeekNote(B, "2026-W42", note.id, db)).rejects.toBeInstanceOf(
+      WeekNoteNotFoundError,
+    );
+    await expect(listWeekNotes(A, "2026-W42", db)).resolves.toHaveLength(1);
   });
 });

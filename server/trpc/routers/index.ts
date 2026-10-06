@@ -9,10 +9,38 @@ import { getForecast } from "@server/services/weather";
 import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes, scaleRecipe } from "@server/services/recipes";
 import { createShare, deleteShare } from "@server/services/shares";
+import {
+  addWeekNote,
+  BlankNoteError,
+  DateOutsideWeekError,
+  deleteWeekNote,
+  InvalidWeekIdError,
+  listWeekNotes,
+  updateWeekNote,
+  WeekNoteNotFoundError,
+} from "@server/services/week-notes";
+import { TRPCError } from "@trpc/server";
 
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../init";
+
+/** The caller's mistake, so a 400 or 404 rather than the 500 tRPC gives any thrown error. */
+function rejectBadNote(error: unknown): never {
+  if (error instanceof WeekNoteNotFoundError) {
+    throw new TRPCError({ code: "NOT_FOUND", message: error.message, cause: error });
+  }
+
+  if (
+    error instanceof InvalidWeekIdError ||
+    error instanceof DateOutsideWeekError ||
+    error instanceof BlankNoteError
+  ) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error.message, cause: error });
+  }
+
+  throw error;
+}
 
 /**
  * The application router. Every procedure the client can call is reachable from here, and its
@@ -117,6 +145,45 @@ export const appRouter = router({
       .input(z.object({ planId: z.string().min(1), date: z.string().min(1) }))
       .mutation(({ ctx, input }) =>
         deletePlanDay(ctx.householdId, input.planId, input.date, "dinner", {}, ctx.db),
+      ),
+  }),
+  weekNotes: router({
+    list: protectedProcedure
+      .input(z.object({ weekId: z.string().min(1) }))
+      .query(({ ctx, input }) =>
+        listWeekNotes(ctx.householdId, input.weekId, ctx.db).catch(rejectBadNote),
+      ),
+    add: protectedProcedure
+      .input(
+        z.object({
+          weekId: z.string().min(1),
+          date: z.string().nullable().optional(),
+          body: z.string(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const { weekId, ...note } = input;
+
+        return addWeekNote(ctx.householdId, weekId, note, ctx.db).catch(rejectBadNote);
+      }),
+    update: protectedProcedure
+      .input(
+        z.object({
+          weekId: z.string().min(1),
+          noteId: z.string().min(1),
+          date: z.string().nullable().optional(),
+          body: z.string().optional(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const { weekId, noteId, ...update } = input;
+
+        return updateWeekNote(ctx.householdId, weekId, noteId, update, ctx.db).catch(rejectBadNote);
+      }),
+    remove: protectedProcedure
+      .input(z.object({ weekId: z.string().min(1), noteId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteWeekNote(ctx.householdId, input.weekId, input.noteId, ctx.db).catch(rejectBadNote),
       ),
   }),
   recipes: router({

@@ -2,6 +2,7 @@ import { householdForSession } from "@server/auth/household";
 import { getConfig } from "@server/services/config";
 import { redirect } from "next/navigation";
 
+import { ThemePicker } from "@/components/theme/theme-picker";
 import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../auth";
@@ -23,7 +24,12 @@ export default async function Settings() {
   return (
     <main className="mx-auto max-w-2xl p-4">
       <h1 className="font-display text-2xl font-semibold">Settings</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
+
+      <div className="mt-6">
+        <ThemePicker />
+      </div>
+
+      <p className="text-muted-foreground mt-8 text-sm">
         What the planner assumes about the household. Edit them with{" "}
         <code className="font-mono">PATCH /v1/config</code>.
       </p>

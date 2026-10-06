@@ -2,18 +2,21 @@
 
 import { parseIsoWeek } from "@server/lib/iso-week";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
-/** `carriesWeek` marks the surfaces that read `?week=`; the others have no week to keep. */
+/**
+ * `carriesWeek` marks the surfaces that share a selected week. Notes reads `?week=` too, but is
+ * left bare on purpose: it always opens on next week, whatever week Plan or Shop is showing.
+ */
 const SURFACES = [
   { href: "/plan", label: "Plan", carriesWeek: true },
+  { href: "/notes", label: "Notes", carriesWeek: false },
   { href: "/shop", label: "Shop", carriesWeek: true },
   { href: "/recipes", label: "Recipes", carriesWeek: false },
-  { href: "/settings", label: "Settings", carriesWeek: false },
 ];
 
 const CLASS =
-  "text-muted-foreground hover:text-foreground inline-flex min-h-11 shrink-0 items-center justify-center px-1 text-sm min-[360px]:min-w-11 min-[360px]:px-2";
+  "text-muted-foreground hover:text-foreground inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-sm";
 
 /**
  * The same links with no week on them, for the Suspense fallback.
@@ -43,8 +46,14 @@ export function BareSurfaceLinks() {
  */
 export function SurfaceLinks() {
   const week = useSearchParams().get("week");
-  // A hand-typed `?week=` reaches here, and the header must not spread a junk value app-wide.
-  const carried = week !== null && parseIsoWeek(week) !== undefined ? week : undefined;
+  const pathname = usePathname();
+  // Only a week picked on a surface that shares one is carried; Notes steps through its own. A
+  // hand-typed `?week=` also reaches here, and the header must not spread a junk value app-wide.
+  const onSharingSurface = SURFACES.some(
+    (surface) => surface.carriesWeek && surface.href === pathname,
+  );
+  const carried =
+    onSharingSurface && week !== null && parseIsoWeek(week) !== undefined ? week : undefined;
 
   return (
     <>
