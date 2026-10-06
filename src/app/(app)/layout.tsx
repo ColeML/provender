@@ -17,7 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="mx-auto flex max-w-2xl items-center py-0.5 pr-2 pl-4">
           <Link
             href="/"
-            className="focus-visible:ring-ring inline-flex min-h-11 items-center rounded-sm focus-visible:ring-3 focus-visible:outline-none"
+            className="focus-visible:ring-ring -mx-1.5 inline-flex min-h-11 items-center rounded-sm px-1.5 text-sm focus-visible:ring-3 focus-visible:outline-none focus-visible:ring-inset min-[360px]:text-base"
           >
             <Wordmark />
           </Link>

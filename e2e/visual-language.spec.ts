@@ -22,6 +22,29 @@ test("gives every header link a tap target of at least 44px", async ({ page }) =
   }
 });
 
+test.describe("on a 320px phone", () => {
+  test.use({ viewport: { width: 320, height: 700 } });
+
+  test("keeps the header links apart without scrolling the page sideways", async ({ page }) => {
+    await page.goto("/recipes");
+
+    const { pageOverflow, textGaps } = await page.evaluate(() => {
+      const textEdges = [...document.querySelectorAll("header a")].map((link) => {
+        const range = document.createRange();
+        range.selectNodeContents(link);
+        return range.getBoundingClientRect();
+      });
+      return {
+        pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        textGaps: textEdges.slice(1).map((edge, i) => edge.left - textEdges[i].right),
+      };
+    });
+
+    expect(pageOverflow).toBe(0);
+    for (const gap of textGaps) expect.soft(gap).toBeGreaterThanOrEqual(6);
+  });
+});
+
 test("draws an unplanned week as a blank page, not an error", async ({ page }) => {
   await page.goto("/plan");
 
