@@ -34,6 +34,12 @@ pnpm build            # catches prerender failures the others miss
 pnpm db:generate      # generate a migration after a schema change
 ```
 
+To sign in to a local dev server, make a throwaway password; never type the real household one.
+Write a random password to a file in your scratchpad, run
+`pnpm tsx scripts/hash-password.ts < that-file`, and set the output as `AUTH_PASSWORD_HASH` in
+`.env.local`, which overrides `.env` and is gitignored. Restart `pnpm dev`, then sign in with it.
+Leave `.env` unchanged.
+
 ## The API (deterministic tools — no AI inside)
 
 `./scripts/prov METHOD PATH [json|@file]` calls it and prints JSON, reading the token and base URL
