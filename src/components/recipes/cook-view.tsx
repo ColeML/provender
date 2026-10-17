@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
@@ -29,6 +30,8 @@ export interface CookRecipe {
 export function CookView({ recipe }: { recipe: CookRecipe }) {
   const trpc = useTRPC();
   const [servings, setServings] = useState(recipe.baseServings);
+  // Row positions, not ids: a rescale rebuilds every id, and the list order never changes.
+  const [gathered, setGathered] = useState<ReadonlySet<number>>(new Set());
 
   useWakeLock(true);
 
@@ -129,20 +132,54 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
           aria-label="Ingredients"
           className={cn("divide-border mt-1 divide-y", stale && "opacity-40")}
         >
-          {ingredients.map((ingredient) => (
-            <li key={ingredient.id} className="flex justify-between gap-4 py-2 text-lg">
-              <span>
-                {ingredient.name}
-                {ingredient.notes === null ? null : (
-                  <span className="text-muted-foreground text-sm"> {ingredient.notes}</span>
-                )}
-              </span>
+          {ingredients.map((ingredient, index) => {
+            const checked = gathered.has(index);
 
-              <span className="shrink-0 font-mono">
-                {formatQuantity(ingredient.quantity, ingredient.unit)}
-              </span>
-            </li>
-          ))}
+            return (
+              <li key={ingredient.id}>
+                <label className="active:bg-muted flex min-h-11 w-full items-center gap-3 py-2 text-lg">
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(next) =>
+                      setGathered((current) => {
+                        const updated = new Set(current);
+
+                        if (next) {
+                          updated.add(index);
+                        } else {
+                          updated.delete(index);
+                        }
+
+                        return updated;
+                      })
+                    }
+                    className="border-muted-foreground focus-visible:ring-ring size-5 border-2"
+                  />
+
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1",
+                      checked && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {ingredient.name}
+                    {ingredient.notes === null ? null : (
+                      <span className="text-muted-foreground text-sm"> {ingredient.notes}</span>
+                    )}
+                  </span>
+
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono",
+                      checked && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {formatQuantity(ingredient.quantity, ingredient.unit)}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
         </ul>
       </section>
 
