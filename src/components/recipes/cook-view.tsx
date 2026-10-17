@@ -153,7 +153,7 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
                         return updated;
                       })
                     }
-                    className="size-5"
+                    className="border-muted-foreground focus-visible:ring-ring size-5 border-2"
                   />
 
                   <span

@@ -290,7 +290,7 @@ describe("crossing off ingredients", () => {
     await user.click(screen.getByRole("button", { name: "More servings" }));
 
     await waitFor(() => {
-      expect(screen.queryByText(/still for 8, scaling/)).toBeNull();
+      expect(screen.queryByText("1½ lb")).toBeNull();
     });
 
     expect(screen.getByRole("checkbox", { name: /^salt/ })).toBeChecked();
@@ -308,11 +308,14 @@ describe("crossing off ingredients", () => {
   });
 
   it("makes no network request on toggle", async () => {
-    // The scale query is the only request this component can make.
+    const fetch = vi.spyOn(globalThis, "fetch");
     const user = renderCook();
 
     await user.click(screen.getByRole("checkbox", { name: /^chicken breast/ }));
 
+    expect(fetch).not.toHaveBeenCalled();
     expect(scale).not.toHaveBeenCalled();
+
+    fetch.mockRestore();
   });
 });
