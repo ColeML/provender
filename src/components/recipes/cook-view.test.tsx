@@ -248,3 +248,71 @@ describe("the cook view", () => {
     expect(screen.getByText("chicken breast")).toBeInTheDocument();
   });
 });
+
+describe("crossing off ingredients", () => {
+  it("exposes each ingredient row as a checkbox labeled by the ingredient name", () => {
+    renderCook();
+
+    const list = screen.getByRole("list", { name: "Ingredients" });
+
+    expect(within(list).getByRole("checkbox", { name: /^chicken breast/ })).not.toBeChecked();
+    expect(within(list).getByRole("checkbox", { name: /^salt/ })).not.toBeChecked();
+  });
+
+  it("toggles a row from a tap anywhere on it, and strikes through its name and quantity", async () => {
+    const user = renderCook();
+
+    await user.click(screen.getByText("1½ lb"));
+
+    expect(screen.getByRole("checkbox", { name: /^chicken breast/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /^salt/ })).not.toBeChecked();
+    expect(screen.getByText("chicken breast")).toHaveClass("line-through", "text-muted-foreground");
+    expect(screen.getByText("1½ lb")).toHaveClass("line-through", "text-muted-foreground");
+
+    await user.click(screen.getByText("chicken breast"));
+
+    expect(screen.getByRole("checkbox", { name: /^chicken breast/ })).not.toBeChecked();
+    expect(screen.getByText("1½ lb")).not.toHaveClass("line-through");
+  });
+
+  it("keeps a row checked when the serving count changes", async () => {
+    // Scaled rows get new ids, so state keyed on the id would be lost here.
+    scale.mockResolvedValue({
+      ingredients: [
+        { name: "chicken breast", quantity: 1.6875, unit: "lb", notes: "sliced" },
+        { name: "salt", quantity: null, unit: null, notes: "to taste" },
+      ],
+    });
+
+    const user = renderCook();
+
+    await user.click(screen.getByRole("checkbox", { name: /^salt/ }));
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/still for 8, scaling/)).toBeNull();
+    });
+
+    expect(screen.getByRole("checkbox", { name: /^salt/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /^chicken breast/ })).not.toBeChecked();
+  });
+
+  it("shows every row unchecked after navigating away and back", async () => {
+    const user = renderCook();
+
+    await user.click(screen.getByRole("checkbox", { name: /^salt/ }));
+    cleanup();
+    renderCook();
+
+    expect(screen.getByRole("checkbox", { name: /^salt/ })).not.toBeChecked();
+  });
+
+  it("makes no network request on toggle", async () => {
+    // The scale query is the only request this component can make.
+    const user = renderCook();
+
+    await user.click(screen.getByRole("checkbox", { name: /^chicken breast/ }));
+
+    expect(scale).not.toHaveBeenCalled();
+  });
+});
