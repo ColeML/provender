@@ -2,7 +2,7 @@ import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { slug } from "@server/lib/slug";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 /**
  * The shops a household buys from, and which ingredients come from which.
@@ -178,21 +178,12 @@ export async function updateStore(
 /**
  * Forget a store, and every rule that sends an ingredient to it.
  *
- * Items on a shopping list that were bound for it lose their store rather than going with it:
- * they still need buying, and the next rebuild finds them a new home.
+ * Items on a shopping list that were bound for it are routed again, as a fresh write would route
+ * them: to a usual-store rule, else the primary. Hand-added items need this most — a rebuild only
+ * touches plan items, so nothing later would move them off a store that no longer exists.
  */
 export async function deleteStore(householdId: string, id: string, db: Database = defaultDb) {
   await db.transaction(async (tx) => {
-    await tx
-      .update(schema.shoppingListItems)
-      .set({ storeId: null })
-      .where(
-        and(
-          eq(schema.shoppingListItems.householdId, householdId),
-          eq(schema.shoppingListItems.storeId, id),
-        ),
-      );
-
     const deleted = await tx
       .delete(schema.stores)
       .where(storeScope(householdId, id))
@@ -200,6 +191,36 @@ export async function deleteStore(householdId: string, id: string, db: Database 
 
     if (deleted.length === 0) {
       throw new StoreNotFoundError(id);
+    }
+
+    const boundHere = and(
+      eq(schema.shoppingListItems.householdId, householdId),
+      eq(schema.shoppingListItems.storeId, id),
+    );
+    const orphans = await tx
+      .select({ name: schema.shoppingListItems.name })
+      .from(schema.shoppingListItems)
+      .where(boundHere);
+
+    // Read after the delete, so the store and the rules that cascaded with it are already gone.
+    const routing = await storeRouting(householdId, tx);
+    // Grouped by destination: the same name always routes the same way, so this is one update per
+    // store rather than one per row across every week's list.
+    const namesByStore = new Map<string | null, Set<string>>();
+
+    for (const { name } of orphans) {
+      const target = routeToStore(routing, name, null);
+      const names = namesByStore.get(target) ?? new Set<string>();
+
+      names.add(name);
+      namesByStore.set(target, names);
+    }
+
+    for (const [target, names] of namesByStore) {
+      await tx
+        .update(schema.shoppingListItems)
+        .set({ storeId: target, updateTime: sql`now()` })
+        .where(and(boundHere, inArray(schema.shoppingListItems.name, [...names])));
     }
   });
 }

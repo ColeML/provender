@@ -764,14 +764,43 @@ describe("filtering the list by store", () => {
     expect(screen.getByText("onion")).toBeInTheDocument();
     expect(screen.getByText("cheese")).toBeInTheDocument();
     expect(screen.queryByText("milk")).not.toBeInTheDocument();
-    // An item with no store is in no store's view, only in All.
-    expect(screen.queryByText("foil")).not.toBeInTheDocument();
-    expect(screen.getByText(/2 left of 2 at Aldi/)).toBeInTheDocument();
+    expect(screen.getByText(/3 left of 3 at Aldi/)).toBeInTheDocument();
     expect(screen.getByLabelText("Still to buy: $10.00")).toBeInTheDocument();
+  });
 
-    await user.selectOptions(picker(), "");
+  // Hidden behind a store, it would be walked past by a shopper who narrowed the list in that shop.
+  it("shows an item with no store, or a deleted one, under every store", async () => {
+    const user = renderList(
+      [...routed, item({ id: "eggs", name: "eggs", category: "dairy", storeId: "costco" })],
+      120,
+      {},
+      stores,
+    );
+
+    await user.selectOptions(picker(), "braums");
 
     expect(screen.getByText("foil")).toBeInTheDocument();
+    expect(screen.getByText("eggs")).toBeInTheDocument();
+    expect(screen.queryByText("onion")).not.toBeInTheDocument();
+  });
+
+  it("says where a hand-added item went when it is not the store on screen", async () => {
+    // What an `only` rule does to milk added while the list is narrowed to Aldi.
+    addItemFn.mockResolvedValue(
+      row({ id: "buttermilk", name: "buttermilk", category: "dairy", storeId: "braums" }),
+    );
+
+    const user = renderList(routed, 120, {}, stores);
+
+    await user.selectOptions(picker(), "aldi");
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+    await user.type(screen.getByLabelText("Item"), "buttermilk");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "buttermilk is on the list for Braum's.",
+    );
+    expect(screen.queryByText("buttermilk", { selector: "span" })).not.toBeInTheDocument();
   });
 
   it("remembers the store picked, through a reload", async () => {

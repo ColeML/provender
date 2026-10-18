@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 import { createPlan } from "@server/services/plans";
-import { addItem, listItems, replaceItems } from "@server/services/shopping";
+import { addItem, listItems, replaceItems, updateItem } from "@server/services/shopping";
 
 import {
   createStore,
@@ -91,7 +91,7 @@ describe("stores", () => {
     expect(store.notes).toBeNull();
   });
 
-  it("forgets the store's rules and unroutes its list items when it is deleted", async () => {
+  it("forgets the store's rules, leaving its items unrouted when nothing else applies", async () => {
     await createPlan(H, WEEK, 120, db);
     await createStore(H, "braums", { name: "Braum's" }, db);
     await setIngredientStore(H, { name: "milk", storeId: "braums", only: true }, db);
@@ -102,6 +102,31 @@ describe("stores", () => {
     await expect(listIngredientStores(H, db)).resolves.toEqual([]);
     const [milk] = await listItems(H, WEEK, db);
     expect(milk?.storeId).toBeNull();
+  });
+
+  it("routes a deleted store's items again, hand-added ones included", async () => {
+    await createPlan(H, WEEK, 120, db);
+    await createStore(H, "aldi", { name: "Aldi", primary: true }, db);
+    await createStore(H, "braums", { name: "Braum's" }, db);
+    await createStore(H, "walmart", { name: "Walmart" }, db);
+    await setIngredientStore(H, { name: "ground beef", storeId: "walmart" }, db);
+    await replaceItems(
+      H,
+      WEEK,
+      [{ name: "ground beef", unit: "lb", category: "meat", storeId: "braums" }],
+      db,
+    );
+    // A rebuild never touches a manual item, so nothing but the delete can move this one.
+    await addItem(H, WEEK, { name: "paper towels", category: "other", storeId: "braums" }, db);
+
+    await deleteStore(H, "braums", db);
+
+    const items = await listItems(H, WEEK, db);
+
+    expect(Object.fromEntries(items.map((item) => [item.name, item.storeId]))).toEqual({
+      "ground beef": "walmart",
+      "paper towels": "aldi",
+    });
   });
 
   it("reports deleting a store that does not exist", async () => {
@@ -219,6 +244,20 @@ describe("routing on the shopping list", () => {
     );
 
     expect(onions?.storeId).toBe("braums");
+  });
+
+  it("keeps a shopper's tick on an item a rebuild moves to another store", async () => {
+    await replaceItems(H, WEEK, [{ name: "onions", category: "produce" }], db);
+    await updateItem(H, WEEK, "onions", { purchased: true }, ["purchased"], db);
+
+    const [onions] = await replaceItems(
+      H,
+      WEEK,
+      [{ name: "onions", category: "produce", storeId: "braums" }],
+      db,
+    );
+
+    expect(onions).toMatchObject({ storeId: "braums", purchased: true });
   });
 
   it("routes a hand-added item by the same rules", async () => {

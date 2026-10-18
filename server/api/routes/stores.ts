@@ -60,7 +60,7 @@ const StoreSchema = z
 
 const StoreInputSchema = z
   .object({
-    storeName: z.string().min(1),
+    storeName: z.string().trim().min(1),
     notes: z.string().nullish(),
     primary: z.boolean().optional(),
   })
@@ -266,8 +266,8 @@ storesRoutes.openapi(
     path: "/stores/{store}",
     summary: "Forget a store",
     description:
-      "Its ingredient rules go with it. Shopping list items bound for it lose their store and " +
-      "find a new one on the next rebuild.",
+      "Its ingredient rules go with it. Shopping list items bound for it are routed again at " +
+      "once, to a usual-store rule or else the primary store.",
     request: { params: StoreParam },
     responses: { 200: DELETED, 404: { description: "No such store" } },
   }),
@@ -327,7 +327,7 @@ storesRoutes.openapi(
         content: {
           "application/json": {
             schema: z.object({
-              ingredientName: z.string().min(1),
+              ingredientName: z.string().trim().min(1),
               store: z.string().min(1),
               only: z.boolean().optional(),
             }),

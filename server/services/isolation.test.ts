@@ -492,9 +492,9 @@ describe("stores", () => {
     expect(theirs?.storeId).toBeNull();
   });
 
-  // Deleting a store unroutes the list items bound for it, and two households can both own a
-  // `braums`, so the filter on that update is what keeps A's items routed.
-  it("will not let one household's store delete unroute another's list", async () => {
+  // Deleting a store re-routes the list items bound for it, and two households can both own a
+  // `braums`, so the filter on that update is what keeps A's items where they were.
+  it("will not let one household's store delete re-route another's list", async () => {
     await createPlan(A, "2026-W36", 120, db);
     await replaceItems(A, "2026-W36", [{ name: "milk", unit: "gal", category: "dairy" }], db);
     await createStore(B, "braums", { name: "Braum's" }, db);

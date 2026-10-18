@@ -726,7 +726,12 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
     toggle.mutate({ planId, itemId: item.id, purchased });
   }
 
+  // The last item added by hand, so the screen can say where it went when that is not the store
+  // on screen — an `only` rule can send it elsewhere, and it would otherwise seem to vanish.
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+
   function onAdded(item: ShopItem) {
+    setLastAddedId(item.id);
     // Replaced rather than appended. `addItem` is an upsert, and the form's name check reads a
     // local snapshot — a second phone in the same household can have added it since this one
     // loaded, in which case the server returns the row that is already on screen.
@@ -751,10 +756,23 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
     .filter((item) => !item.purchased)
     .reduce((total, item) => total + (item.estCost ?? 0), 0);
   // Only stores with something on the list get a filter; a chip that empties the screen is noise.
-  const storesOnList = stores.filter((store) => toBuy.some((item) => item.storeId === store.id));
+  const known = new Set(stores.map((store) => store.id));
+  // Null for an item with no store, or one whose store the household no longer has.
+  const storeOf = (item: ShopItem) =>
+    item.storeId !== null && known.has(item.storeId) ? item.storeId : null;
+  const storesOnList = stores.filter((store) => toBuy.some((item) => storeOf(item) === store.id));
   const filter = storesOnList.find((store) => store.id === storeFilter) ?? null;
-  // An item with no store, or a deleted one, shows under All only.
-  const inView = filter === null ? toBuy : toBuy.filter((item) => item.storeId === filter.id);
+  // An item with no store can be bought anywhere, so it shows under every store: hidden behind
+  // one, it would be walked past by a shopper who narrowed the list in that shop.
+  const inView =
+    filter === null
+      ? toBuy
+      : toBuy.filter((item) => storeOf(item) === null || storeOf(item) === filter.id);
+  const lastAdded = items.find((item) => item.id === lastAddedId);
+  const lastAddedStore =
+    filter === null || lastAdded === undefined || storeOf(lastAdded) === filter.id
+      ? undefined
+      : stores.find((store) => store.id === storeOf(lastAdded));
   const outstanding = inView.filter((item) => !item.purchased);
   const bought = inView.filter((item) => item.purchased);
   const left = outstanding.length;
@@ -833,6 +851,12 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
           ) : null}
         </section>
       ) : null}
+
+      {lastAdded === undefined || lastAddedStore === undefined ? null : (
+        <output className="text-muted-foreground block px-4 pt-4 text-sm">
+          {lastAdded.name} is on the list for {lastAddedStore.name}.
+        </output>
+      )}
 
       <AddItem
         planId={planId}

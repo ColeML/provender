@@ -65,8 +65,9 @@ export const shoppingListItems = pgTable(
     /**
      * Which shop it is bought at, or null when the household has set up no shops.
      *
-     * Not a foreign key: the composite key would have to null `household_id` along with it when
-     * the shop is deleted, so `deleteStore` clears it in the same transaction instead.
+     * Not a foreign key: a plain composite `ON DELETE SET NULL` would null `household_id` too, and
+     * drizzle-kit cannot emit Postgres's column-list form. `deleteStore` re-routes these rows in
+     * its own transaction instead, and the UI treats an id it does not know as no store.
      */
     storeId: text("store_id"),
     source: shoppingItemSource("source").notNull().default("plan"),
