@@ -1,0 +1,1 @@
+ALTER TABLE "meal_history" DROP COLUMN "rating";

@@ -99,6 +99,13 @@
       "when": 1792336893348,
       "tag": "0013_add_recipe_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792346505058,
+      "tag": "0014_drop_meal_history_rating",
+      "breakpoints": true
     }
   ]
 }
