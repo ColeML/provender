@@ -1,7 +1,9 @@
 -- Hand-added after generation: backfills each recipe's rating from its most recent rated
 -- history entry, so existing ratings survive the move off `meal_history.rating`.
+-- IF NOT EXISTS: this shipped as 0012 on an unmerged branch, so some databases already ran it.
 
-ALTER TABLE "recipes" ADD COLUMN "rating" integer;--> statement-breakpoint
+ALTER TABLE "recipes" ADD COLUMN IF NOT EXISTS "rating" integer;--> statement-breakpoint
+ALTER TABLE "recipes" DROP CONSTRAINT IF EXISTS "recipes_rating_range";--> statement-breakpoint
 ALTER TABLE "recipes" ADD CONSTRAINT "recipes_rating_range" CHECK ("recipes"."rating" BETWEEN 1 AND 5);
 --> statement-breakpoint
 UPDATE "recipes" AS r
