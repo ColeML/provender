@@ -2,6 +2,7 @@ import { apiError } from "@server/api/errors";
 import type { ApiEnv } from "@server/api/middleware/bearer";
 import { CategorySchema } from "@server/api/schemas";
 import { PlanNotFoundError } from "@server/services/plans";
+import { UnknownStoreError } from "@server/services/stores";
 import {
   addItem,
   deleteItem,
@@ -29,6 +30,7 @@ function toResource(planId: string, item: ShoppingItem) {
     estCost: item.estCost === null ? null : Number(item.estCost),
     purchased: item.purchased,
     haveAlready: item.haveAlready,
+    store: item.storeId,
     source: item.source,
   };
 }
@@ -45,6 +47,7 @@ const ItemSchema = z
     estCost: z.number().nullable(),
     purchased: z.boolean(),
     haveAlready: z.boolean(),
+    store: z.string().nullable().openapi({ example: "aldi" }),
     source: z.enum(["plan", "manual"]),
   })
   .openapi("ShoppingListItem");
@@ -58,6 +61,16 @@ const ItemInputSchema = z
     feedsRecipes: z.array(z.string()).optional(),
     estCost: z.number().nonnegative().nullish(),
     haveAlready: z.boolean().optional(),
+    store: z
+      .string()
+      .min(1)
+      .nullish()
+      .openapi({
+        example: "aldi",
+        description:
+          "The store id to buy it at. An `only` rule in /ingredientStores for this exact name " +
+          "overrides it; when omitted, a rule without `only` and then the primary store apply.",
+      }),
   })
   .openapi("ShoppingListItemInput");
 
@@ -79,6 +92,7 @@ function toInput(input: z.infer<typeof ItemInputSchema>) {
     feedsRecipes: input.feedsRecipes,
     estCost: input.estCost,
     haveAlready: input.haveAlready,
+    storeId: input.store,
   };
 }
 
@@ -105,7 +119,7 @@ function shoppingError(c: Parameters<typeof apiError>[0], error: unknown) {
     return apiError(c, "FAILED_PRECONDITION", error.message);
   }
 
-  if (error instanceof DuplicateItemError) {
+  if (error instanceof DuplicateItemError || error instanceof UnknownStoreError) {
     return apiError(c, "INVALID_ARGUMENT", error.message);
   }
 
@@ -150,7 +164,8 @@ shoppingRoutes.openapi(
     description:
       "Replaces the items the plan calls for. Two things survive: a shopper's `purchased` and " +
       "`haveAlready` on anything still needed, and every item added by hand — a rebuild is about " +
-      "which recipes are scheduled and has no opinion on what you added yourself.",
+      "which recipes are scheduled and has no opinion on what you added yourself. Each item " +
+      "goes to a store by the rules on `store` below.",
     request: {
       params: PlanParam,
       body: {
@@ -161,7 +176,7 @@ shoppingRoutes.openapi(
     },
     responses: {
       200: { description: "The list", content: { "application/json": { schema: ListSchema } } },
-      400: { description: "Two items resolve to the same name and unit" },
+      400: { description: "Two items resolve to the same name and unit, or name an unknown store" },
       ...ERRORS,
     },
   }),

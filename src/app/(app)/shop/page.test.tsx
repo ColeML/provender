@@ -8,6 +8,7 @@ const redirect = vi.fn<(url: string) => never>();
 const currentOrLatestPlan = vi.fn();
 const findPlan = vi.fn();
 const listItems = vi.fn();
+const listStores = vi.fn();
 const requestHeaders = new Headers();
 
 vi.mock("next/headers", () => ({ headers: async () => requestHeaders }));
@@ -19,6 +20,9 @@ vi.mock("@server/services/plans", () => ({
 }));
 vi.mock("@server/services/shopping", () => ({
   listItems: (...args: unknown[]) => listItems(...args),
+}));
+vi.mock("@server/services/stores", () => ({
+  listStores: (...args: unknown[]) => listStores(...args),
 }));
 
 const { default: Shop } = await import("./page");
@@ -34,6 +38,7 @@ beforeEach(() => {
   currentOrLatestPlan.mockResolvedValue(null);
   findPlan.mockResolvedValue(undefined);
   listItems.mockResolvedValue([]);
+  listStores.mockResolvedValue([]);
   requestHeaders.set(REQUESTED_PATH_HEADER, "/shop");
 });
 
@@ -101,6 +106,17 @@ describe("shop", () => {
       const page = await Shop({ searchParams: Promise.resolve({ week: "2026-W40" }) });
 
       expect(page.props.atDefault).toBe(false);
+    });
+
+    it("hands the list the household's stores, by id and name only", async () => {
+      currentOrLatestPlan.mockResolvedValue({ id: "2026-W39", budgetTarget: "120" });
+      listStores.mockResolvedValue([
+        { id: "aldi", name: "Aldi", notes: "Cheapest produce", primary: true },
+      ]);
+
+      const page = await Shop({ searchParams: noWeek });
+
+      expect(page.props.stores).toEqual([{ id: "aldi", name: "Aldi" }]);
     });
 
     // `?week=` is user-editable, so a typo must not become a 500 or an unnavigable page.

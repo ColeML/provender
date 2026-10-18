@@ -5,6 +5,7 @@ import { slug } from "@server/lib/slug";
 import { and, asc, eq, notInArray, sql } from "drizzle-orm";
 
 import { PlanNotFoundError } from "./plans";
+import { routeToStore, storeRouting } from "./stores";
 
 /**
  * The shopping list for a week.
@@ -25,6 +26,8 @@ export interface ShoppingItemInput {
   feedsRecipes?: string[];
   estCost?: number | null;
   haveAlready?: boolean;
+  /** Which store to buy it at. `routeToStore` has the last word — see the note there. */
+  storeId?: string | null;
 }
 
 export class ShoppingItemNotFoundError extends Error {
@@ -68,7 +71,13 @@ export function shoppingItemId(name: string, unit: string | null | undefined) {
   return normalized ? `${slug(name)}_${slug(normalized)}` : slug(name);
 }
 
-function toRow(householdId: string, planId: string, input: ShoppingItemInput, position: number) {
+function toRow(
+  householdId: string,
+  planId: string,
+  input: ShoppingItemInput,
+  position: number,
+  storeId: string | null,
+) {
   return {
     householdId,
     planId,
@@ -81,6 +90,7 @@ function toRow(householdId: string, planId: string, input: ShoppingItemInput, po
     feedsRecipes: input.feedsRecipes ?? [],
     estCost: input.estCost === null || input.estCost === undefined ? null : String(input.estCost),
     haveAlready: input.haveAlready ?? false,
+    storeId,
     position,
   };
 }
@@ -129,7 +139,10 @@ export async function replaceItems(
 ) {
   await requirePlan(householdId, planId, db);
 
-  const rows = inputs.map((input, index) => toRow(householdId, planId, input, index));
+  const routing = await storeRouting(householdId, db);
+  const rows = inputs.map((input, index) =>
+    toRow(householdId, planId, input, index, routeToStore(routing, input.name, input.storeId)),
+  );
 
   // Postgres refuses an ON CONFLICT DO UPDATE that would touch one row twice, so two inputs with
   // the same name and unit fail the whole write with an error that names nothing. Deciding how to
@@ -184,6 +197,7 @@ export async function replaceItems(
             category: sql`excluded.category`,
             feedsRecipes: sql`excluded.feeds_recipes`,
             estCost: sql`excluded.est_cost`,
+            storeId: sql`excluded.store_id`,
             position: sql`excluded.position`,
             updateTime: sql`now()`,
           },
@@ -203,8 +217,17 @@ export async function addItem(
 ) {
   await requirePlan(householdId, planId, db);
 
-  const existing = await listItems(householdId, planId, db);
-  const row = toRow(householdId, planId, input, existing.length);
+  const [existing, routing] = await Promise.all([
+    listItems(householdId, planId, db),
+    storeRouting(householdId, db),
+  ]);
+  const row = toRow(
+    householdId,
+    planId,
+    input,
+    existing.length,
+    routeToStore(routing, input.name, input.storeId),
+  );
 
   const [item] = await db
     .insert(schema.shoppingListItems)
@@ -225,6 +248,9 @@ export async function addItem(
       //
       // `estCost` is only overwritten by a caller who priced the item. A hand-added row carries
       // no cost, and letting that null land on a plan item would quietly drop it from the budget.
+      //
+      // `storeId` is absent too: the row is already on the list somewhere, and adding it again is
+      // about how much rather than where.
       set: {
         name: row.name,
         quantity: row.quantity,

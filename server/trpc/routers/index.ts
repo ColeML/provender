@@ -23,6 +23,20 @@ import {
 } from "@server/services/recipes";
 import { createShare, deleteShare } from "@server/services/shares";
 import {
+  createStore,
+  deleteIngredientStore,
+  deleteStore,
+  IngredientStoreNotFoundError,
+  listIngredientStores,
+  listStores,
+  setIngredientStore,
+  storeId,
+  StoreExistsError,
+  StoreNotFoundError,
+  UnknownStoreError,
+  updateStore,
+} from "@server/services/stores";
+import {
   addWeekNote,
   BlankNoteError,
   DateOutsideWeekError,
@@ -49,6 +63,23 @@ function rejectBadNote(error: unknown): never {
     error instanceof DateOutsideWeekError ||
     error instanceof BlankNoteError
   ) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error.message, cause: error });
+  }
+
+  throw error;
+}
+
+/** The same mapping for stores: a name taken, or a store that is not there. */
+function rejectBadStore(error: unknown): never {
+  if (error instanceof StoreExistsError) {
+    throw new TRPCError({ code: "CONFLICT", message: error.message, cause: error });
+  }
+
+  if (error instanceof StoreNotFoundError || error instanceof IngredientStoreNotFoundError) {
+    throw new TRPCError({ code: "NOT_FOUND", message: error.message, cause: error });
+  }
+
+  if (error instanceof UnknownStoreError) {
     throw new TRPCError({ code: "BAD_REQUEST", message: error.message, cause: error });
   }
 
@@ -120,6 +151,7 @@ export const appRouter = router({
           unit: z.string().min(1).max(120).nullable().optional(),
           estCost: z.number().nonnegative().max(99999).nullable().optional(),
           category: AisleSchema,
+          storeId: z.string().min(1).nullable().optional(),
         }),
       )
       .mutation(({ ctx, input }) =>
@@ -132,9 +164,10 @@ export const appRouter = router({
             unit: input.unit,
             category: input.category,
             estCost: input.estCost,
+            storeId: input.storeId,
           },
           ctx.db,
-        ),
+        ).catch(rejectBadStore),
       ),
     /** Only a manual item — the service refuses a plan item, which a rebuild would re-add. */
     deleteItem: protectedProcedure
@@ -179,6 +212,63 @@ export const appRouter = router({
           ["purchased"],
           ctx.db,
         ),
+      ),
+  }),
+  stores: router({
+    list: protectedProcedure.query(({ ctx }) => listStores(ctx.householdId, ctx.db)),
+    /** The id is the name's slug, so the settings screen never asks for one. */
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().trim().min(1).max(80),
+          notes: z.string().max(1000).nullable().optional(),
+          primary: z.boolean().optional(),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        createStore(ctx.householdId, storeId(input.name), input, ctx.db).catch(rejectBadStore),
+      ),
+    update: protectedProcedure
+      .input(
+        z.object({
+          storeId: z.string().min(1),
+          name: z.string().trim().min(1).max(80).optional(),
+          notes: z.string().max(1000).nullable().optional(),
+          primary: z.boolean().optional(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const { storeId: id, ...fields } = input;
+        // The mask is the fields the caller sent, so the form can save notes without a name.
+        const mask = Object.entries(fields)
+          .filter(([, value]) => value !== undefined)
+          .map(([field]) => field);
+
+        return updateStore(ctx.householdId, id, fields, mask, ctx.db).catch(rejectBadStore);
+      }),
+    remove: protectedProcedure
+      .input(z.object({ storeId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteStore(ctx.householdId, input.storeId, ctx.db).catch(rejectBadStore),
+      ),
+  }),
+  ingredientStores: router({
+    list: protectedProcedure.query(({ ctx }) => listIngredientStores(ctx.householdId, ctx.db)),
+    set: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().trim().min(1).max(120),
+          storeId: z.string().min(1),
+          only: z.boolean(),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        setIngredientStore(ctx.householdId, input, ctx.db).catch(rejectBadStore),
+      ),
+    remove: protectedProcedure
+      .input(z.object({ ingredientId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteIngredientStore(ctx.householdId, input.ingredientId, ctx.db).catch(rejectBadStore),
       ),
   }),
   plans: router({

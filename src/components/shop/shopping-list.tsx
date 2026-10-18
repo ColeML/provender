@@ -26,6 +26,14 @@ export interface ShopItem {
   feedsRecipes: string[];
   /** `manual` is something the shopper added themselves, and the only kind they can delete. */
   source: "plan" | "manual";
+  /** Null when the household has set up no stores, or the item's store was deleted. */
+  storeId: string | null;
+}
+
+/** A store the list can be split by, in the order the household walks them: primary first. */
+export interface ShopStore {
+  id: string;
+  name: string;
 }
 
 interface Props {
@@ -37,6 +45,7 @@ interface Props {
   planned: boolean;
   budgetTarget: number | null;
   initialItems: ShopItem[];
+  stores: ShopStore[];
 }
 
 /** The order the aisles are walked, matching the database enum. */
@@ -145,6 +154,7 @@ function toShopItem(row: {
   haveAlready: boolean;
   feedsRecipes: string[];
   source: "plan" | "manual";
+  storeId: string | null;
 }): ShopItem {
   return {
     id: row.id,
@@ -157,11 +167,13 @@ function toShopItem(row: {
     haveAlready: row.haveAlready,
     feedsRecipes: row.feedsRecipes,
     source: row.source,
+    storeId: row.storeId,
   };
 }
 
 interface AddItemProps {
   planId: string;
+  stores: ShopStore[];
   /** Every item on the list, so a name already there is caught before it is sent. */
   items: ShopItem[];
   onAdded: (item: ShopItem) => void;
@@ -174,12 +186,14 @@ interface AddItemProps {
  * Not optimistic, unlike the tick: this runs two or three times a shop rather than fifty, and the
  * server owns the row's id, so waiting is cheaper than inventing one and reconciling it.
  */
-function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
+function AddItem({ planId, stores, items, onAdded, onBumped }: AddItemProps) {
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [aisle, setAisle] = useState<Aisle>("other");
+  // Blank leaves it to the household's rules, which is right far more often than a guess here.
+  const [store, setStore] = useState("");
   // Set on submit rather than derived while typing: a half-typed "but" should not accuse you of
   // already having butter.
   const [match, setMatch] = useState<ShopItem | null>(null);
@@ -237,6 +251,8 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       unit: match.unit,
       category: toAisle(match.category),
       estCost: unitCost === null ? null : Math.round(unitCost * quantity * 100) / 100,
+      // Bought alongside the row it tops up, not wherever a new "butter, extra" would be routed.
+      storeId: match.storeId,
     });
   }
   // Blank means one of whatever the thing is measured in.
@@ -281,6 +297,7 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       itemName: typedName,
       quantity: amount.trim() === "" ? null : typedAmount,
       category: aisle,
+      storeId: store === "" ? null : store,
     });
   }
 
@@ -324,6 +341,24 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
           ))}
         </select>
       </label>
+
+      {stores.length === 0 ? null : (
+        <label className="mt-3 block">
+          <span className="text-muted-foreground block text-xs">Store</span>
+          <select
+            value={store}
+            onChange={(event) => setStore(event.target.value)}
+            className={cn(FIELD, "mt-1 w-full")}
+          >
+            <option value="">Usual store</option>
+            {stores.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {match === null ? null : (
         <AlreadyListed
@@ -425,6 +460,172 @@ function AlreadyListed({ match, amount, busy, onBuyMore }: AlreadyListedProps) {
   );
 }
 
+interface RowsProps {
+  /** Ids whose last tick did not save. */
+  failed: Set<string>;
+  /** Ids whose delete did not go through. */
+  notDeleted: Set<string>;
+  onToggle: (item: ShopItem) => void;
+  onDelete: (item: ShopItem) => void;
+}
+
+interface ItemRowProps {
+  item: ShopItem;
+  failed: boolean;
+  notDeleted: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}
+
+function ItemRow({ item, failed, notDeleted, onToggle, onDelete }: ItemRowProps) {
+  return (
+    <li className="border-border flex items-center border-b">
+      {/*
+        A real checkbox in a label, not a button with role="checkbox": the input
+        carries the semantics for free, and the label makes the whole row the target
+        rather than a small box inside it. Used one-handed while shopping, so
+        it is 56px tall — well over the 44px floor.
+      */}
+      <label
+        className={cn(
+          "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-3",
+          "active:bg-muted",
+        )}
+      >
+        <TickBox
+          size="lg"
+          checked={item.purchased}
+          onChange={onToggle}
+          describedBy={failed ? `${item.id}-failed` : undefined}
+        />
+
+        <span className="min-w-0 flex-1">
+          <span
+            className={cn(
+              "block truncate text-base",
+              item.purchased && "text-muted-foreground line-through",
+            )}
+          >
+            {item.name}
+          </span>
+          <ItemSubtitle item={item} failed={failed} />
+        </span>
+
+        <span
+          className={cn(
+            "shrink-0 text-right text-sm",
+            item.purchased ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          <span className="block font-mono">{formatQuantity(item.quantity, item.unit)}</span>
+          {item.estCost === null ? null : (
+            <span className="text-muted-foreground block font-mono text-xs">
+              ${item.estCost.toFixed(2)}
+            </span>
+          )}
+        </span>
+      </label>
+
+      {/*
+        Outside the label on purpose: inside it, tapping the bin would also tick the
+        row. Only manual items have one — the service refuses to delete a plan item.
+      */}
+      {item.source === "manual" ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={
+            notDeleted ? `Delete ${item.name} — not deleted, try again` : `Delete ${item.name}`
+          }
+          className={cn(
+            "focus-visible:ring-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:ring-3 focus-visible:outline-none",
+            notDeleted ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          <Trash2 aria-hidden className="size-4" />
+        </button>
+      ) : null}
+    </li>
+  );
+}
+
+interface AislesProps {
+  items: ShopItem[];
+  /** 2 on a list read aisle by aisle, 3 when the aisles sit under a store. */
+  level: 2 | 3;
+  rows: RowsProps;
+}
+
+function Aisles({ items, level, rows }: AislesProps) {
+  const Heading = level === 2 ? "h2" : "h3";
+
+  return AISLES.map((aisle) => {
+    const inAisle = items.filter((item) => item.category === aisle);
+
+    if (inAisle.length === 0) {
+      return null;
+    }
+
+    return (
+      <section key={aisle}>
+        <Heading className="bg-muted text-muted-foreground sticky top-0 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
+          {AISLE_LABELS[aisle] ?? aisle}
+        </Heading>
+        <ul>
+          {inAisle.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              failed={rows.failed.has(item.id)}
+              notDeleted={rows.notDeleted.has(item.id)}
+              onToggle={() => rows.onToggle(item)}
+              onDelete={() => rows.onDelete(item)}
+            />
+          ))}
+        </ul>
+      </section>
+    );
+  });
+}
+
+interface StoreGroup {
+  id: string;
+  name: string;
+  items: ShopItem[];
+  /** Not yet ticked off at this store. */
+  left: number;
+}
+
+/**
+ * The list split by store, or null to read it aisle by aisle as one shop.
+ *
+ * Null when no item on screen is bound for a store the household has, which covers a household
+ * with no stores and a week built before it set any up. An item whose store was deleted gathers
+ * under "Any store" with the rest of the unrouted ones.
+ */
+function storeGroups(stores: ShopStore[], items: ShopItem[]): StoreGroup[] | null {
+  const known = new Set(stores.map((store) => store.id));
+  const routed = (item: ShopItem) => item.storeId !== null && known.has(item.storeId);
+
+  if (!items.some(routed)) {
+    return null;
+  }
+
+  const groups = [
+    ...stores.map((store) => ({
+      id: store.id,
+      name: store.name,
+      items: items.filter((item) => item.storeId === store.id),
+    })),
+    // Underscores never come out of `slug`, so no store's id can collide with this one.
+    { id: "__any", name: "Any store", items: items.filter((item) => !routed(item)) },
+  ];
+
+  return groups
+    .filter((group) => group.items.length > 0)
+    .map((group) => ({ ...group, left: group.items.filter((item) => !item.purchased).length }));
+}
+
 export function ShoppingList(props: Props) {
   // Narrowed before the interactive component, so the tap handler acts on a week that exists.
   if (!props.planned) {
@@ -445,7 +646,7 @@ export function ShoppingList(props: Props) {
 /** Where the hide-bought preference lives, so it is not re-set mid-aisle after a reload. */
 const HIDE_BOUGHT_KEY = "provender.shop.hideBought";
 
-function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
+function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
   const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
@@ -542,6 +743,13 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
   const left = outstanding.length;
   // A hidden row is still recoverable: it moves into the "Bought" list rather than disappearing.
   const visible = hideBought ? outstanding : toBuy;
+  const groups = storeGroups(stores, visible);
+  const rows: RowsProps = {
+    failed,
+    notDeleted,
+    onToggle,
+    onDelete: (item) => remove.mutate({ planId, itemId: item.id }),
+  };
 
   return (
     // Padded at the bottom so the sticky total never covers the last row.
@@ -571,96 +779,22 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
         </p>
       ) : null}
 
-      {AISLES.map((aisle) => {
-        const rows = visible.filter((item) => item.category === aisle);
-
-        if (rows.length === 0) {
-          return null;
-        }
-
-        return (
-          <section key={aisle}>
-            <h2 className="bg-muted text-muted-foreground sticky top-0 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
-              {AISLE_LABELS[aisle] ?? aisle}
+      {groups === null ? (
+        <Aisles items={visible} level={2} rows={rows} />
+      ) : (
+        groups.map((group) => (
+          <section key={group.id} aria-labelledby={`store-${group.id}`}>
+            <h2
+              id={`store-${group.id}`}
+              className="border-border flex items-baseline justify-between border-b px-4 pt-6 pb-2"
+            >
+              <span className="text-base font-semibold">{group.name}</span>
+              <span className="text-muted-foreground text-sm font-normal">{group.left} left</span>
             </h2>
-            <ul>
-              {rows.map((item) => (
-                <li key={item.id} className="border-border flex items-center border-b">
-                  {/*
-                    A real checkbox in a label, not a button with role="checkbox": the input
-                    carries the semantics for free, and the label makes the whole row the target
-                    rather than a small box inside it. Used one-handed while shopping, so
-                    it is 56px tall — well over the 44px floor.
-                  */}
-                  <label
-                    className={cn(
-                      "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-3",
-                      "active:bg-muted",
-                    )}
-                  >
-                    <TickBox
-                      size="lg"
-                      checked={item.purchased}
-                      onChange={() => onToggle(item)}
-                      describedBy={failed.has(item.id) ? `${item.id}-failed` : undefined}
-                    />
-
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          "block truncate text-base",
-                          item.purchased && "text-muted-foreground line-through",
-                        )}
-                      >
-                        {item.name}
-                      </span>
-                      <ItemSubtitle item={item} failed={failed.has(item.id)} />
-                    </span>
-
-                    <span
-                      className={cn(
-                        "shrink-0 text-right text-sm",
-                        item.purchased ? "text-muted-foreground" : "text-foreground",
-                      )}
-                    >
-                      <span className="block font-mono">
-                        {formatQuantity(item.quantity, item.unit)}
-                      </span>
-                      {item.estCost === null ? null : (
-                        <span className="text-muted-foreground block font-mono text-xs">
-                          ${item.estCost.toFixed(2)}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-
-                  {/*
-                    Outside the label on purpose: inside it, tapping the bin would also tick the
-                    row. Only manual items have one — the service refuses to delete a plan item.
-                  */}
-                  {item.source === "manual" ? (
-                    <button
-                      type="button"
-                      onClick={() => remove.mutate({ planId, itemId: item.id })}
-                      aria-label={
-                        notDeleted.has(item.id)
-                          ? `Delete ${item.name} — not deleted, try again`
-                          : `Delete ${item.name}`
-                      }
-                      className={cn(
-                        "focus-visible:ring-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:ring-3 focus-visible:outline-none",
-                        notDeleted.has(item.id) ? "text-destructive" : "text-muted-foreground",
-                      )}
-                    >
-                      <Trash2 aria-hidden className="size-4" />
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            <Aisles items={group.items} level={3} rows={rows} />
           </section>
-        );
-      })}
+        ))
+      )}
 
       {hideBought && bought.length > 0 ? (
         <section className="border-border border-t px-4 py-4">
@@ -689,7 +823,13 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
         </section>
       ) : null}
 
-      <AddItem planId={planId} items={items} onAdded={onAdded} onBumped={onBumped} />
+      <AddItem
+        planId={planId}
+        stores={stores}
+        items={items}
+        onAdded={onAdded}
+        onBumped={onBumped}
+      />
 
       {alreadyHave.length > 0 ? (
         <section className="px-4 py-5">

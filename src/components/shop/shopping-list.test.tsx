@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ShoppingList, type ShopItem } from "./shopping-list";
+import { ShoppingList, type ShopItem, type ShopStore } from "./shopping-list";
 
 /**
  * The mutation is stubbed at the tRPC hook, not the network.
@@ -35,6 +35,7 @@ function row(overrides: Record<string, unknown> = {}) {
     haveAlready: false,
     feedsRecipes: [],
     source: "manual",
+    storeId: null,
     ...overrides,
   };
 }
@@ -78,6 +79,7 @@ function item(overrides: Partial<ShopItem> & { id: string; name: string }): Shop
     haveAlready: false,
     feedsRecipes: [],
     source: "plan",
+    storeId: null,
     ...overrides,
   };
 }
@@ -86,6 +88,7 @@ function renderList(
   items: ShopItem[],
   budgetTarget: number | null = 120,
   week: { planId?: string; atDefault?: boolean; planned?: boolean } = {},
+  stores: ShopStore[] = [],
 ) {
   const user = userEvent.setup();
 
@@ -99,6 +102,7 @@ function renderList(
         planned={week.planned ?? true}
         budgetTarget={budgetTarget}
         initialItems={items}
+        stores={stores}
       />
     </QueryClientProvider>,
   );
@@ -402,6 +406,7 @@ describe("switching weeks", () => {
           planned
           budgetTarget={120}
           initialItems={items}
+          stores={[]}
         />
       </QueryClientProvider>,
     );
@@ -427,6 +432,7 @@ describe("switching weeks", () => {
           planned
           budgetTarget={120}
           initialItems={[item({ id: "b", name: "Bacon" })]}
+          stores={[]}
         />
       </QueryClientProvider>,
     );
@@ -461,7 +467,13 @@ describe("adding something the plan did not call for", () => {
     expect(await screen.findByText("dish soap")).toBeInTheDocument();
     // react-query hands the mutation function a context object after the variables.
     expect(addItemFn).toHaveBeenCalledWith(
-      { planId: "2026-W36", itemName: "dish soap", quantity: null, category: "other" },
+      {
+        planId: "2026-W36",
+        itemName: "dish soap",
+        quantity: null,
+        category: "other",
+        storeId: null,
+      },
       expect.anything(),
     );
     expect(screen.getByText(/2 left of 2/)).toBeInTheDocument();
@@ -480,7 +492,13 @@ describe("adding something the plan did not call for", () => {
 
     await waitFor(() =>
       expect(addItemFn).toHaveBeenCalledWith(
-        { planId: "2026-W36", itemName: "banana", quantity: 6, category: "produce" },
+        {
+          planId: "2026-W36",
+          itemName: "banana",
+          quantity: 6,
+          category: "produce",
+          storeId: null,
+        },
         expect.anything(),
       ),
     );
@@ -533,6 +551,7 @@ describe("adding something the plan did not call for", () => {
           unit: "lb",
           category: "dairy",
           estCost: 4,
+          storeId: null,
         },
         expect.anything(),
       ),
@@ -694,5 +713,100 @@ describe("adding something the plan did not call for", () => {
     renderList([], 120, { planned: false });
 
     expect(screen.queryByRole("button", { name: "+ Add item" })).toBeNull();
+  });
+});
+
+describe("splitting the list by store", () => {
+  const stores: ShopStore[] = [
+    { id: "aldi", name: "Aldi" },
+    { id: "braums", name: "Braum's" },
+  ];
+
+  it("reads aisle by aisle when no item is bound for a store", () => {
+    renderList([item({ id: "onion", name: "onion" })], 120, {}, stores);
+
+    expect(screen.getAllByRole("heading", { level: 2 }).map((node) => node.textContent)).toEqual([
+      "Produce",
+    ]);
+  });
+
+  it("groups items under their store in the household's order, then aisles within it", () => {
+    renderList(
+      [
+        item({ id: "milk_gal", name: "milk", category: "dairy", storeId: "braums" }),
+        item({ id: "onion", name: "onion", storeId: "aldi" }),
+        item({ id: "cheese", name: "cheese", category: "dairy", storeId: "aldi" }),
+      ],
+      120,
+      {},
+      stores,
+    );
+
+    const storeHeadings = screen.getAllByRole("heading", { level: 2 });
+
+    expect(storeHeadings.map((node) => node.textContent)).toEqual(["Aldi2 left", "Braum's1 left"]);
+
+    const aldi = screen.getByRole("region", { name: /Aldi/ });
+
+    expect(
+      within(aldi)
+        .getAllByRole("heading", { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(["Produce", "Dairy"]);
+    expect(
+      within(screen.getByRole("region", { name: /Braum's/ })).getByText("milk"),
+    ).toBeInTheDocument();
+  });
+
+  it("gathers items with no store, or a deleted one, under Any store", () => {
+    renderList(
+      [
+        item({ id: "onion", name: "onion", storeId: "aldi" }),
+        item({ id: "foil", name: "foil", category: "other", storeId: null }),
+        item({ id: "eggs", name: "eggs", category: "dairy", storeId: "costco" }),
+      ],
+      120,
+      {},
+      stores,
+    );
+
+    const anyStore = screen.getByRole("region", { name: /Any store/ });
+
+    expect(within(anyStore).getByText("foil")).toBeInTheDocument();
+    expect(within(anyStore).getByText("eggs")).toBeInTheDocument();
+  });
+
+  it("sends the store the shopper picked for a hand-added item", async () => {
+    addItemFn.mockResolvedValue(
+      row({ id: "buns", name: "buns", category: "bakery", storeId: "braums" }),
+    );
+
+    const user = renderList(
+      [item({ id: "onion", name: "onion", storeId: "aldi" })],
+      120,
+      {},
+      stores,
+    );
+
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+    await user.type(screen.getByLabelText("Item"), "buns");
+    await user.selectOptions(screen.getByLabelText("Store"), "braums");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(
+      await within(await screen.findByRole("region", { name: /Braum's/ })).findByText("buns"),
+    ).toBeInTheDocument();
+    expect(addItemFn).toHaveBeenCalledWith(
+      expect.objectContaining({ itemName: "buns", storeId: "braums" }),
+      expect.anything(),
+    );
+  });
+
+  it("offers no store choice to a household without stores", async () => {
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+
+    expect(screen.queryByLabelText("Store")).not.toBeInTheDocument();
   });
 });

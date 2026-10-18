@@ -1,7 +1,10 @@
 import { householdForSession } from "@server/auth/household";
 import { getConfig } from "@server/services/config";
+import { listIngredientStores, listStores } from "@server/services/stores";
 import { redirect } from "next/navigation";
 
+import { IngredientStores } from "@/components/settings/ingredient-stores";
+import { Stores } from "@/components/settings/stores";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { loginUrl } from "@/lib/login-url";
 
@@ -19,7 +22,13 @@ export default async function Settings() {
     redirect(await loginUrl());
   }
 
-  const entries = Object.entries(await getConfig(householdForSession(session)));
+  const householdId = householdForSession(session);
+  const [config, stores, rules] = await Promise.all([
+    getConfig(householdId),
+    listStores(householdId),
+    listIngredientStores(householdId),
+  ]);
+  const entries = Object.entries(config);
 
   return (
     <main className="mx-auto max-w-2xl p-4">
@@ -29,7 +38,43 @@ export default async function Settings() {
         <ThemePicker />
       </div>
 
-      <p className="text-muted-foreground mt-8 text-sm">
+      <section aria-labelledby="stores-heading" className="mt-10">
+        <h2 id="stores-heading" className="text-lg font-semibold">
+          Stores
+        </h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Where you shop. The planner reads each store&apos;s notes when it decides where every item
+          on the shopping list comes from.
+        </p>
+        <Stores
+          stores={stores.map((store) => ({
+            id: store.id,
+            name: store.name,
+            notes: store.notes,
+            primary: store.primary,
+          }))}
+        />
+      </section>
+
+      <section aria-labelledby="where-to-buy-heading" className="mt-10">
+        <h2 id="where-to-buy-heading" className="text-lg font-semibold">
+          Where to buy
+        </h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Ingredients you get from a particular store.
+        </p>
+        <IngredientStores
+          rules={rules.map((rule) => ({
+            id: rule.id,
+            name: rule.name,
+            storeId: rule.storeId,
+            only: rule.only,
+          }))}
+          stores={stores.map((store) => ({ id: store.id, name: store.name }))}
+        />
+      </section>
+
+      <p className="text-muted-foreground mt-10 text-sm">
         What the planner assumes about the household. Edit them with{" "}
         <code className="font-mono">PATCH /v1/config</code>.
       </p>

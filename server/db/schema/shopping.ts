@@ -62,6 +62,13 @@ export const shoppingListItems = pgTable(
      * a recipe still calls for, but it carries this flag across.
      */
     haveAlready: boolean("have_already").notNull().default(false),
+    /**
+     * Which shop it is bought at, or null when the household has set up no shops.
+     *
+     * Not a foreign key: the composite key would have to null `household_id` along with it when
+     * the shop is deleted, so `deleteStore` clears it in the same transaction instead.
+     */
+    storeId: text("store_id"),
     source: shoppingItemSource("source").notNull().default("plan"),
     position: integer("position").notNull().default(0),
     createTime: timestamp("create_time", { withTimezone: true }).notNull().defaultNow(),

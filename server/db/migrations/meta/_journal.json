@@ -99,6 +99,13 @@
       "when": 1792336893348,
       "tag": "0013_add_recipe_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792346916627,
+      "tag": "0014_add_stores",
+      "breakpoints": true
     }
   ]
 }

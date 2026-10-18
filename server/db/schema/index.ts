@@ -12,4 +12,5 @@ export * from "./prices";
 export * from "./recipes";
 export * from "./shares";
 export * from "./shopping";
+export * from "./stores";
 export * from "./week-notes";
