@@ -610,7 +610,6 @@ function StoreFilter({ stores, value, onChange }: StoreFilterProps) {
   return (
     <label className="text-primary has-focus-visible:ring-ring relative -mr-1.5 flex min-h-11 shrink-0 items-center gap-1 rounded-md px-1.5 text-base font-semibold has-focus-visible:ring-3">
       <select
-        // Named outright: through the wrapping label it would also read out the option text.
         aria-label="Show items from"
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
