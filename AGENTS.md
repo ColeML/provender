@@ -40,6 +40,18 @@ Write a random password to a file in your scratchpad, run
 `.env.local`, which overrides `.env` and is gitignored. Restart `pnpm dev`, then sign in with it.
 Leave `.env` unchanged.
 
+A change to what a page shows or does is not ready to merge until you have used it on a local dev
+server: walk the changed flow at 375px wide, in both light and dark, with no console errors.
+Tests, typecheck and the Vercel preview build all pass without anyone tapping the page, so they
+do not count. From a worktree:
+
+- Copy `.env` and `.env.local` from the main checkout. `.env.local` holds the local database URLs.
+- Reuse the main checkout's compose stack. `docker compose up` from a worktree starts a second
+  stack that fails on port 5440.
+- Start the server with `pnpm --dir <worktree path> dev --port <free port>`. A plain `pnpm dev`
+  launched from the main checkout serves the main checkout's branch, not yours.
+- Your taps write to the local database, so delete any rows you added once you are done.
+
 ## The API (deterministic tools — no AI inside)
 
 `./scripts/prov METHOD PATH [json|@file]` calls it and prints JSON, reading the token and base URL
