@@ -43,7 +43,7 @@ import {
   getHistoryEntry,
   listHistory,
   MealHistoryNotFoundError,
-  rateMeal,
+  annotateMeal,
   recordMeal,
 } from "@server/services/history";
 import {
@@ -162,6 +162,15 @@ describe("recipes", () => {
     await updateRecipe(B, "fajitas", ["title"], { title: "Hijacked" }, undefined, db);
 
     await expect(getRecipe(A, "fajitas", db)).resolves.toMatchObject({ title: "Fajitas" });
+  });
+
+  it("will not let one household's rating change another's recipe of the same id", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    await updateRecipe(B, "fajitas", ["rating"], { rating: 1 }, undefined, db);
+
+    await expect(getRecipe(A, "fajitas", db)).resolves.toMatchObject({ rating: null });
+    await expect(getRecipe(B, "fajitas", db)).resolves.toMatchObject({ rating: 1 });
   });
 
   // Naming `ingredients` in the mask replaces the list, which deletes the recipe's rows before
@@ -462,13 +471,13 @@ describe("history", () => {
     );
   });
 
-  it("will not let one household rate another's meal", async () => {
+  it("will not let one household annotate another's meal", async () => {
     await expect(
-      rateMeal(B, `${MONDAY}-fajitas`, { rating: 1 }, ["rating"], db),
+      annotateMeal(B, `${MONDAY}-fajitas`, { notes: "hijacked" }, ["notes"], db),
     ).rejects.toBeInstanceOf(MealHistoryNotFoundError);
 
     await expect(getHistoryEntry(A, `${MONDAY}-fajitas`, db)).resolves.toMatchObject({
-      rating: null,
+      notes: null,
     });
   });
 

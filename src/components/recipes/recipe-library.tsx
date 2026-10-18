@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Star } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -11,6 +12,7 @@ export interface LibraryRecipe {
   baseServings: number;
   totalMin: number | null;
   tags: string[];
+  rating: number | null;
 }
 
 /** Matches on title and tags, so "quick" and "instant pot" both find something. */
@@ -83,7 +85,16 @@ export function RecipeLibrary({ recipes }: { recipes: LibraryRecipe[] }) {
                   )}
                 </span>
 
-                <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                <span className="text-muted-foreground flex shrink-0 items-center font-mono text-xs">
+                  {recipe.rating === null ? null : (
+                    <>
+                      <Star aria-hidden className="size-3" />
+                      <span className="sr-only">rated </span>
+                      {recipe.rating}
+                      <span className="sr-only"> of 5, </span>
+                      <span aria-hidden>&nbsp;·&nbsp;</span>
+                    </>
+                  )}
                   {recipe.baseServings} sv
                   {recipe.totalMin === null ? "" : ` · ${recipe.totalMin}m`}
                 </span>

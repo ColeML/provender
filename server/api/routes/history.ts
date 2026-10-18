@@ -7,7 +7,7 @@ import {
   getHistoryEntry,
   listHistory,
   MealHistoryNotFoundError,
-  rateMeal,
+  annotateMeal,
   recordMeal,
   type MealHistoryEntry,
 } from "@server/services/history";
@@ -21,7 +21,6 @@ function toResource(entry: MealHistoryEntry) {
     recipeId: entry.recipeId,
     title: entry.title,
     mealSlot: entry.mealSlot,
-    rating: entry.rating,
     notes: entry.notes,
     planId: entry.planId,
     createTime: entry.createTime.toISOString(),
@@ -37,7 +36,6 @@ const EntrySchema = z
     recipeId: z.string().nullable(),
     title: z.string(),
     mealSlot: MealSlotSchema,
-    rating: z.number().int().nullable(),
     notes: z.string().nullable(),
     planId: z.string().nullable(),
     createTime: z.string(),
@@ -113,7 +111,6 @@ historyRoutes.openapi(
               recipeId: z.string().min(1),
               title: z.string().min(1),
               mealSlot: MealSlotSchema.optional(),
-              rating: z.number().int().min(1).max(5).nullish(),
               notes: z.string().nullish(),
               planId: z.string().nullish(),
             }),
@@ -162,17 +159,14 @@ historyRoutes.openapi(
   createRoute({
     method: "patch",
     path: "/mealHistory/{entry}",
-    summary: "Rate or annotate a meal",
+    summary: "Annotate a meal",
     request: {
       params: EntryParam,
-      query: z.object({ updateMask: z.string().min(1).openapi({ example: "rating,notes" }) }),
+      query: z.object({ updateMask: z.string().min(1).openapi({ example: "notes" }) }),
       body: {
         content: {
           "application/json": {
-            schema: z.object({
-              rating: z.number().int().min(1).max(5).nullish(),
-              notes: z.string().nullish(),
-            }),
+            schema: z.object({ notes: z.string().nullish() }),
           },
         },
       },
@@ -190,7 +184,7 @@ historyRoutes.openapi(
       .split(",")
       .map((field) => field.trim())
       .filter(Boolean);
-    const unknown = fields.filter((field) => field !== "rating" && field !== "notes");
+    const unknown = fields.filter((field) => field !== "notes");
 
     if (fields.length === 0) {
       // An empty mask would update nothing and answer 200, so a client that built the mask from an
@@ -207,7 +201,7 @@ historyRoutes.openapi(
     }
 
     try {
-      const updated = await rateMeal(c.get("householdId"), entry, c.req.valid("json"), fields);
+      const updated = await annotateMeal(c.get("householdId"), entry, c.req.valid("json"), fields);
 
       return c.json(toResource(updated), 200);
     } catch (error) {

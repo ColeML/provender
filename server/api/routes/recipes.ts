@@ -54,6 +54,7 @@ function toRecipeResource(recipe: Recipe) {
     costEstimate: recipe.costEstimate === null ? null : Number(recipe.costEstimate),
     tags: recipe.tags,
     instructions: recipe.instructions,
+    rating: recipe.rating,
     createTime: recipe.createTime.toISOString(),
     updateTime: recipe.updateTime.toISOString(),
   };
@@ -82,6 +83,7 @@ const UPDATABLE_FIELDS = new Set([
   "costEstimate",
   "tags",
   "instructions",
+  "rating",
   "ingredients",
 ]);
 
@@ -225,7 +227,15 @@ recipesRoutes.openapi(
           .min(1)
           .openapi({ example: "title,tags", description: "Comma-separated field names" }),
       }),
-      body: { content: { "application/json": { schema: RecipeInputSchema.partial() } } },
+      body: {
+        content: {
+          "application/json": {
+            schema: RecipeInputSchema.partial().extend({
+              rating: z.number().int().min(1).max(5).nullish(),
+            }),
+          },
+        },
+      },
     },
     responses: {
       200: {

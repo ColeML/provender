@@ -13,6 +13,7 @@ const LIBRARY: LibraryRecipe[] = [
     baseServings: 8,
     totalMin: 30,
     tags: ["mexican", "quick"],
+    rating: 4,
   },
   {
     recipeId: "teriyaki",
@@ -20,8 +21,16 @@ const LIBRARY: LibraryRecipe[] = [
     baseServings: 8,
     totalMin: 45,
     tags: ["instant pot", "kid-friendly"],
+    rating: null,
   },
-  { recipeId: "ziti", title: "Baked Ziti", baseServings: 8, totalMin: null, tags: [] },
+  {
+    recipeId: "ziti",
+    title: "Baked Ziti",
+    baseServings: 8,
+    totalMin: null,
+    tags: [],
+    rating: null,
+  },
 ];
 
 function renderLibrary() {
@@ -94,6 +103,13 @@ describe("the recipe library", () => {
 
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.getByText(/Nothing matches/)).toBeInTheDocument();
+  });
+
+  it("shows a rated recipe's rating and leaves an unrated one bare", () => {
+    renderLibrary();
+
+    expect(screen.getByRole("link", { name: /of 5,.*8 sv/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Baked Ziti/ })).not.toHaveTextContent(/rated/);
   });
 
   it("omits the time for a recipe that has none", () => {

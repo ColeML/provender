@@ -172,7 +172,7 @@ async function assertRecipesResolve(
  * keyed this way cannot reach another week that happens to reuse the date.
  *
  * Excludes the id the incoming main would itself use, so re-committing the same main does not
- * delete and immediately reinsert the row whose rating this is trying to preserve.
+ * delete and immediately reinsert the row whose notes this is trying to preserve.
  */
 async function clearSupersededHistory(
   householdId: string,

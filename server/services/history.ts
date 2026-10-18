@@ -22,7 +22,6 @@ export interface MealHistoryInput {
   recipeId: string;
   title: string;
   mealSlot?: MealSlot;
-  rating?: number | null;
   notes?: string | null;
   /** Links the entry to the day that scheduled it, so clearing that day clears this too. */
   planId?: string | null;
@@ -86,7 +85,6 @@ export async function recordMeal(
       recipeId: input.recipeId,
       title: input.title,
       mealSlot,
-      rating: input.rating ?? null,
       notes: input.notes ?? null,
       planId,
       planDate: planId ? input.date : null,
@@ -97,16 +95,14 @@ export async function recordMeal(
       // Re-planning the same dish on the same day refreshes the entry rather than appending a
       // second one, which is what v1 did and what left the library full of near-duplicates.
       //
-      // Rating and notes are carried over only when the caller actually sent them. Omitting them
-      // must not wipe a rating a re-plan knows nothing about, but sending one and having it
-      // silently ignored is worse — the field is advertised on create.
+      // Notes are carried over only when the caller sent them: a re-plan must not wipe notes it
+      // knows nothing about.
       set: {
         title: input.title,
         mealSlot,
         planId,
         planDate: planId ? input.date : null,
         planMealSlot: planId ? mealSlot : null,
-        ...(input.rating === undefined ? {} : { rating: input.rating }),
         ...(input.notes === undefined ? {} : { notes: input.notes }),
         updateTime: sql`now()`,
       },
@@ -162,22 +158,16 @@ export async function getHistoryEntry(householdId: string, id: string, db: Datab
   return entry;
 }
 
-/** Rate a meal, or annotate it. Replaces v1's `rate` command. */
-export async function rateMeal(
+export async function annotateMeal(
   householdId: string,
   id: string,
-  fields: { rating?: number | null; notes?: string | null },
+  fields: { notes?: string | null },
   updateMask: string[],
   db: Database = defaultDb,
 ) {
-  const named = new Set(updateMask);
   const patch: Record<string, unknown> = { updateTime: sql`now()` };
 
-  if (named.has("rating")) {
-    patch.rating = fields.rating ?? null;
-  }
-
-  if (named.has("notes")) {
+  if (updateMask.includes("notes")) {
     patch.notes = fields.notes ?? null;
   }
 

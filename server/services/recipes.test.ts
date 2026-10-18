@@ -240,6 +240,22 @@ describe("updateRecipe", () => {
     expect(recipe.baseServings).toBe(8);
   });
 
+  it("sets a rating and clears it", async () => {
+    await updateRecipe(HOUSEHOLD, "fajitas", ["rating"], { rating: 4 }, undefined, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).rating).toBe(4);
+
+    await updateRecipe(HOUSEHOLD, "fajitas", ["rating"], { rating: null }, undefined, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).rating).toBeNull();
+  });
+
+  it("refuses a rating outside 1–5 at the database", async () => {
+    await expect(
+      updateRecipe(HOUSEHOLD, "fajitas", ["rating"], { rating: 6 }, undefined, db),
+    ).rejects.toThrow();
+  });
+
   it("replaces the whole ingredient list when the mask names it", async () => {
     await updateRecipe(
       HOUSEHOLD,

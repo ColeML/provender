@@ -1,13 +1,4 @@
-import {
-  date,
-  foreignKey,
-  index,
-  integer,
-  pgTable,
-  primaryKey,
-  text,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { date, foreignKey, index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 import { households } from "./households";
 import { mealSlot, planDays } from "./plans";
@@ -48,8 +39,6 @@ export const mealHistory = pgTable(
     /** Kept denormalized so an entry still reads sensibly after its recipe is gone. */
     title: text("title").notNull(),
     mealSlot: mealSlot("meal_slot").notNull().default("dinner"),
-    /** 1–5. Null is the common case: 4 of v1's 61 rows are rated. */
-    rating: integer("rating"),
     notes: text("notes"),
     /**
      * The day that scheduled this, when one did.
