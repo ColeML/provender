@@ -111,6 +111,7 @@ export const appRouter = router({
           planId: z.string().min(1),
           itemName: z.string().min(1).max(120),
           quantity: z.number().positive().max(9999).nullable(),
+          unit: z.string().min(1).max(20).nullable().optional(),
           category: AisleSchema,
         }),
       )
@@ -118,7 +119,12 @@ export const appRouter = router({
         addItem(
           ctx.householdId,
           input.planId,
-          { name: input.itemName, quantity: input.quantity, category: input.category },
+          {
+            name: input.itemName,
+            quantity: input.quantity,
+            unit: input.unit,
+            category: input.category,
+          },
           ctx.db,
         ),
       ),
@@ -128,11 +134,7 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         deleteItem(ctx.householdId, input.planId, input.itemId, ctx.db),
       ),
-    /**
-     * Buy more of something the list already has.
-     *
-     * The row keeps whatever `source` it had, so a rebuild still owns a plan item's quantity.
-     */
+    /** Buy more of a manual item. A plan item gets an extra row instead, which a rebuild keeps. */
     setQuantity: protectedProcedure
       .input(
         z.object({

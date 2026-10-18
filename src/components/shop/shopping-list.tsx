@@ -205,6 +205,30 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
   );
 
   const busy = add.isPending || bump.isPending;
+
+  // A rebuild rewrites a plan row's quantity, so buying more of one lands on its own manual
+  // "butter, extra" row. A manual row is the shopper's already and is raised in place.
+  function buyMore(match: ShopItem, more: number) {
+    if (match.source === "manual") {
+      bump.mutate({ planId, itemId: match.id, quantity: (match.quantity ?? 0) + more });
+
+      return;
+    }
+
+    const extraName = `${match.name}, extra`;
+    const extra = items.find(
+      (item) =>
+        item.source === "manual" && slug(item.name) === slug(extraName) && item.unit === match.unit,
+    );
+
+    add.mutate({
+      planId,
+      itemName: extraName,
+      quantity: (extra?.quantity ?? 0) + more,
+      unit: match.unit,
+      category: AISLES.find((option) => option === match.category) ?? "other",
+    });
+  }
   // Blank means one of whatever the thing is measured in.
   const typedAmount = amount.trim() === "" ? 1 : Number(amount);
   const validAmount = Number.isFinite(typedAmount) && typedAmount > 0;
@@ -294,7 +318,12 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       </label>
 
       {match === null ? null : (
-        <AlreadyListed match={match} amount={typedAmount} busy={busy} bump={bump} planId={planId} />
+        <AlreadyListed
+          match={match}
+          amount={typedAmount}
+          busy={busy}
+          onBuyMore={() => buyMore(match, typedAmount)}
+        />
       )}
 
       {add.isError || bump.isError ? (
@@ -349,9 +378,8 @@ function whereItSits(match: ShopItem) {
 interface AlreadyListedProps {
   match: ShopItem;
   amount: number;
-  planId: string;
   busy: boolean;
-  bump: { mutate: (input: { planId: string; itemId: string; quantity: number }) => void };
+  onBuyMore: () => void;
 }
 
 /**
@@ -360,8 +388,7 @@ interface AlreadyListedProps {
  * The button names the unit rather than a bare number, because the amount is being added to a
  * quantity the recipes measured — "Add 1" beside "2 lb" reads as one butter.
  */
-function AlreadyListed({ match, amount, planId, busy, bump }: AlreadyListedProps) {
-  // Read out of the item so the handler below closes over a number, not a nullable property.
+function AlreadyListed({ match, amount, busy, onBuyMore }: AlreadyListedProps) {
   const onList = match.quantity;
   // `formatQuantity` answers a null quantity with the bare unit, which would read as
   // "Already on your list: tsp".
@@ -380,7 +407,7 @@ function AlreadyListed({ match, amount, planId, busy, bump }: AlreadyListedProps
         <button
           type="button"
           disabled={busy}
-          onClick={() => bump.mutate({ planId, itemId: match.id, quantity: onList + amount })}
+          onClick={onBuyMore}
           className="focus-visible:ring-ring text-primary min-h-11 shrink-0 font-semibold focus-visible:ring-3 focus-visible:outline-none disabled:opacity-50"
         >
           Add {formatQuantity(amount, match.unit)}

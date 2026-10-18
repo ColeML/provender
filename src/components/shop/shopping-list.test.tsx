@@ -498,9 +498,15 @@ describe("adding something the plan did not call for", () => {
     expect(addItemFn).not.toHaveBeenCalled();
   });
 
-  it("offers to buy more of it, in the unit the list is using", async () => {
-    setQuantityFn.mockResolvedValue(
-      row({ id: "butter_lb", name: "butter", quantity: "3", unit: "lb", source: "plan" }),
+  it("buys more of a plan item on its own manual row, which a rebuild keeps", async () => {
+    addItemFn.mockResolvedValue(
+      row({
+        id: "butter-extra_lb",
+        name: "butter, extra",
+        quantity: "1",
+        unit: "lb",
+        category: "dairy",
+      }),
     );
 
     const user = await openForm([
@@ -512,12 +518,75 @@ describe("adding something the plan did not call for", () => {
     await user.click(screen.getByRole("button", { name: "Add 1 lb" }));
 
     await waitFor(() =>
-      expect(setQuantityFn).toHaveBeenCalledWith(
-        { planId: "2026-W36", itemId: "butter_lb", quantity: 3 },
+      expect(addItemFn).toHaveBeenCalledWith(
+        {
+          planId: "2026-W36",
+          itemName: "butter, extra",
+          quantity: 1,
+          unit: "lb",
+          category: "dairy",
+        },
         expect.anything(),
       ),
     );
-    expect(await screen.findByText("3 lb")).toBeInTheDocument();
+    expect(setQuantityFn).not.toHaveBeenCalled();
+    expect(await screen.findByText("butter, extra")).toBeInTheDocument();
+    expect(screen.getByText("2 lb")).toBeInTheDocument();
+  });
+
+  it("adds to the extra row rather than resetting it on a second bump", async () => {
+    const user = await openForm([
+      item({ id: "butter_lb", name: "butter", quantity: 2, unit: "lb", category: "dairy" }),
+      item({
+        id: "butter-extra_lb",
+        name: "butter, extra",
+        quantity: 1,
+        unit: "lb",
+        category: "dairy",
+        source: "manual",
+      }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "butter");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add 1 lb" }));
+
+    await waitFor(() =>
+      expect(addItemFn).toHaveBeenCalledWith(
+        expect.objectContaining({ itemName: "butter, extra", quantity: 2, unit: "lb" }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("raises a manual item in place, since a rebuild leaves it alone", async () => {
+    setQuantityFn.mockResolvedValue(
+      row({ id: "milk_gal", name: "milk", quantity: "2", unit: "gal", category: "dairy" }),
+    );
+
+    const user = await openForm([
+      item({
+        id: "milk_gal",
+        name: "milk",
+        quantity: 1,
+        unit: "gal",
+        category: "dairy",
+        source: "manual",
+      }),
+    ]);
+
+    await user.type(screen.getByLabelText("Item"), "milk");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(screen.getByRole("button", { name: "Add 1 gal" }));
+
+    await waitFor(() =>
+      expect(setQuantityFn).toHaveBeenCalledWith(
+        { planId: "2026-W36", itemId: "milk_gal", quantity: 2 },
+        expect.anything(),
+      ),
+    );
+    expect(addItemFn).not.toHaveBeenCalled();
+    expect(await screen.findByText("2 gal")).toBeInTheDocument();
   });
 
   it("says where a match is when it is not among the rows still to buy", async () => {
