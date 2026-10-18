@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "cml": {
+      "source": { "source": "github", "repo": "ColeML/cml" }
+    }
+  },
+  "enabledPlugins": {
+    "cml@cml": true
+  }
+}
