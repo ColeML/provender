@@ -44,6 +44,10 @@ const AISLES = ["produce", "meat", "dairy", "bakery", "frozen", "pantry", "other
 
 type Aisle = (typeof AISLES)[number];
 
+function toAisle(value: string): Aisle {
+  return AISLES.find((option) => option === value) ?? "other";
+}
+
 const AISLE_LABELS: Record<string, string> = {
   produce: "Produce",
   meat: "Meat",
@@ -221,12 +225,18 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
         item.source === "manual" && slug(item.name) === slug(extraName) && item.unit === match.unit,
     );
 
+    const quantity = (extra?.quantity ?? 0) + more;
+    // Priced at the plan row's rate, so the footer's total counts what the extra row adds.
+    const unitCost =
+      match.estCost === null || match.quantity === null ? null : match.estCost / match.quantity;
+
     add.mutate({
       planId,
       itemName: extraName,
-      quantity: (extra?.quantity ?? 0) + more,
+      quantity,
       unit: match.unit,
-      category: AISLES.find((option) => option === match.category) ?? "other",
+      category: toAisle(match.category),
+      estCost: unitCost === null ? null : Math.round(unitCost * quantity * 100) / 100,
     });
   }
   // Blank means one of whatever the thing is measured in.
@@ -304,9 +314,7 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
         <span className="text-muted-foreground block text-xs">Aisle</span>
         <select
           value={aisle}
-          onChange={(event) =>
-            setAisle(AISLES.find((option) => option === event.target.value) ?? "other")
-          }
+          onChange={(event) => setAisle(toAisle(event.target.value))}
           className={cn(FIELD, "mt-1 w-full")}
         >
           {AISLES.map((option) => (

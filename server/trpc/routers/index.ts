@@ -111,7 +111,8 @@ export const appRouter = router({
           planId: z.string().min(1),
           itemName: z.string().min(1).max(120),
           quantity: z.number().positive().max(9999).nullable(),
-          unit: z.string().min(1).max(20).nullable().optional(),
+          unit: z.string().min(1).max(120).nullable().optional(),
+          estCost: z.number().nonnegative().max(99999).nullable().optional(),
           category: AisleSchema,
         }),
       )
@@ -124,6 +125,7 @@ export const appRouter = router({
             quantity: input.quantity,
             unit: input.unit,
             category: input.category,
+            estCost: input.estCost,
           },
           ctx.db,
         ),

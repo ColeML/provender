@@ -510,7 +510,14 @@ describe("adding something the plan did not call for", () => {
     );
 
     const user = await openForm([
-      item({ id: "butter_lb", name: "butter", quantity: 2, unit: "lb", category: "dairy" }),
+      item({
+        id: "butter_lb",
+        name: "butter",
+        quantity: 2,
+        unit: "lb",
+        category: "dairy",
+        estCost: 8,
+      }),
     ]);
 
     await user.type(screen.getByLabelText("Item"), "butter");
@@ -525,6 +532,7 @@ describe("adding something the plan did not call for", () => {
           quantity: 1,
           unit: "lb",
           category: "dairy",
+          estCost: 4,
         },
         expect.anything(),
       ),
