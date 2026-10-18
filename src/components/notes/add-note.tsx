@@ -4,12 +4,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
+import { FIELD } from "@/components/ui/field";
 import { useTRPC } from "@/lib/trpc/client";
 
 const WEEKDAY = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
-
-export const FIELD =
-  "border-muted-foreground bg-background focus-visible:ring-ring placeholder:text-muted-foreground h-11 rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none";
 
 /** `Mon 12`. en-US puts the day number first when asked for both parts at once. */
 function dayLabel(date: string) {

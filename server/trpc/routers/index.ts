@@ -1,12 +1,19 @@
 import "server-only";
 
+import { schema } from "@server/db";
 import { getConfig } from "@server/services/config";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
 import { weekPlan } from "@server/services/week-plan";
 import { listPrices } from "@server/services/prices";
 import { getForecast } from "@server/services/weather";
-import { estimatedTotal, listItems, updateItem } from "@server/services/shopping";
+import {
+  addItem,
+  deleteItem,
+  estimatedTotal,
+  listItems,
+  updateItem,
+} from "@server/services/shopping";
 import { getRecipe, listIngredients, listRecipes, scaleRecipe } from "@server/services/recipes";
 import { createShare, deleteShare } from "@server/services/shares";
 import {
@@ -41,6 +48,8 @@ function rejectBadNote(error: unknown): never {
 
   throw error;
 }
+
+const AisleSchema = z.enum(schema.ingredientCategory.enumValues);
 
 /**
  * The application router. Every procedure the client can call is reachable from here, and its
@@ -95,6 +104,57 @@ export const appRouter = router({
         estimatedTotal: estimatedTotal(items),
       };
     }),
+    /** Something the shopper is out of, which no recipe called for. */
+    addItem: protectedProcedure
+      .input(
+        z.object({
+          planId: z.string().min(1),
+          itemName: z.string().min(1).max(120),
+          quantity: z.number().positive().max(9999).nullable(),
+          unit: z.string().min(1).max(120).nullable().optional(),
+          estCost: z.number().nonnegative().max(99999).nullable().optional(),
+          category: AisleSchema,
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        addItem(
+          ctx.householdId,
+          input.planId,
+          {
+            name: input.itemName,
+            quantity: input.quantity,
+            unit: input.unit,
+            category: input.category,
+            estCost: input.estCost,
+          },
+          ctx.db,
+        ),
+      ),
+    /** Only a manual item — the service refuses a plan item, which a rebuild would re-add. */
+    deleteItem: protectedProcedure
+      .input(z.object({ planId: z.string().min(1), itemId: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        deleteItem(ctx.householdId, input.planId, input.itemId, ctx.db),
+      ),
+    /** Buy more of a manual item. A plan item gets an extra row instead, which a rebuild keeps. */
+    setQuantity: protectedProcedure
+      .input(
+        z.object({
+          planId: z.string().min(1),
+          itemId: z.string().min(1),
+          quantity: z.number().positive().max(9999),
+        }),
+      )
+      .mutation(({ ctx, input }) =>
+        updateItem(
+          ctx.householdId,
+          input.planId,
+          input.itemId,
+          { quantity: input.quantity },
+          ["quantity"],
+          ctx.db,
+        ),
+      ),
     // The optimistic toggle the /shop screen fires on every tap.
     setPurchased: protectedProcedure
       .input(

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
+import { slug } from "@server/lib/slug";
 import { and, asc, eq, notInArray, sql } from "drizzle-orm";
 
 import { PlanNotFoundError } from "./plans";
@@ -53,15 +54,6 @@ function normalizeUnit(unit: string | null | undefined) {
   const trimmed = unit?.trim();
 
   return trimmed ? trimmed.toLowerCase() : null;
-}
-
-function slug(value: string) {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "item"
-  );
 }
 
 /**
@@ -226,15 +218,19 @@ export async function addItem(
       // Adding something already on the list adjusts it rather than failing — a shopper asking
       // twice means "make sure this is on there", not "error".
       //
-      // `source` becomes manual even if the plan put it there first: the shopper has taken
-      // ownership, and without this they could not delete an item they had just added.
+      // `source` is absent on purpose. Flipping a plan row to manual would orphan it: a rebuild
+      // only deletes `plan` rows, so the item would outlive the recipe that called for it and
+      // could never be removed again. A plan item stays the plan's, which is also what makes
+      // "set haveAlready rather than deleting" still true of it.
+      //
+      // `estCost` is only overwritten by a caller who priced the item. A hand-added row carries
+      // no cost, and letting that null land on a plan item would quietly drop it from the budget.
       set: {
         name: row.name,
         quantity: row.quantity,
         unit: row.unit,
         category: row.category,
-        estCost: row.estCost,
-        source: "manual",
+        estCost: sql`coalesce(excluded.est_cost, ${schema.shoppingListItems.estCost})`,
         updateTime: sql`now()`,
       },
     })
