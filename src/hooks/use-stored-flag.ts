@@ -86,3 +86,34 @@ export function useStoredFlag(key: string) {
 
   return [value, set] as const;
 }
+
+/**
+ * A string kept in `localStorage`, or null when none is. `useStoredFlag`'s twin, for a choice
+ * that is more than on or off; passing null forgets it.
+ */
+export function useStoredText(key: string) {
+  const subscribe = useCallback((listener: () => void) => subscribeTo(key)(listener), [key]);
+
+  const value = useSyncExternalStore(
+    subscribe,
+    () => store()?.getItem(key) ?? null,
+    () => null,
+  );
+
+  const set = useCallback(
+    (next: string | null) => {
+      if (next === null) {
+        store()?.removeItem(key);
+      } else {
+        store()?.setItem(key, next);
+      }
+
+      for (const listener of listenersFor(key)) {
+        listener();
+      }
+    },
+    [key],
+  );
+
+  return [value, set] as const;
+}

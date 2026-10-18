@@ -65,6 +65,18 @@ import {
   updateWeekNote,
   WeekNoteNotFoundError,
 } from "@server/services/week-notes";
+import {
+  createStore,
+  deleteIngredientStore,
+  deleteStore,
+  getStore,
+  IngredientStoreNotFoundError,
+  listIngredientStores,
+  listStores,
+  setIngredientStore,
+  StoreNotFoundError,
+  updateStore,
+} from "@server/services/stores";
 import { schema } from "@server/db";
 
 /**
@@ -411,6 +423,85 @@ describe("shopping lists", () => {
     await addItem(A, "2026-W36", { name: "dish soap", category: "other" }, db);
 
     await expect(listItems(B, "2026-W36", db)).resolves.toEqual([]);
+  });
+});
+
+describe("stores", () => {
+  beforeEach(async () => {
+    await createStore(A, "braums", { name: "Braum's", primary: true }, db);
+    await setIngredientStore(A, { name: "milk", storeId: "braums", only: true }, db);
+  });
+
+  it("hides another household's stores and rules", async () => {
+    await expect(listStores(B, db)).resolves.toEqual([]);
+    await expect(listIngredientStores(B, db)).resolves.toEqual([]);
+    await expect(getStore(B, "braums", db)).rejects.toBeInstanceOf(StoreNotFoundError);
+  });
+
+  it("lets both households hold a primary store of the same id", async () => {
+    await createStore(B, "braums", { name: "Braum's", primary: true }, db);
+
+    await expect(getStore(A, "braums", db)).resolves.toMatchObject({ primary: true });
+    await expect(getStore(B, "braums", db)).resolves.toMatchObject({ primary: true });
+  });
+
+  // Unsetting the old primary is a write across the household's stores, so a missing filter on it
+  // would demote every other household's primary too.
+  it("will not let one household's new primary demote another's", async () => {
+    await createStore(B, "aldi", { name: "Aldi", primary: true }, db);
+    await createStore(B, "walmart", { name: "Walmart" }, db);
+    await updateStore(B, "walmart", { primary: true }, ["primary"], db);
+
+    await expect(getStore(A, "braums", db)).resolves.toMatchObject({ primary: true });
+  });
+
+  it("will not let one household update or delete another's store", async () => {
+    await expect(updateStore(B, "braums", { name: "Taken" }, ["name"], db)).rejects.toBeInstanceOf(
+      StoreNotFoundError,
+    );
+    await expect(deleteStore(B, "braums", db)).rejects.toBeInstanceOf(StoreNotFoundError);
+
+    await expect(getStore(A, "braums", db)).resolves.toMatchObject({ name: "Braum's" });
+  });
+
+  it("will not let one household send an ingredient to another's store", async () => {
+    await expect(
+      setIngredientStore(B, { name: "milk", storeId: "braums" }, db),
+    ).rejects.toBeInstanceOf(StoreNotFoundError);
+  });
+
+  it("will not let one household delete another's rule", async () => {
+    await expect(deleteIngredientStore(B, "milk", db)).rejects.toBeInstanceOf(
+      IngredientStoreNotFoundError,
+    );
+    await expect(listIngredientStores(A, db)).resolves.toHaveLength(1);
+  });
+
+  it("routes a list by its own household's rules alone", async () => {
+    await createPlan(A, "2026-W36", 120, db);
+    await createPlan(B, "2026-W36", 200, db);
+    await createStore(B, "braums", { name: "Braum's" }, db);
+
+    const [theirs] = await replaceItems(
+      B,
+      "2026-W36",
+      [{ name: "milk", unit: "gal", category: "dairy" }],
+      db,
+    );
+
+    expect(theirs?.storeId).toBeNull();
+  });
+
+  // Deleting a store re-routes the list items bound for it, and two households can both own a
+  // `braums`, so the filter on that update is what keeps A's items where they were.
+  it("will not let one household's store delete re-route another's list", async () => {
+    await createPlan(A, "2026-W36", 120, db);
+    await replaceItems(A, "2026-W36", [{ name: "milk", unit: "gal", category: "dairy" }], db);
+    await createStore(B, "braums", { name: "Braum's" }, db);
+
+    await deleteStore(B, "braums", db);
+
+    await expect(listItems(A, "2026-W36", db)).resolves.toMatchObject([{ storeId: "braums" }]);
   });
 });
 

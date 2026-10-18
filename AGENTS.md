@@ -118,6 +118,11 @@ agents read them as instructions):
   upserts the plan, writes the days and records history in one transaction, so a rejected or failed
   plan leaves nothing behind. Scraped recipes wait in `.provender/drafts/` until then. A day already
   in the plan is refused unless the caller opts in, because it may carry edits made after planning.
+- **Picking a store is split like everything else.** The household sets up stores (with notes on
+  what each is for) and ingredient rules in Settings; the agent picks a store per shopping item
+  from those; `routeToStore` in `server/services/stores.ts` applies the exact part on every
+  write — an `only` rule for the item's exact name always wins, then the store the caller named,
+  then a usual-store rule, then the primary store.
 - **Deleting a shopping item is for manual items only.** A plan item comes back on the next
   rebuild, so set `haveAlready` instead.
 - **Ids are unique per household, not globally.** Two households can each have a

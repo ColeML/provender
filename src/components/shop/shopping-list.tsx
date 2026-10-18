@@ -2,13 +2,13 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { slug } from "@server/lib/slug";
-import { Check, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { FIELD } from "@/components/ui/field";
 import { WeekNav } from "@/components/ui/week-nav";
-import { useStoredFlag } from "@/hooks/use-stored-flag";
+import { useStoredFlag, useStoredText } from "@/hooks/use-stored-flag";
 import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,14 @@ export interface ShopItem {
   feedsRecipes: string[];
   /** `manual` is something the shopper added themselves, and the only kind they can delete. */
   source: "plan" | "manual";
+  /** Null when the household has set up no stores, or the item's store was deleted. */
+  storeId: string | null;
+}
+
+/** A store the list can be split by, in the order the household walks them: primary first. */
+export interface ShopStore {
+  id: string;
+  name: string;
 }
 
 interface Props {
@@ -37,6 +45,7 @@ interface Props {
   planned: boolean;
   budgetTarget: number | null;
   initialItems: ShopItem[];
+  stores: ShopStore[];
 }
 
 /** The order the aisles are walked, matching the database enum. */
@@ -145,6 +154,7 @@ function toShopItem(row: {
   haveAlready: boolean;
   feedsRecipes: string[];
   source: "plan" | "manual";
+  storeId: string | null;
 }): ShopItem {
   return {
     id: row.id,
@@ -157,11 +167,15 @@ function toShopItem(row: {
     haveAlready: row.haveAlready,
     feedsRecipes: row.feedsRecipes,
     source: row.source,
+    storeId: row.storeId,
   };
 }
 
 interface AddItemProps {
   planId: string;
+  stores: ShopStore[];
+  /** The store the list is narrowed to, so an item added there lands where the shopper can see it. */
+  storeFilter: string | null;
   /** Every item on the list, so a name already there is caught before it is sent. */
   items: ShopItem[];
   onAdded: (item: ShopItem) => void;
@@ -174,12 +188,14 @@ interface AddItemProps {
  * Not optimistic, unlike the tick: this runs two or three times a shop rather than fifty, and the
  * server owns the row's id, so waiting is cheaper than inventing one and reconciling it.
  */
-function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
+function AddItem({ planId, stores, storeFilter, items, onAdded, onBumped }: AddItemProps) {
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [aisle, setAisle] = useState<Aisle>("other");
+  // Blank leaves it to the household's rules, which is right far more often than a guess here.
+  const [store, setStore] = useState("");
   // Set on submit rather than derived while typing: a half-typed "but" should not accuse you of
   // already having butter.
   const [match, setMatch] = useState<ShopItem | null>(null);
@@ -237,6 +253,8 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       unit: match.unit,
       category: toAisle(match.category),
       estCost: unitCost === null ? null : Math.round(unitCost * quantity * 100) / 100,
+      // Bought alongside the row it tops up, not wherever a new "butter, extra" would be routed.
+      storeId: match.storeId,
     });
   }
   // Blank means one of whatever the thing is measured in.
@@ -248,7 +266,10 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       <div className="px-4 py-4">
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            setStore(storeFilter ?? "");
+          }}
           className="focus-visible:ring-ring text-muted-foreground min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
         >
           + Add item
@@ -281,6 +302,7 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
       itemName: typedName,
       quantity: amount.trim() === "" ? null : typedAmount,
       category: aisle,
+      storeId: store === "" ? null : store,
     });
   }
 
@@ -324,6 +346,24 @@ function AddItem({ planId, items, onAdded, onBumped }: AddItemProps) {
           ))}
         </select>
       </label>
+
+      {stores.length === 0 ? null : (
+        <label className="mt-3 block">
+          <span className="text-muted-foreground block text-xs">Store</span>
+          <select
+            value={store}
+            onChange={(event) => setStore(event.target.value)}
+            className={cn(FIELD, "mt-1 w-full")}
+          >
+            <option value="">Usual store</option>
+            {stores.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {match === null ? null : (
         <AlreadyListed
@@ -425,6 +465,169 @@ function AlreadyListed({ match, amount, busy, onBuyMore }: AlreadyListedProps) {
   );
 }
 
+interface RowsProps {
+  /** Ids whose last tick did not save. */
+  failed: Set<string>;
+  /** Ids whose delete did not go through. */
+  notDeleted: Set<string>;
+  onToggle: (item: ShopItem) => void;
+  onDelete: (item: ShopItem) => void;
+}
+
+interface ItemRowProps {
+  item: ShopItem;
+  failed: boolean;
+  notDeleted: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}
+
+function ItemRow({ item, failed, notDeleted, onToggle, onDelete }: ItemRowProps) {
+  return (
+    <li className="border-border flex items-center border-b">
+      {/*
+        A real checkbox in a label, not a button with role="checkbox": the input
+        carries the semantics for free, and the label makes the whole row the target
+        rather than a small box inside it. Used one-handed while shopping, so
+        it is 56px tall — well over the 44px floor.
+      */}
+      <label
+        className={cn(
+          "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-3",
+          "active:bg-muted",
+        )}
+      >
+        <TickBox
+          size="lg"
+          checked={item.purchased}
+          onChange={onToggle}
+          describedBy={failed ? `${item.id}-failed` : undefined}
+        />
+
+        <span className="min-w-0 flex-1">
+          <span
+            className={cn(
+              "block truncate text-base",
+              item.purchased && "text-muted-foreground line-through",
+            )}
+          >
+            {item.name}
+          </span>
+          <ItemSubtitle item={item} failed={failed} />
+        </span>
+
+        <span
+          className={cn(
+            "shrink-0 text-right text-sm",
+            item.purchased ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          <span className="block font-mono">{formatQuantity(item.quantity, item.unit)}</span>
+          {item.estCost === null ? null : (
+            <span className="text-muted-foreground block font-mono text-xs">
+              ${item.estCost.toFixed(2)}
+            </span>
+          )}
+        </span>
+      </label>
+
+      {/*
+        Outside the label on purpose: inside it, tapping the bin would also tick the
+        row. Only manual items have one — the service refuses to delete a plan item.
+      */}
+      {item.source === "manual" ? (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label={
+            notDeleted ? `Delete ${item.name} — not deleted, try again` : `Delete ${item.name}`
+          }
+          className={cn(
+            "focus-visible:ring-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:ring-3 focus-visible:outline-none",
+            notDeleted ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          <Trash2 aria-hidden className="size-4" />
+        </button>
+      ) : null}
+    </li>
+  );
+}
+
+interface AislesProps {
+  items: ShopItem[];
+  rows: RowsProps;
+}
+
+function Aisles({ items, rows }: AislesProps) {
+  return AISLES.map((aisle) => {
+    const inAisle = items.filter((item) => item.category === aisle);
+
+    if (inAisle.length === 0) {
+      return null;
+    }
+
+    return (
+      <section key={aisle}>
+        <h2 className="bg-muted text-muted-foreground sticky top-0 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
+          {AISLE_LABELS[aisle] ?? aisle}
+        </h2>
+        <ul>
+          {inAisle.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              failed={rows.failed.has(item.id)}
+              notDeleted={rows.notDeleted.has(item.id)}
+              onToggle={() => rows.onToggle(item)}
+              onDelete={() => rows.onDelete(item)}
+            />
+          ))}
+        </ul>
+      </section>
+    );
+  });
+}
+
+interface StoreFilterProps {
+  /** Only the stores with something on this list, in the household's order. */
+  stores: ShopStore[];
+  /** Null shows every store. */
+  value: string | null;
+  onChange: (storeId: string | null) => void;
+}
+
+/**
+ * Narrow the list to one store, for when you are standing in it.
+ *
+ * Sits on the title line and reads as part of it — "Shopping list … Braum's" — so it costs no
+ * height on a screen that is mostly rows. It is a native select laid invisibly over its own label:
+ * the phone's picker is the right control for one choice out of a few, and it needs no popover.
+ */
+function StoreFilter({ stores, value, onChange }: StoreFilterProps) {
+  const current = stores.find((store) => store.id === value)?.name ?? "All stores";
+
+  return (
+    <label className="text-primary has-focus-visible:ring-ring relative -mr-1.5 flex min-h-11 shrink-0 items-center gap-1 rounded-md px-1.5 text-base font-semibold has-focus-visible:ring-3">
+      <select
+        aria-label="Show items from"
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        <option value="">All stores</option>
+        {stores.map((store) => (
+          <option key={store.id} value={store.id}>
+            {store.name}
+          </option>
+        ))}
+      </select>
+      <span aria-hidden>{current}</span>
+      <ChevronDown aria-hidden className="size-4" />
+    </label>
+  );
+}
+
 export function ShoppingList(props: Props) {
   // Narrowed before the interactive component, so the tap handler acts on a week that exists.
   if (!props.planned) {
@@ -445,11 +648,19 @@ export function ShoppingList(props: Props) {
 /** Where the hide-bought preference lives, so it is not re-set mid-aisle after a reload. */
 const HIDE_BOUGHT_KEY = "provender.shop.hideBought";
 
-function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
+/**
+ * The store the list was last narrowed to, kept on this device so it holds through a reload in the
+ * shop. A store with nothing on this week's list shows All instead, but stays remembered for the
+ * next week that has something there.
+ */
+const STORE_FILTER_KEY = "provender.shop.store";
+
+function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
   const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
   const [showBought, setShowBought] = useState(false);
+  const [storeFilter, setStoreFilter] = useStoredText(STORE_FILTER_KEY);
 
   function onHideBoughtChange(next: boolean) {
     setHideBought(next);
@@ -515,7 +726,12 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
     toggle.mutate({ planId, itemId: item.id, purchased });
   }
 
+  // The last item added by hand, so the screen can say where it went when that is not the store
+  // on screen — an `only` rule can send it elsewhere, and it would otherwise seem to vanish.
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+
   function onAdded(item: ShopItem) {
+    setLastAddedId(item.id);
     // Replaced rather than appended. `addItem` is an upsert, and the form's name check reads a
     // local snapshot — a second phone in the same household can have added it since this one
     // loaded, in which case the server returns the row that is already on screen.
@@ -534,23 +750,59 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
   // coding-standards.md says not to hand-roll it without a measurement saying otherwise.
   const toBuy = items.filter((item) => !item.haveAlready);
   const alreadyHave = items.filter((item) => item.haveAlready);
-  const outstanding = toBuy.filter((item) => !item.purchased);
-  const bought = toBuy.filter((item) => item.purchased);
-  // Counted from every item the plan calls for, never from what is on screen — hiding a row must
-  // not change what the shop costs.
-  const remaining = outstanding.reduce((total, item) => total + (item.estCost ?? 0), 0);
+  // Counted from every item the plan calls for, never from what is on screen — hiding a row or
+  // narrowing to one store must not change what the shop costs.
+  const remaining = toBuy
+    .filter((item) => !item.purchased)
+    .reduce((total, item) => total + (item.estCost ?? 0), 0);
+  // Only stores with something on the list get a filter; a chip that empties the screen is noise.
+  const known = new Set(stores.map((store) => store.id));
+  // Null for an item with no store, or one whose store the household no longer has.
+  const storeOf = (item: ShopItem) =>
+    item.storeId !== null && known.has(item.storeId) ? item.storeId : null;
+  const storesOnList = stores.filter((store) => toBuy.some((item) => storeOf(item) === store.id));
+  const filter = storesOnList.find((store) => store.id === storeFilter) ?? null;
+  // An item with no store can be bought anywhere, so it shows under every store: hidden behind
+  // one, it would be walked past by a shopper who narrowed the list in that shop.
+  const inView =
+    filter === null
+      ? toBuy
+      : toBuy.filter((item) => storeOf(item) === null || storeOf(item) === filter.id);
+  const lastAdded = items.find((item) => item.id === lastAddedId);
+  const lastAddedStore =
+    filter === null || lastAdded === undefined || storeOf(lastAdded) === filter.id
+      ? undefined
+      : stores.find((store) => store.id === storeOf(lastAdded));
+  const outstanding = inView.filter((item) => !item.purchased);
+  const bought = inView.filter((item) => item.purchased);
   const left = outstanding.length;
   // A hidden row is still recoverable: it moves into the "Bought" list rather than disappearing.
-  const visible = hideBought ? outstanding : toBuy;
+  const visible = hideBought ? outstanding : inView;
+  const rows: RowsProps = {
+    failed,
+    notDeleted,
+    onToggle,
+    onDelete: (item) => remove.mutate({ planId, itemId: item.id }),
+  };
 
   return (
     // Padded at the bottom so the sticky total never covers the last row.
     <main className="mx-auto max-w-2xl pb-28">
       <header className="border-border border-b px-4 py-4">
-        <h1 className="font-display text-xl font-semibold">Shopping list</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="font-display text-xl font-semibold">Shopping list</h1>
+          {storesOnList.length === 0 ? null : (
+            <StoreFilter
+              stores={storesOnList}
+              value={filter?.id ?? null}
+              onChange={setStoreFilter}
+            />
+          )}
+        </div>
         <WeekNav basePath="/shop" planId={planId} atDefault={atDefault} />
         <p className="text-muted-foreground mt-0.5 text-sm">
-          {left} left of {toBuy.length}
+          {left} left of {inView.length}
+          {filter === null ? "" : ` at ${filter.name}`}
         </p>
 
         {bought.length > 0 ? (
@@ -571,96 +823,7 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
         </p>
       ) : null}
 
-      {AISLES.map((aisle) => {
-        const rows = visible.filter((item) => item.category === aisle);
-
-        if (rows.length === 0) {
-          return null;
-        }
-
-        return (
-          <section key={aisle}>
-            <h2 className="bg-muted text-muted-foreground sticky top-0 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
-              {AISLE_LABELS[aisle] ?? aisle}
-            </h2>
-            <ul>
-              {rows.map((item) => (
-                <li key={item.id} className="border-border flex items-center border-b">
-                  {/*
-                    A real checkbox in a label, not a button with role="checkbox": the input
-                    carries the semantics for free, and the label makes the whole row the target
-                    rather than a small box inside it. Used one-handed while shopping, so
-                    it is 56px tall — well over the 44px floor.
-                  */}
-                  <label
-                    className={cn(
-                      "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-3",
-                      "active:bg-muted",
-                    )}
-                  >
-                    <TickBox
-                      size="lg"
-                      checked={item.purchased}
-                      onChange={() => onToggle(item)}
-                      describedBy={failed.has(item.id) ? `${item.id}-failed` : undefined}
-                    />
-
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          "block truncate text-base",
-                          item.purchased && "text-muted-foreground line-through",
-                        )}
-                      >
-                        {item.name}
-                      </span>
-                      <ItemSubtitle item={item} failed={failed.has(item.id)} />
-                    </span>
-
-                    <span
-                      className={cn(
-                        "shrink-0 text-right text-sm",
-                        item.purchased ? "text-muted-foreground" : "text-foreground",
-                      )}
-                    >
-                      <span className="block font-mono">
-                        {formatQuantity(item.quantity, item.unit)}
-                      </span>
-                      {item.estCost === null ? null : (
-                        <span className="text-muted-foreground block font-mono text-xs">
-                          ${item.estCost.toFixed(2)}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-
-                  {/*
-                    Outside the label on purpose: inside it, tapping the bin would also tick the
-                    row. Only manual items have one — the service refuses to delete a plan item.
-                  */}
-                  {item.source === "manual" ? (
-                    <button
-                      type="button"
-                      onClick={() => remove.mutate({ planId, itemId: item.id })}
-                      aria-label={
-                        notDeleted.has(item.id)
-                          ? `Delete ${item.name} — not deleted, try again`
-                          : `Delete ${item.name}`
-                      }
-                      className={cn(
-                        "focus-visible:ring-ring flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:ring-3 focus-visible:outline-none",
-                        notDeleted.has(item.id) ? "text-destructive" : "text-muted-foreground",
-                      )}
-                    >
-                      <Trash2 aria-hidden className="size-4" />
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      <Aisles items={visible} rows={rows} />
 
       {hideBought && bought.length > 0 ? (
         <section className="border-border border-t px-4 py-4">
@@ -689,7 +852,20 @@ function List({ planId, atDefault, budgetTarget, initialItems }: Props) {
         </section>
       ) : null}
 
-      <AddItem planId={planId} items={items} onAdded={onAdded} onBumped={onBumped} />
+      {lastAdded === undefined || lastAddedStore === undefined ? null : (
+        <output className="text-muted-foreground block px-4 pt-4 text-sm">
+          {lastAdded.name} is on the list for {lastAddedStore.name}.
+        </output>
+      )}
+
+      <AddItem
+        planId={planId}
+        stores={stores}
+        storeFilter={filter?.id ?? null}
+        items={items}
+        onAdded={onAdded}
+        onBumped={onBumped}
+      />
 
       {alreadyHave.length > 0 ? (
         <section className="px-4 py-5">

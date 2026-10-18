@@ -2,6 +2,7 @@ import { householdForSession } from "@server/auth/household";
 import { isoWeekFor, parseIsoWeek } from "@server/lib/iso-week";
 import { currentOrLatestPlan, findPlan } from "@server/services/plans";
 import { listItems } from "@server/services/shopping";
+import { listStores } from "@server/services/stores";
 import { redirect } from "next/navigation";
 
 import { ShoppingList } from "@/components/shop/shopping-list";
@@ -35,7 +36,10 @@ export default async function Shop({ searchParams }: { searchParams: Promise<{ w
 
   // A week nobody has planned still names itself, so the nav can step back out of it.
   const planId = asked ?? plan?.id ?? currentPlanId;
-  const items = plan ? await listItems(householdId, plan.id) : [];
+  const [items, stores] = await Promise.all([
+    plan ? listItems(householdId, plan.id) : [],
+    listStores(householdId),
+  ]);
 
   return (
     <ShoppingList
@@ -58,7 +62,9 @@ export default async function Shop({ searchParams }: { searchParams: Promise<{ w
         haveAlready: item.haveAlready,
         feedsRecipes: item.feedsRecipes,
         source: item.source,
+        storeId: item.storeId,
       }))}
+      stores={stores.map((store) => ({ id: store.id, name: store.name }))}
     />
   );
 }

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ShoppingList, type ShopItem } from "./shopping-list";
+import { ShoppingList, type ShopItem, type ShopStore } from "./shopping-list";
 
 /**
  * The mutation is stubbed at the tRPC hook, not the network.
@@ -35,6 +35,7 @@ function row(overrides: Record<string, unknown> = {}) {
     haveAlready: false,
     feedsRecipes: [],
     source: "manual",
+    storeId: null,
     ...overrides,
   };
 }
@@ -78,6 +79,7 @@ function item(overrides: Partial<ShopItem> & { id: string; name: string }): Shop
     haveAlready: false,
     feedsRecipes: [],
     source: "plan",
+    storeId: null,
     ...overrides,
   };
 }
@@ -86,6 +88,7 @@ function renderList(
   items: ShopItem[],
   budgetTarget: number | null = 120,
   week: { planId?: string; atDefault?: boolean; planned?: boolean } = {},
+  stores: ShopStore[] = [],
 ) {
   const user = userEvent.setup();
 
@@ -99,6 +102,7 @@ function renderList(
         planned={week.planned ?? true}
         budgetTarget={budgetTarget}
         initialItems={items}
+        stores={stores}
       />
     </QueryClientProvider>,
   );
@@ -402,6 +406,7 @@ describe("switching weeks", () => {
           planned
           budgetTarget={120}
           initialItems={items}
+          stores={[]}
         />
       </QueryClientProvider>,
     );
@@ -427,6 +432,7 @@ describe("switching weeks", () => {
           planned
           budgetTarget={120}
           initialItems={[item({ id: "b", name: "Bacon" })]}
+          stores={[]}
         />
       </QueryClientProvider>,
     );
@@ -461,7 +467,13 @@ describe("adding something the plan did not call for", () => {
     expect(await screen.findByText("dish soap")).toBeInTheDocument();
     // react-query hands the mutation function a context object after the variables.
     expect(addItemFn).toHaveBeenCalledWith(
-      { planId: "2026-W36", itemName: "dish soap", quantity: null, category: "other" },
+      {
+        planId: "2026-W36",
+        itemName: "dish soap",
+        quantity: null,
+        category: "other",
+        storeId: null,
+      },
       expect.anything(),
     );
     expect(screen.getByText(/2 left of 2/)).toBeInTheDocument();
@@ -480,7 +492,13 @@ describe("adding something the plan did not call for", () => {
 
     await waitFor(() =>
       expect(addItemFn).toHaveBeenCalledWith(
-        { planId: "2026-W36", itemName: "banana", quantity: 6, category: "produce" },
+        {
+          planId: "2026-W36",
+          itemName: "banana",
+          quantity: 6,
+          category: "produce",
+          storeId: null,
+        },
         expect.anything(),
       ),
     );
@@ -533,6 +551,7 @@ describe("adding something the plan did not call for", () => {
           unit: "lb",
           category: "dairy",
           estCost: 4,
+          storeId: null,
         },
         expect.anything(),
       ),
@@ -694,5 +713,149 @@ describe("adding something the plan did not call for", () => {
     renderList([], 120, { planned: false });
 
     expect(screen.queryByRole("button", { name: "+ Add item" })).toBeNull();
+  });
+});
+
+describe("filtering the list by store", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  const stores: ShopStore[] = [
+    { id: "aldi", name: "Aldi" },
+    { id: "braums", name: "Braum's" },
+    { id: "walmart", name: "Walmart" },
+  ];
+
+  const routed = [
+    item({ id: "milk_gal", name: "milk", category: "dairy", storeId: "braums", estCost: 4 }),
+    item({ id: "onion", name: "onion", storeId: "aldi", estCost: 1 }),
+    item({ id: "cheese", name: "cheese", category: "dairy", storeId: "aldi", estCost: 3 }),
+    item({ id: "foil", name: "foil", category: "other", storeId: null, estCost: 2 }),
+  ];
+
+  const picker = () => screen.getByRole("combobox", { name: "Show items from" });
+
+  it("reads aisle by aisle as one list until a store is picked", () => {
+    renderList(routed, 120, {}, stores);
+
+    expect(picker()).toHaveValue("");
+    expect(screen.getAllByRole("heading", { level: 2 }).map((node) => node.textContent)).toEqual([
+      "Produce",
+      "Dairy",
+      "Other",
+    ]);
+    expect(screen.getByText(/4 left of 4/)).toBeInTheDocument();
+  });
+
+  it("offers only the stores with something on the list", () => {
+    renderList(routed, 120, {}, stores);
+
+    expect(
+      within(picker())
+        .getAllByRole("option")
+        .map((node) => node.textContent),
+    ).toEqual(["All stores", "Aldi", "Braum's"]);
+  });
+
+  it("narrows the rows and the count to the store picked, leaving the total whole", async () => {
+    const user = renderList(routed, 120, {}, stores);
+
+    await user.selectOptions(picker(), "aldi");
+
+    expect(screen.getByText("onion")).toBeInTheDocument();
+    expect(screen.getByText("cheese")).toBeInTheDocument();
+    expect(screen.queryByText("milk")).not.toBeInTheDocument();
+    expect(screen.getByText(/3 left of 3 at Aldi/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Still to buy: $10.00")).toBeInTheDocument();
+  });
+
+  // Hidden behind a store, it would be walked past by a shopper who narrowed the list in that shop.
+  it("shows an item with no store, or a deleted one, under every store", async () => {
+    const user = renderList(
+      [...routed, item({ id: "eggs", name: "eggs", category: "dairy", storeId: "costco" })],
+      120,
+      {},
+      stores,
+    );
+
+    await user.selectOptions(picker(), "braums");
+
+    expect(screen.getByText("foil")).toBeInTheDocument();
+    expect(screen.getByText("eggs")).toBeInTheDocument();
+    expect(screen.queryByText("onion")).not.toBeInTheDocument();
+  });
+
+  it("says where a hand-added item went when it is not the store on screen", async () => {
+    // What an `only` rule does to milk added while the list is narrowed to Aldi.
+    addItemFn.mockResolvedValue(
+      row({ id: "buttermilk", name: "buttermilk", category: "dairy", storeId: "braums" }),
+    );
+
+    const user = renderList(routed, 120, {}, stores);
+
+    await user.selectOptions(picker(), "aldi");
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+    await user.type(screen.getByLabelText("Item"), "buttermilk");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "buttermilk is on the list for Braum's.",
+    );
+    expect(screen.queryByText("buttermilk", { selector: "span" })).not.toBeInTheDocument();
+  });
+
+  it("remembers the store picked, through a reload", async () => {
+    const user = renderList(routed, 120, {}, stores);
+
+    await user.selectOptions(picker(), "braums");
+    cleanup();
+    renderList(routed, 120, {}, stores);
+
+    expect(picker()).toHaveValue("braums");
+    expect(screen.queryByText("onion")).not.toBeInTheDocument();
+  });
+
+  it("shows All when the remembered store has nothing on this list", () => {
+    window.localStorage.setItem("provender.shop.store", "walmart");
+
+    renderList(routed, 120, {}, stores);
+
+    expect(picker()).toHaveValue("");
+    expect(window.localStorage.getItem("provender.shop.store")).toBe("walmart");
+  });
+
+  it("offers no filter to a household without stores", () => {
+    renderList([item({ id: "onion", name: "onion" })]);
+
+    expect(screen.queryByRole("combobox", { name: "Show items from" })).not.toBeInTheDocument();
+  });
+
+  it("adds an item to the store the list is narrowed to", async () => {
+    addItemFn.mockResolvedValue(
+      row({ id: "buns", name: "buns", category: "bakery", storeId: "braums" }),
+    );
+
+    const user = renderList(routed, 120, {}, stores);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Show items from" }), "braums");
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+
+    expect(screen.getByLabelText("Store")).toHaveValue("braums");
+
+    await user.type(screen.getByLabelText("Item"), "buns");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("buns")).toBeInTheDocument();
+    expect(addItemFn).toHaveBeenCalledWith(
+      expect.objectContaining({ itemName: "buns", storeId: "braums" }),
+      expect.anything(),
+    );
+  });
+
+  it("offers no store choice when adding to a household without stores", async () => {
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+
+    expect(screen.queryByLabelText("Store")).not.toBeInTheDocument();
   });
 });
