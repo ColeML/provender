@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWakeLock } from "@/hooks/use-wake-lock";
@@ -30,7 +30,11 @@ export interface CookRecipe {
   ingredients: CookIngredient[];
 }
 
-export function CookView({ recipe }: { recipe: CookRecipe }) {
+/**
+ * `actions` sits beside the title, for controls the shared page must not have — sharing, today.
+ * A slot rather than a prop per control, so this view stays free of anything household-only.
+ */
+export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: ReactNode }) {
   const trpc = useTRPC();
   const [servings, setServings] = useState(recipe.baseServings);
   // Row positions, not ids: a rescale rebuilds every id, and the list order never changes.
@@ -67,15 +71,21 @@ export function CookView({ recipe }: { recipe: CookRecipe }) {
 
   return (
     <main className="mx-auto max-w-2xl p-4">
-      <h1 className="font-display text-3xl font-semibold">{recipe.title}</h1>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-3xl font-semibold">{recipe.title}</h1>
 
-      {time === null && source === null ? null : (
-        <p className="text-muted-foreground mt-1 text-sm">
-          {time}
-          {time === null || source === null ? null : " · "}
-          {source}
-        </p>
-      )}
+          {time === null && source === null ? null : (
+            <p className="text-muted-foreground mt-1 text-sm">
+              {time}
+              {time === null || source === null ? null : " · "}
+              {source}
+            </p>
+          )}
+        </div>
+
+        {actions}
+      </div>
 
       <RecipeRating recipeId={recipe.recipeId} initialRating={recipe.rating} />
 

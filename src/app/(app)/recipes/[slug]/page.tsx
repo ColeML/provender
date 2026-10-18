@@ -46,29 +46,24 @@ export default async function Recipe({ params }: { params: Promise<{ slug: strin
   const origin = `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${requestHeaders.get("host") ?? ""}`;
 
   return (
-    <>
-      <div className="mx-auto max-w-2xl px-4 pt-4">
-        <ShareRecipe recipeId={slug} token={share?.token ?? null} origin={origin} />
-      </div>
-
-      <CookView
-        recipe={{
-          recipeId: recipe.id,
-          title: recipe.title,
-          baseServings: recipe.baseServings,
-          totalMin: recipe.totalMin,
-          sourceUrl: recipe.sourceUrl,
-          rating: recipe.rating,
-          instructions: recipe.instructions,
-          ingredients: ingredients.map((ingredient) => ({
-            id: ingredient.id,
-            name: ingredient.name,
-            quantity: ingredient.quantity === null ? null : Number(ingredient.quantity),
-            unit: ingredient.unit,
-            notes: ingredient.notes,
-          })),
-        }}
-      />
-    </>
+    <CookView
+      actions={<ShareRecipe recipeId={slug} token={share?.token ?? null} origin={origin} />}
+      recipe={{
+        recipeId: recipe.id,
+        title: recipe.title,
+        baseServings: recipe.baseServings,
+        totalMin: recipe.totalMin,
+        sourceUrl: recipe.sourceUrl,
+        rating: recipe.rating,
+        instructions: recipe.instructions,
+        ingredients: ingredients.map((ingredient) => ({
+          id: ingredient.id,
+          name: ingredient.name,
+          quantity: ingredient.quantity === null ? null : Number(ingredient.quantity),
+          unit: ingredient.unit,
+          notes: ingredient.notes,
+        })),
+      }}
+    />
   );
 }
