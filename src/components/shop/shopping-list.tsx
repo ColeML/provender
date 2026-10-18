@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { slug } from "@server/lib/slug";
-import { Check, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -600,36 +600,32 @@ interface StoreFilterProps {
 /**
  * Narrow the list to one store, for when you are standing in it.
  *
- * Radios rather than buttons, because exactly one choice holds at a time and a screen reader
- * should say which. "All" is the list as it reads with no stores at all.
+ * Sits on the title line and reads as part of it — "Shopping list … Braum's" — so it costs no
+ * height on a screen that is mostly rows. It is a native select laid invisibly over its own label:
+ * the phone's picker is the right control for one choice out of a few, and it needs no popover.
  */
 function StoreFilter({ stores, value, onChange }: StoreFilterProps) {
-  const options = [{ id: null, name: "All" }, ...stores];
+  const current = stores.find((store) => store.id === value)?.name ?? "All stores";
 
   return (
-    <fieldset className="mt-3">
-      <legend className="sr-only">Show items from</legend>
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => (
-          <label
-            key={option.id ?? "all"}
-            className={cn(
-              "border-muted-foreground has-focus-visible:ring-ring flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm has-focus-visible:ring-3",
-              "has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground",
-            )}
-          >
-            <input
-              type="radio"
-              name="store-filter"
-              checked={value === option.id}
-              onChange={() => onChange(option.id)}
-              className="sr-only"
-            />
-            {option.name}
-          </label>
+    <label className="text-primary has-focus-visible:ring-ring relative -mr-1.5 flex min-h-11 shrink-0 items-center gap-1 rounded-md px-1.5 text-base font-semibold has-focus-visible:ring-3">
+      <select
+        // Named outright: through the wrapping label it would also read out the option text.
+        aria-label="Show items from"
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        <option value="">All stores</option>
+        {stores.map((store) => (
+          <option key={store.id} value={store.id}>
+            {store.name}
+          </option>
         ))}
-      </div>
-    </fieldset>
+      </select>
+      <span aria-hidden>{current}</span>
+      <ChevronDown aria-hidden className="size-4" />
+    </label>
   );
 }
 
@@ -776,16 +772,21 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
     // Padded at the bottom so the sticky total never covers the last row.
     <main className="mx-auto max-w-2xl pb-28">
       <header className="border-border border-b px-4 py-4">
-        <h1 className="font-display text-xl font-semibold">Shopping list</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="font-display text-xl font-semibold">Shopping list</h1>
+          {storesOnList.length === 0 ? null : (
+            <StoreFilter
+              stores={storesOnList}
+              value={filter?.id ?? null}
+              onChange={setStoreFilter}
+            />
+          )}
+        </div>
         <WeekNav basePath="/shop" planId={planId} atDefault={atDefault} />
         <p className="text-muted-foreground mt-0.5 text-sm">
           {left} left of {inView.length}
           {filter === null ? "" : ` at ${filter.name}`}
         </p>
-
-        {storesOnList.length === 0 ? null : (
-          <StoreFilter stores={storesOnList} value={filter?.id ?? null} onChange={setStoreFilter} />
-        )}
 
         {bought.length > 0 ? (
           <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">

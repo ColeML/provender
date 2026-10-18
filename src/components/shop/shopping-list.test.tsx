@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -732,10 +732,12 @@ describe("filtering the list by store", () => {
     item({ id: "foil", name: "foil", category: "other", storeId: null, estCost: 2 }),
   ];
 
+  const picker = () => screen.getByRole("combobox", { name: "Show items from" });
+
   it("reads aisle by aisle as one list until a store is picked", () => {
     renderList(routed, 120, {}, stores);
 
-    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
+    expect(picker()).toHaveValue("");
     expect(screen.getAllByRole("heading", { level: 2 }).map((node) => node.textContent)).toEqual([
       "Produce",
       "Dairy",
@@ -747,17 +749,17 @@ describe("filtering the list by store", () => {
   it("offers only the stores with something on the list", () => {
     renderList(routed, 120, {}, stores);
 
-    expect(screen.getAllByRole("radio").map((node) => node.closest("label")?.textContent)).toEqual([
-      "All",
-      "Aldi",
-      "Braum's",
-    ]);
+    expect(
+      within(picker())
+        .getAllByRole("option")
+        .map((node) => node.textContent),
+    ).toEqual(["All stores", "Aldi", "Braum's"]);
   });
 
   it("narrows the rows and the count to the store picked, leaving the total whole", async () => {
     const user = renderList(routed, 120, {}, stores);
 
-    await user.click(screen.getByRole("radio", { name: "Aldi" }));
+    await user.selectOptions(picker(), "aldi");
 
     expect(screen.getByText("onion")).toBeInTheDocument();
     expect(screen.getByText("cheese")).toBeInTheDocument();
@@ -767,7 +769,7 @@ describe("filtering the list by store", () => {
     expect(screen.getByText(/2 left of 2 at Aldi/)).toBeInTheDocument();
     expect(screen.getByLabelText("Still to buy: $10.00")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("radio", { name: "All" }));
+    await user.selectOptions(picker(), "");
 
     expect(screen.getByText("foil")).toBeInTheDocument();
   });
@@ -775,11 +777,11 @@ describe("filtering the list by store", () => {
   it("remembers the store picked, through a reload", async () => {
     const user = renderList(routed, 120, {}, stores);
 
-    await user.click(screen.getByRole("radio", { name: "Braum's" }));
+    await user.selectOptions(picker(), "braums");
     cleanup();
     renderList(routed, 120, {}, stores);
 
-    expect(screen.getByRole("radio", { name: "Braum's" })).toBeChecked();
+    expect(picker()).toHaveValue("braums");
     expect(screen.queryByText("onion")).not.toBeInTheDocument();
   });
 
@@ -788,14 +790,14 @@ describe("filtering the list by store", () => {
 
     renderList(routed, 120, {}, stores);
 
-    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
+    expect(picker()).toHaveValue("");
     expect(window.localStorage.getItem("provender.shop.store")).toBe("walmart");
   });
 
   it("offers no filter to a household without stores", () => {
     renderList([item({ id: "onion", name: "onion" })]);
 
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Show items from" })).not.toBeInTheDocument();
   });
 
   it("adds an item to the store the list is narrowed to", async () => {
@@ -805,7 +807,7 @@ describe("filtering the list by store", () => {
 
     const user = renderList(routed, 120, {}, stores);
 
-    await user.click(screen.getByRole("radio", { name: "Braum's" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Show items from" }), "braums");
     await user.click(screen.getByRole("button", { name: "+ Add item" }));
 
     expect(screen.getByLabelText("Store")).toHaveValue("braums");
