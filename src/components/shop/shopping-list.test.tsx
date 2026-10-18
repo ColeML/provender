@@ -717,6 +717,8 @@ describe("adding something the plan did not call for", () => {
 });
 
 describe("filtering the list by store", () => {
+  beforeEach(() => window.localStorage.clear());
+
   const stores: ShopStore[] = [
     { id: "aldi", name: "Aldi" },
     { id: "braums", name: "Braum's" },
@@ -768,6 +770,26 @@ describe("filtering the list by store", () => {
     await user.click(screen.getByRole("radio", { name: "All" }));
 
     expect(screen.getByText("foil")).toBeInTheDocument();
+  });
+
+  it("remembers the store picked, through a reload", async () => {
+    const user = renderList(routed, 120, {}, stores);
+
+    await user.click(screen.getByRole("radio", { name: "Braum's" }));
+    cleanup();
+    renderList(routed, 120, {}, stores);
+
+    expect(screen.getByRole("radio", { name: "Braum's" })).toBeChecked();
+    expect(screen.queryByText("onion")).not.toBeInTheDocument();
+  });
+
+  it("shows All when the remembered store has nothing on this list", () => {
+    window.localStorage.setItem("provender.shop.store", "walmart");
+
+    renderList(routed, 120, {}, stores);
+
+    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
+    expect(window.localStorage.getItem("provender.shop.store")).toBe("walmart");
   });
 
   it("offers no filter to a household without stores", () => {

@@ -8,7 +8,7 @@ import { useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FIELD } from "@/components/ui/field";
 import { WeekNav } from "@/components/ui/week-nav";
-import { useStoredFlag } from "@/hooks/use-stored-flag";
+import { useStoredFlag, useStoredText } from "@/hooks/use-stored-flag";
 import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -653,12 +653,19 @@ export function ShoppingList(props: Props) {
 /** Where the hide-bought preference lives, so it is not re-set mid-aisle after a reload. */
 const HIDE_BOUGHT_KEY = "provender.shop.hideBought";
 
+/**
+ * The store the list was last narrowed to, kept on this device so it holds through a reload in the
+ * shop. A store with nothing on this week's list shows All instead, but stays remembered for the
+ * next week that has something there.
+ */
+const STORE_FILTER_KEY = "provender.shop.store";
+
 function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
   const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
   const [showBought, setShowBought] = useState(false);
-  const [storeFilter, setStoreFilter] = useState<string | null>(null);
+  const [storeFilter, setStoreFilter] = useStoredText(STORE_FILTER_KEY);
 
   function onHideBoughtChange(next: boolean) {
     setHideBought(next);
