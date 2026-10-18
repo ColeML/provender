@@ -6,9 +6,10 @@ import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { FIELD } from "@/components/ui/field";
 import { useTRPC } from "@/lib/trpc/client";
 
-import { DayOptions, FIELD } from "./add-note";
+import { DayOptions } from "./add-note";
 
 /** Only the fields that changed. */
 export interface NoteChange {

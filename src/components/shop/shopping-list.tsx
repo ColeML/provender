@@ -6,6 +6,7 @@ import { Check, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { FIELD } from "@/components/ui/field";
 import { WeekNav } from "@/components/ui/week-nav";
 import { useStoredFlag } from "@/hooks/use-stored-flag";
 import { formatQuantity } from "@/lib/quantity";
@@ -154,9 +155,6 @@ function toShopItem(row: {
     source: row.source,
   };
 }
-
-const FIELD =
-  "border-border focus-visible:ring-ring min-h-11 rounded-md border px-3 text-base focus-visible:ring-3 focus-visible:outline-none";
 
 interface AddItemProps {
   planId: string;

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { schema } from "@server/db";
 import { getConfig } from "@server/services/config";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
@@ -48,8 +49,7 @@ function rejectBadNote(error: unknown): never {
   throw error;
 }
 
-/** The store aisles a hand-added item can be filed under. Mirrors the `ingredient_category` enum. */
-const AisleSchema = z.enum(["produce", "meat", "dairy", "bakery", "frozen", "pantry", "other"]);
+const AisleSchema = z.enum(schema.ingredientCategory.enumValues);
 
 /**
  * The application router. Every procedure the client can call is reachable from here, and its
