@@ -87,4 +87,4 @@ id; an unknown one is refused, so use ids from `/stores`.
 Item count, estimated total against the plan's `budgetTarget`, and — when it is over — which lines
 are driving it. When the list spans stores, give each store's item count and subtotal, and say
 why any store got lines its notes or rules did not call for. Say the list is at `/shop`, where it
-is split by store.
+can be narrowed to one store.

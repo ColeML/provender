@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -716,93 +716,89 @@ describe("adding something the plan did not call for", () => {
   });
 });
 
-describe("splitting the list by store", () => {
+describe("filtering the list by store", () => {
   const stores: ShopStore[] = [
     { id: "aldi", name: "Aldi" },
     { id: "braums", name: "Braum's" },
+    { id: "walmart", name: "Walmart" },
   ];
 
-  it("reads aisle by aisle when no item is bound for a store", () => {
-    renderList([item({ id: "onion", name: "onion" })], 120, {}, stores);
+  const routed = [
+    item({ id: "milk_gal", name: "milk", category: "dairy", storeId: "braums", estCost: 4 }),
+    item({ id: "onion", name: "onion", storeId: "aldi", estCost: 1 }),
+    item({ id: "cheese", name: "cheese", category: "dairy", storeId: "aldi", estCost: 3 }),
+    item({ id: "foil", name: "foil", category: "other", storeId: null, estCost: 2 }),
+  ];
 
+  it("reads aisle by aisle as one list until a store is picked", () => {
+    renderList(routed, 120, {}, stores);
+
+    expect(screen.getByRole("radio", { name: "All" })).toBeChecked();
     expect(screen.getAllByRole("heading", { level: 2 }).map((node) => node.textContent)).toEqual([
       "Produce",
+      "Dairy",
+      "Other",
+    ]);
+    expect(screen.getByText(/4 left of 4/)).toBeInTheDocument();
+  });
+
+  it("offers only the stores with something on the list", () => {
+    renderList(routed, 120, {}, stores);
+
+    expect(screen.getAllByRole("radio").map((node) => node.closest("label")?.textContent)).toEqual([
+      "All",
+      "Aldi",
+      "Braum's",
     ]);
   });
 
-  it("groups items under their store in the household's order, then aisles within it", () => {
-    renderList(
-      [
-        item({ id: "milk_gal", name: "milk", category: "dairy", storeId: "braums" }),
-        item({ id: "onion", name: "onion", storeId: "aldi" }),
-        item({ id: "cheese", name: "cheese", category: "dairy", storeId: "aldi" }),
-      ],
-      120,
-      {},
-      stores,
-    );
+  it("narrows the rows and the count to the store picked, leaving the total whole", async () => {
+    const user = renderList(routed, 120, {}, stores);
 
-    const storeHeadings = screen.getAllByRole("heading", { level: 2 });
+    await user.click(screen.getByRole("radio", { name: "Aldi" }));
 
-    expect(storeHeadings.map((node) => node.textContent)).toEqual(["Aldi2 left", "Braum's1 left"]);
+    expect(screen.getByText("onion")).toBeInTheDocument();
+    expect(screen.getByText("cheese")).toBeInTheDocument();
+    expect(screen.queryByText("milk")).not.toBeInTheDocument();
+    // An item with no store is in no store's view, only in All.
+    expect(screen.queryByText("foil")).not.toBeInTheDocument();
+    expect(screen.getByText(/2 left of 2 at Aldi/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Still to buy: $10.00")).toBeInTheDocument();
 
-    const aldi = screen.getByRole("region", { name: /Aldi/ });
+    await user.click(screen.getByRole("radio", { name: "All" }));
 
-    expect(
-      within(aldi)
-        .getAllByRole("heading", { level: 3 })
-        .map((node) => node.textContent),
-    ).toEqual(["Produce", "Dairy"]);
-    expect(
-      within(screen.getByRole("region", { name: /Braum's/ })).getByText("milk"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("foil")).toBeInTheDocument();
   });
 
-  it("gathers items with no store, or a deleted one, under Any store", () => {
-    renderList(
-      [
-        item({ id: "onion", name: "onion", storeId: "aldi" }),
-        item({ id: "foil", name: "foil", category: "other", storeId: null }),
-        item({ id: "eggs", name: "eggs", category: "dairy", storeId: "costco" }),
-      ],
-      120,
-      {},
-      stores,
-    );
+  it("offers no filter to a household without stores", () => {
+    renderList([item({ id: "onion", name: "onion" })]);
 
-    const anyStore = screen.getByRole("region", { name: /Any store/ });
-
-    expect(within(anyStore).getByText("foil")).toBeInTheDocument();
-    expect(within(anyStore).getByText("eggs")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
-  it("sends the store the shopper picked for a hand-added item", async () => {
+  it("adds an item to the store the list is narrowed to", async () => {
     addItemFn.mockResolvedValue(
       row({ id: "buns", name: "buns", category: "bakery", storeId: "braums" }),
     );
 
-    const user = renderList(
-      [item({ id: "onion", name: "onion", storeId: "aldi" })],
-      120,
-      {},
-      stores,
-    );
+    const user = renderList(routed, 120, {}, stores);
 
+    await user.click(screen.getByRole("radio", { name: "Braum's" }));
     await user.click(screen.getByRole("button", { name: "+ Add item" }));
+
+    expect(screen.getByLabelText("Store")).toHaveValue("braums");
+
     await user.type(screen.getByLabelText("Item"), "buns");
-    await user.selectOptions(screen.getByLabelText("Store"), "braums");
     await user.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(
-      await within(await screen.findByRole("region", { name: /Braum's/ })).findByText("buns"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("buns")).toBeInTheDocument();
     expect(addItemFn).toHaveBeenCalledWith(
       expect.objectContaining({ itemName: "buns", storeId: "braums" }),
       expect.anything(),
     );
   });
 
-  it("offers no store choice to a household without stores", async () => {
+  it("offers no store choice when adding to a household without stores", async () => {
     const user = renderList([item({ id: "onion", name: "onion" })]);
 
     await user.click(screen.getByRole("button", { name: "+ Add item" }));

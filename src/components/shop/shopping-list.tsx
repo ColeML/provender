@@ -174,6 +174,8 @@ function toShopItem(row: {
 interface AddItemProps {
   planId: string;
   stores: ShopStore[];
+  /** The store the list is narrowed to, so an item added there lands where the shopper can see it. */
+  storeFilter: string | null;
   /** Every item on the list, so a name already there is caught before it is sent. */
   items: ShopItem[];
   onAdded: (item: ShopItem) => void;
@@ -186,7 +188,7 @@ interface AddItemProps {
  * Not optimistic, unlike the tick: this runs two or three times a shop rather than fifty, and the
  * server owns the row's id, so waiting is cheaper than inventing one and reconciling it.
  */
-function AddItem({ planId, stores, items, onAdded, onBumped }: AddItemProps) {
+function AddItem({ planId, stores, storeFilter, items, onAdded, onBumped }: AddItemProps) {
   const trpc = useTRPC();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -264,7 +266,10 @@ function AddItem({ planId, stores, items, onAdded, onBumped }: AddItemProps) {
       <div className="px-4 py-4">
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            setStore(storeFilter ?? "");
+          }}
           className="focus-visible:ring-ring text-muted-foreground min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
         >
           + Add item
@@ -551,14 +556,10 @@ function ItemRow({ item, failed, notDeleted, onToggle, onDelete }: ItemRowProps)
 
 interface AislesProps {
   items: ShopItem[];
-  /** 2 on a list read aisle by aisle, 3 when the aisles sit under a store. */
-  level: 2 | 3;
   rows: RowsProps;
 }
 
-function Aisles({ items, level, rows }: AislesProps) {
-  const Heading = level === 2 ? "h2" : "h3";
-
+function Aisles({ items, rows }: AislesProps) {
   return AISLES.map((aisle) => {
     const inAisle = items.filter((item) => item.category === aisle);
 
@@ -568,9 +569,9 @@ function Aisles({ items, level, rows }: AislesProps) {
 
     return (
       <section key={aisle}>
-        <Heading className="bg-muted text-muted-foreground sticky top-0 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
+        <h2 className="bg-muted text-muted-foreground sticky top-0 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
           {AISLE_LABELS[aisle] ?? aisle}
-        </Heading>
+        </h2>
         <ul>
           {inAisle.map((item) => (
             <ItemRow
@@ -588,42 +589,48 @@ function Aisles({ items, level, rows }: AislesProps) {
   });
 }
 
-interface StoreGroup {
-  id: string;
-  name: string;
-  items: ShopItem[];
-  /** Not yet ticked off at this store. */
-  left: number;
+interface StoreFilterProps {
+  /** Only the stores with something on this list, in the household's order. */
+  stores: ShopStore[];
+  /** Null shows every store. */
+  value: string | null;
+  onChange: (storeId: string | null) => void;
 }
 
 /**
- * The list split by store, or null to read it aisle by aisle as one shop.
+ * Narrow the list to one store, for when you are standing in it.
  *
- * Null when no item on screen is bound for a store the household has, which covers a household
- * with no stores and a week built before it set any up. An item whose store was deleted gathers
- * under "Any store" with the rest of the unrouted ones.
+ * Radios rather than buttons, because exactly one choice holds at a time and a screen reader
+ * should say which. "All" is the list as it reads with no stores at all.
  */
-function storeGroups(stores: ShopStore[], items: ShopItem[]): StoreGroup[] | null {
-  const known = new Set(stores.map((store) => store.id));
-  const routed = (item: ShopItem) => item.storeId !== null && known.has(item.storeId);
+function StoreFilter({ stores, value, onChange }: StoreFilterProps) {
+  const options = [{ id: null, name: "All" }, ...stores];
 
-  if (!items.some(routed)) {
-    return null;
-  }
-
-  const groups = [
-    ...stores.map((store) => ({
-      id: store.id,
-      name: store.name,
-      items: items.filter((item) => item.storeId === store.id),
-    })),
-    // Underscores never come out of `slug`, so no store's id can collide with this one.
-    { id: "__any", name: "Any store", items: items.filter((item) => !routed(item)) },
-  ];
-
-  return groups
-    .filter((group) => group.items.length > 0)
-    .map((group) => ({ ...group, left: group.items.filter((item) => !item.purchased).length }));
+  return (
+    <fieldset className="mt-3">
+      <legend className="sr-only">Show items from</legend>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <label
+            key={option.id ?? "all"}
+            className={cn(
+              "border-muted-foreground has-focus-visible:ring-ring flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm has-focus-visible:ring-3",
+              "has-checked:border-primary has-checked:bg-primary has-checked:text-primary-foreground",
+            )}
+          >
+            <input
+              type="radio"
+              name="store-filter"
+              checked={value === option.id}
+              onChange={() => onChange(option.id)}
+              className="sr-only"
+            />
+            {option.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 export function ShoppingList(props: Props) {
@@ -651,6 +658,7 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
   const [items, setItems] = useState(initialItems);
   const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
   const [showBought, setShowBought] = useState(false);
+  const [storeFilter, setStoreFilter] = useState<string | null>(null);
 
   function onHideBoughtChange(next: boolean) {
     setHideBought(next);
@@ -735,15 +743,21 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
   // coding-standards.md says not to hand-roll it without a measurement saying otherwise.
   const toBuy = items.filter((item) => !item.haveAlready);
   const alreadyHave = items.filter((item) => item.haveAlready);
-  const outstanding = toBuy.filter((item) => !item.purchased);
-  const bought = toBuy.filter((item) => item.purchased);
-  // Counted from every item the plan calls for, never from what is on screen — hiding a row must
-  // not change what the shop costs.
-  const remaining = outstanding.reduce((total, item) => total + (item.estCost ?? 0), 0);
+  // Counted from every item the plan calls for, never from what is on screen — hiding a row or
+  // narrowing to one store must not change what the shop costs.
+  const remaining = toBuy
+    .filter((item) => !item.purchased)
+    .reduce((total, item) => total + (item.estCost ?? 0), 0);
+  // Only stores with something on the list get a filter; a chip that empties the screen is noise.
+  const storesOnList = stores.filter((store) => toBuy.some((item) => item.storeId === store.id));
+  const filter = storesOnList.find((store) => store.id === storeFilter) ?? null;
+  // An item with no store, or a deleted one, shows under All only.
+  const inView = filter === null ? toBuy : toBuy.filter((item) => item.storeId === filter.id);
+  const outstanding = inView.filter((item) => !item.purchased);
+  const bought = inView.filter((item) => item.purchased);
   const left = outstanding.length;
   // A hidden row is still recoverable: it moves into the "Bought" list rather than disappearing.
-  const visible = hideBought ? outstanding : toBuy;
-  const groups = storeGroups(stores, visible);
+  const visible = hideBought ? outstanding : inView;
   const rows: RowsProps = {
     failed,
     notDeleted,
@@ -758,8 +772,13 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
         <h1 className="font-display text-xl font-semibold">Shopping list</h1>
         <WeekNav basePath="/shop" planId={planId} atDefault={atDefault} />
         <p className="text-muted-foreground mt-0.5 text-sm">
-          {left} left of {toBuy.length}
+          {left} left of {inView.length}
+          {filter === null ? "" : ` at ${filter.name}`}
         </p>
+
+        {storesOnList.length === 0 ? null : (
+          <StoreFilter stores={storesOnList} value={filter?.id ?? null} onChange={setStoreFilter} />
+        )}
 
         {bought.length > 0 ? (
           <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
@@ -779,22 +798,7 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
         </p>
       ) : null}
 
-      {groups === null ? (
-        <Aisles items={visible} level={2} rows={rows} />
-      ) : (
-        groups.map((group) => (
-          <section key={group.id} aria-labelledby={`store-${group.id}`}>
-            <h2
-              id={`store-${group.id}`}
-              className="border-border flex items-baseline justify-between border-b px-4 pt-6 pb-2"
-            >
-              <span className="text-base font-semibold">{group.name}</span>
-              <span className="text-muted-foreground text-sm font-normal">{group.left} left</span>
-            </h2>
-            <Aisles items={group.items} level={3} rows={rows} />
-          </section>
-        ))
-      )}
+      <Aisles items={visible} rows={rows} />
 
       {hideBought && bought.length > 0 ? (
         <section className="border-border border-t px-4 py-4">
@@ -826,6 +830,7 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
       <AddItem
         planId={planId}
         stores={stores}
+        storeFilter={filter?.id ?? null}
         items={items}
         onAdded={onAdded}
         onBumped={onBumped}
