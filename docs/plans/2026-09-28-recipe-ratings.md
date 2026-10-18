@@ -31,8 +31,8 @@
 
 **Files:**
 - Modify: `server/db/schema/recipes.ts`
-- Create: `server/db/migrations/0012_add_recipe_rating.sql` (generated, then appended to)
-- Generated: `server/db/migrations/meta/0012_snapshot.json`, `server/db/migrations/meta/_journal.json`
+- Create: `server/db/migrations/0013_add_recipe_rating.sql` (generated, then appended to)
+- Generated: `server/db/migrations/meta/0013_snapshot.json`, `server/db/migrations/meta/_journal.json`
 - Test: `server/db/migrations.test.ts`
 
 **Interfaces:**
@@ -116,7 +116,7 @@ Add the constraint to the table's extra-config array, after `recipes_title_idx`:
 - [ ] **Step 4: Generate the migration**
 
 Run: `pnpm db:generate --name add_recipe_rating`
-Expected: creates `server/db/migrations/0012_add_recipe_rating.sql` containing exactly:
+Expected: creates `server/db/migrations/0013_add_recipe_rating.sql` containing exactly:
 
 ```sql
 ALTER TABLE "recipes" ADD COLUMN "rating" integer;--> statement-breakpoint
@@ -127,7 +127,7 @@ If the file contains any other statement, stop. The schema has drifted from the 
 
 - [ ] **Step 5: Append the backfill**
 
-Append to `server/db/migrations/0012_add_recipe_rating.sql`:
+Append to `server/db/migrations/0013_add_recipe_rating.sql`:
 
 ```sql
 --> statement-breakpoint
@@ -926,7 +926,7 @@ Expected: every command exits 0.
 
 - [ ] **Step 3: Review gate.** Invoke `cml:rigorous-review` on `main...feat/recipe-ratings`, since the diff has a migration and a breaking API change. Fix blocking findings and re-run Step 1.
 
-- [ ] **Step 4: Apply migration 0012 to production before merging, with the user's approval.** Vercel's production deploy is live about 30 seconds after the push; the CI `migrate` job runs about 6 minutes later, after `check`. PR 1's code names `recipes.rating` in every recipes select, insert and returning, so for those minutes recipe pages, `/r/{token}`, `GET /planning/rotation` and `:commit` would fail with `column "rating" does not exist` if the migration ran only through CI. The old code on `main` works against the migrated schema, so migrating first is safe.
+- [ ] **Step 4: Apply migration 0013 to production before merging, with the user's approval.** Vercel's production deploy is live about 30 seconds after the push; the CI `migrate` job runs about 6 minutes later, after `check`. PR 1's code names `recipes.rating` in every recipes select, insert and returning, so for those minutes recipe pages, `/r/{token}`, `GET /planning/rotation` and `:commit` would fail with `column "rating" does not exist` if the migration ran only through CI. The old code on `main` works against the migrated schema, so migrating first is safe.
 
   `pnpm db:migrate` from this branch with `DATABASE_URL_UNPOOLED` set to the production direct connection. Confirm with `./scripts/prov GET /recipes/teriyaki` that `rating` is 5 while main's code still serves. The CI `migrate` job then finds nothing to apply. No other migration may merge to `main` in between.
 
@@ -958,7 +958,7 @@ Start only after Task 8 Step 6 shows production has the backfilled ratings and t
 git switch main && git pull && git switch -c feat/drop-history-rating
 ```
 
-- [ ] **Step 2: Check for ratings the backfill missed.** Ratings written through the old deployment after the 0012 backfill ran land in `meal_history.rating` and are never copied. Before dropping the column, run:
+- [ ] **Step 2: Check for ratings the backfill missed.** Ratings written through the old deployment after the 0013 backfill ran land in `meal_history.rating` and are never copied. Before dropping the column, run:
 
 ```sql
 SELECT h.household_id, h.recipe_id, h.date, h.rating, r.rating AS recipe_rating
@@ -987,7 +987,7 @@ Any other statement means a migration was generated between the two PRs. Stop an
 pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm vitest run && pnpm build
 ```
 
-Expected: every command exits 0. The Task 1 migration test still passes, because it applies migrations only up to `0012`.
+Expected: every command exits 0. The Task 1 migration test still passes, because it applies migrations only up to `0013`.
 
 - [ ] **Step 5: Commit, review and open the PR**
 
