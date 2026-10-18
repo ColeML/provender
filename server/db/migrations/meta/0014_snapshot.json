@@ -1,5 +1,5 @@
 {
-  "id": "1ed7c5cb-d498-463d-ba50-0c9c33a6c24d",
+  "id": "10ba5851-3122-44d8-99a1-7fe7f152832f",
   "prevId": "acf146ea-1128-4a87-95d3-d6608b95daab",
   "version": "7",
   "dialect": "postgresql",
@@ -137,12 +137,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'dinner'"
-        },
-        "rating": {
-          "name": "rating",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         },
         "notes": {
           "name": "notes",
@@ -1135,12 +1129,6 @@
           "notNull": true,
           "default": false
         },
-        "store_id": {
-          "name": "store_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "source": {
           "name": "source",
           "type": "shopping_item_source",
@@ -1229,185 +1217,6 @@
           "columns": [
             "household_id",
             "plan_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ingredient_stores": {
-      "name": "ingredient_stores",
-      "schema": "",
-      "columns": {
-        "household_id": {
-          "name": "household_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "store_id": {
-          "name": "store_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "only": {
-          "name": "only",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "create_time": {
-          "name": "create_time",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "update_time": {
-          "name": "update_time",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "ingredient_stores_store_fk": {
-          "name": "ingredient_stores_store_fk",
-          "tableFrom": "ingredient_stores",
-          "tableTo": "stores",
-          "columnsFrom": [
-            "household_id",
-            "store_id"
-          ],
-          "columnsTo": [
-            "household_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "ingredient_stores_household_id_id_pk": {
-          "name": "ingredient_stores_household_id_id_pk",
-          "columns": [
-            "household_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.stores": {
-      "name": "stores",
-      "schema": "",
-      "columns": {
-        "household_id": {
-          "name": "household_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "primary": {
-          "name": "primary",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "create_time": {
-          "name": "create_time",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "update_time": {
-          "name": "update_time",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "stores_one_primary_idx": {
-          "name": "stores_one_primary_idx",
-          "columns": [
-            {
-              "expression": "household_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"stores\".\"primary\"",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "stores_household_id_households_id_fk": {
-          "name": "stores_household_id_households_id_fk",
-          "tableFrom": "stores",
-          "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "stores_household_id_id_pk": {
-          "name": "stores_household_id_id_pk",
-          "columns": [
-            "household_id",
             "id"
           ]
         }

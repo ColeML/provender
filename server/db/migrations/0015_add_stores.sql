@@ -1,8 +1,3 @@
--- Edited after generation: drizzle-kit also emitted `ALTER TABLE "meal_history" DROP COLUMN
--- "rating"`, which belongs to the recipe-ratings follow-up (docs/plans/2026-09-28-recipe-ratings.md,
--- Task 9) and must not ship early. The line is removed here and the column kept in this snapshot,
--- so that follow-up's `pnpm db:generate` still produces the drop.
-
 CREATE TABLE "ingredient_stores" (
 	"household_id" text NOT NULL,
 	"id" text NOT NULL,
