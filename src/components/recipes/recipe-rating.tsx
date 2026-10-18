@@ -22,27 +22,32 @@ export function RecipeRating({
   const [rating, setRating] = useState(initialRating);
   const [failed, setFailed] = useState(false);
   const lastSaved = useRef(initialRating);
+  const latestTap = useRef(0);
   const save = useMutation(
     trpc.recipes.setRating.mutationOptions({ scope: { id: `rating-${recipeId}` } }),
   );
 
-  function onRate(next: number | null) {
+  // Callbacks passed to mutate() fire only for the most recent call, so a quick second tap would
+  // drop the first tap's onSuccess. mutateAsync settles once per call, and the scope keeps order.
+  async function onRate(next: number | null) {
+    const tap = ++latestTap.current;
+
     setRating(next);
 
-    save.mutate(
-      { recipeId, rating: next },
-      {
-        onError: () => {
-          setRating(lastSaved.current);
-          setFailed(true);
-        },
-        onSuccess: () => {
-          lastSaved.current = next;
-          setFailed(false);
-          router.refresh();
-        },
-      },
-    );
+    try {
+      await save.mutateAsync({ recipeId, rating: next });
+      lastSaved.current = next;
+
+      if (tap === latestTap.current) {
+        setFailed(false);
+        router.refresh();
+      }
+    } catch {
+      if (tap === latestTap.current) {
+        setRating(lastSaved.current);
+        setFailed(true);
+      }
+    }
   }
 
   return (

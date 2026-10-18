@@ -105,4 +105,48 @@ describe("rating a recipe", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(star(2)).toHaveAttribute("aria-pressed", "true");
   });
+
+  function deferWrites() {
+    const writes: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
+
+    mutate.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          writes.push({ resolve: () => resolve({}), reject });
+        }),
+    );
+
+    return writes;
+  }
+
+  it("reverts to an earlier tap that saved when a later tap fails", async () => {
+    const writes = deferWrites();
+    const user = renderRating(2);
+
+    await user.click(star(3));
+    await user.click(star(4));
+
+    writes[0].resolve();
+    await waitFor(() => expect(writes).toHaveLength(2));
+    writes[1].reject(new Error("offline"));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(star(3)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps a later tap that saved after an earlier tap failed", async () => {
+    const writes = deferWrites();
+    const user = renderRating(2);
+
+    await user.click(star(3));
+    await user.click(star(4));
+
+    writes[0].reject(new Error("offline"));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    writes[1].resolve();
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(star(4)).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
