@@ -120,4 +120,40 @@ describe("the recipe rating migration", () => {
 
     await client.close();
   }, 60_000);
+
+  it("re-runs without overwriting a newer rating, and skips out-of-range history", async () => {
+    const client = new PGlite();
+    const files = await migrationFiles();
+    const rating = files.findIndex((file) => file.includes("add_recipe_rating"));
+
+    for (const file of files.slice(0, rating)) {
+      await apply(client, file);
+    }
+
+    await client.exec(`
+      INSERT INTO households (id, name) VALUES ('loewer', 'Loewer') ON CONFLICT (id) DO NOTHING;
+      INSERT INTO recipes (household_id, id, title, base_servings) VALUES
+        ('loewer', 'tacos', 'Tacos', 4),
+        ('loewer', 'ziti', 'Ziti', 4);
+      INSERT INTO meal_history (household_id, id, date, recipe_id, title, rating) VALUES
+        ('loewer', '2026-08-01-tacos', '2026-08-01', 'tacos', 'Tacos', 5),
+        ('loewer', '2026-08-01-ziti', '2026-08-01', 'ziti', 'Ziti', 4),
+        ('loewer', '2026-09-01-ziti', '2026-09-01', 'ziti', 'Ziti', 99);
+    `);
+
+    await apply(client, files[rating]);
+    await client.exec("UPDATE recipes SET rating = 2 WHERE id = 'tacos'");
+    await apply(client, files[rating]);
+
+    const recipes = await client.query<{ id: string; rating: number | null }>(
+      "SELECT id, rating FROM recipes ORDER BY id",
+    );
+
+    expect(recipes.rows).toEqual([
+      { id: "tacos", rating: 2 },
+      { id: "ziti", rating: 4 },
+    ]);
+
+    await client.close();
+  }, 60_000);
 });
