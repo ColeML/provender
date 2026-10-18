@@ -43,7 +43,8 @@ describe("ShareRecipe on the server", () => {
     expect(serverRender(null)).toContain("Share this recipe");
   });
 
-  it("renders the link from the origin the server passed down", () => {
-    expect(serverRender("9xK2q7")).toContain("https://provender.test/r/9xK2q7");
+  // The link itself lives in a popover, which renders nothing until it is opened in a browser.
+  it("renders the shared state without reaching for a browser global", () => {
+    expect(serverRender("9xK2q7")).toContain("Share this recipe");
   });
 });

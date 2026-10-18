@@ -16,6 +16,8 @@
   --foreground: oklch(0.289 0.031 192.2); /* #17302F teal-black ink, 12.36:1 */
   --card: oklch(0.98 0.014 84.6); /* #FDF8EE */
   --card-foreground: oklch(0.289 0.031 192.2); /* #17302F, 13.22:1 */
+  --popover: oklch(0.98 0.014 84.6); /* #FDF8EE, the card's surface */
+  --popover-foreground: oklch(0.289 0.031 192.2); /* #17302F, 13.22:1 */
   --primary: oklch(0.394 0.052 206.6); /* #1F4E54 the logo's teal, 8.15:1 with its foreground */
   --primary-foreground: oklch(0.957 0.026 84.6); /* #F9F0DE */
   --muted: oklch(0.925 0.033 85.5); /* #F0E5CE */
@@ -45,6 +47,8 @@
   --foreground: oklch(0.918 0.032 87.3); /* #EDE3CC parchment, 13.67:1 */
   --card: oklch(0.259 0.023 205.2); /* #162729 */
   --card-foreground: oklch(0.918 0.032 87.3); /* #EDE3CC, 12.14:1 */
+  --popover: oklch(0.259 0.023 205.2); /* #162729, the card's surface */
+  --popover-foreground: oklch(0.918 0.032 87.3); /* #EDE3CC, 12.14:1 */
   --primary: oklch(0.714 0.066 195.8); /* #6FB0B0, 7.07:1 with its foreground */
   --primary-foreground: oklch(0.215 0.018 202); /* #0F1C1D */
   --muted: oklch(0.286 0.025 204.3); /* #1B2E30 */
@@ -63,6 +67,8 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-muted: var(--muted);
