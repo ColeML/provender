@@ -156,6 +156,40 @@ describe("KrogerStoreRow", () => {
     expect(screen.queryByRole("button", { name: /Dillons - Edmond/ })).toBeNull();
   });
 
+  it("returns focus to the pencil once the picked store is saved", async () => {
+    calls.findLocations.mockResolvedValue([EDMOND]);
+    calls.setValues.mockResolvedValue();
+    const user = setup();
+
+    await search(user, "73034");
+    await user.click(await screen.findByRole("button", { name: /Dillons - Edmond/ }));
+
+    expect(await screen.findByRole("button", { name: "Edit Kroger store" })).toHaveFocus();
+  });
+
+  it("keeps the picker open with a message when the save fails", async () => {
+    calls.findLocations.mockResolvedValue([EDMOND]);
+    calls.setValues.mockRejectedValue(new Error("boom"));
+    const user = setup();
+
+    await search(user, "73034");
+    await user.click(await screen.findByRole("button", { name: /Dillons - Edmond/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save the Kroger store. Try again.",
+    );
+    expect(screen.getByRole("textbox", { name: "ZIP code" })).toBeInTheDocument();
+  });
+
+  it("announces how many stores were found", async () => {
+    calls.findLocations.mockResolvedValue([EDMOND]);
+    const user = setup();
+
+    await search(user, "73034");
+
+    expect(await screen.findByRole("status")).toHaveTextContent("1 store found.");
+  });
+
   it("closes without saving on Cancel and returns focus to the pencil", async () => {
     const user = setup();
 

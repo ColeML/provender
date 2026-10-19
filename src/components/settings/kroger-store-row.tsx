@@ -22,6 +22,31 @@ function failureMessage(error: unknown, fallback: string) {
     : fallback;
 }
 
+function searchFailureMessage(error: unknown) {
+  // The service's message for a refused request is written for the API's callers, not a ZIP search.
+  if (isTRPCClientError(error) && error.data?.code === "BAD_REQUEST") {
+    return "Kroger couldn't search near that ZIP code. Check it and try again.";
+  }
+
+  return failureMessage(error, "Could not search for stores. Try again.");
+}
+
+function searchStatus(fetching: boolean, found: unknown[] | undefined, zipCode: string | null) {
+  if (fetching) {
+    return "Searching…";
+  }
+
+  if (found === undefined) {
+    return "";
+  }
+
+  if (found.length === 0) {
+    return `No Kroger stores near ${zipCode}.`;
+  }
+
+  return found.length === 1 ? "1 store found." : `${found.length} stores found.`;
+}
+
 function StorePicker({ onPicked, onCancel }: { onPicked: () => void; onCancel: () => void }) {
   const trpc = useTRPC();
   const router = useRouter();
@@ -84,11 +109,8 @@ function StorePicker({ onPicked, onCancel }: { onPicked: () => void; onCancel: (
   }
 
   const found = search.isFetching ? undefined : search.data;
-  const shownError =
-    error ??
-    (search.isError
-      ? failureMessage(search.error, "Could not search for stores. Try again.")
-      : null);
+  const shownError = error ?? (search.isError ? searchFailureMessage(search.error) : null);
+  const status = searchStatus(search.isFetching, found, zipCode);
 
   return (
     <div className="flex flex-col gap-3">
@@ -121,7 +143,7 @@ function StorePicker({ onPicked, onCancel }: { onPicked: () => void; onCancel: (
             disabled={search.isFetching || saving}
             className={cn(BUTTON, "bg-primary text-primary-foreground")}
           >
-            Search
+            {search.isFetching ? "Searching…" : "Search"}
           </button>
           <button
             type="button"
@@ -134,9 +156,10 @@ function StorePicker({ onPicked, onCancel }: { onPicked: () => void; onCancel: (
         </div>
       </form>
 
-      {found?.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Kroger stores near {zipCode}.</p>
-      ) : null}
+      {/* A search can take seconds, so its progress is announced. Only "no stores" is shown. */}
+      <output className={found?.length === 0 ? "text-muted-foreground text-sm" : "sr-only"}>
+        {status}
+      </output>
 
       {found === undefined || found.length === 0 ? null : (
         <ul aria-label="Stores found" className="divide-border border-border divide-y border-t">

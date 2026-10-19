@@ -92,7 +92,11 @@ function credentials(): Credentials | null {
   return { clientId, clientSecret };
 }
 
-/** Whether the deployment has Kroger credentials. Says nothing about whether Kroger accepts them. */
+/**
+ * Whether the deployment has Kroger credentials. Says nothing about whether Kroger accepts them.
+ *
+ * Takes no `householdId`: credentials belong to the deployment, so there is no household to scope.
+ */
 export function krogerConfigured(): boolean {
   return credentials() !== null;
 }
