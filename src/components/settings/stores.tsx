@@ -271,6 +271,7 @@ const EMPTY_DRAFT: StoreDraft = { name: "", notes: null, primary: false };
 /** The household's stores, with no data layer so its behavior is testable without tRPC. */
 export function StoreList({ stores, onCreate, onUpdate, onDelete }: StoreListProps) {
   const taken = stores.map((store) => store.id);
+  const [adding, setAdding] = useState(false);
 
   return (
     <>
@@ -290,17 +291,29 @@ export function StoreList({ stores, onCreate, onUpdate, onDelete }: StoreListPro
         </ul>
       )}
 
-      <div className="mt-4">
-        <StoreForm
-          // Remounted when the first store arrives or the last one goes, so "Main store" is
-          // ticked for the first store and only for it; a reset alone would keep the old default.
-          key={stores.length === 0 ? "first" : "more"}
-          initial={{ ...EMPTY_DRAFT, primary: stores.length === 0 }}
-          taken={taken}
-          submitLabel="Add store"
-          onSubmit={onCreate}
-        />
-      </div>
+      {adding ? (
+        <div className="mt-4">
+          <StoreForm
+            // Mounted fresh on each open, so "Main store" starts ticked for the first store only.
+            initial={{ ...EMPTY_DRAFT, primary: stores.length === 0 }}
+            taken={taken}
+            submitLabel="Add store"
+            onSubmit={onCreate}
+            onSaved={() => setAdding(false)}
+            onCancel={() => setAdding(false)}
+          />
+        </div>
+      ) : (
+        // Folded away: stores are set up once and rarely touched, so the form should not take the
+        // screen from the stores themselves.
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="focus-visible:ring-ring text-muted-foreground mt-2 min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
+        >
+          + Add store
+        </button>
+      )}
     </>
   );
 }

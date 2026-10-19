@@ -23,10 +23,28 @@ function setup(rules: SettingsRule[] = [], storeList = stores) {
   return { user, onAdd, onDelete };
 }
 
+/** The add form is folded away behind a button until asked for. */
+async function openAddForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "+ Add ingredient" }));
+}
+
 describe("RuleList", () => {
+  it("folds the add form away until asked, and folds it again on cancel", async () => {
+    const { user } = setup();
+
+    expect(screen.queryByRole("textbox", { name: "Ingredients" })).not.toBeInTheDocument();
+
+    await openAddForm(user);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("textbox", { name: "Ingredients" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Add ingredient" })).toBeInTheDocument();
+  });
+
   it("sends every comma-separated ingredient to the chosen store, only there by default", async () => {
     const { user, onAdd } = setup();
 
+    await openAddForm(user);
     await user.type(
       screen.getByRole("textbox", { name: "Ingredients" }),
       "milk, buttermilk, , hamburger buns",
@@ -39,12 +57,15 @@ describe("RuleList", () => {
       storeId: "braums",
       only: true,
     });
-    expect(screen.getByRole("textbox", { name: "Ingredients" })).toHaveValue("");
+    // Folded away again once saved.
+    expect(await screen.findByRole("button", { name: "+ Add ingredient" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Ingredients" })).not.toBeInTheDocument();
   });
 
   it("sends a usual store when only is unticked", async () => {
     const { user, onAdd } = setup();
 
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Ingredients" }), "ground beef");
     await user.click(screen.getByRole("checkbox", { name: /Only buy it here/ }));
     await user.click(screen.getByRole("button", { name: "Add" }));
@@ -56,6 +77,7 @@ describe("RuleList", () => {
     const { user, onAdd } = setup();
 
     onAdd.mockRejectedValue(new Error("offline"));
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Ingredients" }), "milk");
     await user.click(screen.getByRole("button", { name: "Add" }));
 
@@ -92,6 +114,6 @@ describe("RuleList", () => {
     setup([], []);
 
     expect(screen.getByText("Add a store first.")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Ingredients" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Add ingredient" })).not.toBeInTheDocument();
   });
 });
