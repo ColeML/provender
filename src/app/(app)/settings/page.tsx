@@ -70,6 +70,12 @@ export default async function Settings() {
     <main className="mx-auto max-w-2xl p-4">
       <h1 className="font-display text-2xl font-semibold">Settings</h1>
 
+      <Section id="appearance" title="Appearance">
+        <div className="mt-2">
+          <ThemePicker />
+        </div>
+      </Section>
+
       <Section id="household" title="Household">
         <SettingRows rows={rowsIn("household")} />
       </Section>
@@ -132,18 +138,12 @@ export default async function Settings() {
         </div>
       </Section>
 
-      <Section id="appearance" title="Appearance">
-        <div className="mt-2">
-          <ThemePicker />
-        </div>
-      </Section>
-
       {other.length === 0 ? null : (
         <Section id="other" title="Other">
           <p className="text-muted-foreground mt-1 text-sm">
             Settings the planner keeps under their stored names.
           </p>
-          <SettingRows rows={other} focusWhenEmpty="appearance-heading" />
+          <SettingRows rows={other} focusWhenEmpty="shopping-heading" />
         </Section>
       )}
     </main>
