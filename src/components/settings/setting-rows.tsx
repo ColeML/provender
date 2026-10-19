@@ -36,7 +36,10 @@ function shown(setting: RowSetting, value: string) {
 interface SettingFormProps {
   setting: RowSetting;
   initial: string;
-  /** Rejects with the message to show when nothing was saved, so the form keeps what was typed. */
+  /**
+   * An empty value clears the setting. Rejects with the message to show when nothing was saved,
+   * so the form keeps what was typed.
+   */
   onSave: (value: string) => Promise<void>;
   /** Called in the same commit that shows the saved value, so the form never flashes stale. */
   onSaved: () => void;
@@ -57,7 +60,7 @@ function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFor
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (value === "" || pending) {
+    if (pending) {
       return;
     }
 
@@ -120,7 +123,7 @@ function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFor
       <div className="flex gap-2">
         <button
           type="submit"
-          disabled={value === "" || pending}
+          disabled={pending}
           className={cn(BUTTON, "bg-primary text-primary-foreground")}
         >
           Save
@@ -210,21 +213,56 @@ export function SettingRow({ setting, value, raw = false, onSave }: SettingRowPr
   );
 }
 
+interface SettingRowsProps {
+  rows: SettingRowData[];
+  /** The id to focus when clearing the last row takes this list off the page. */
+  focusWhenEmpty?: string;
+}
+
 /** Wires each row to tRPC. The page reads the settings, so a save refreshes it. */
-export function SettingRows({ rows }: { rows: SettingRowData[] }) {
+export function SettingRows({ rows, focusWhenEmpty }: SettingRowsProps) {
   const trpc = useTRPC();
   const router = useRouter();
   const set = useMutation(trpc.config.set.mutationOptions());
+  const clear = useMutation(trpc.config.delete.mutationOptions());
+  const list = useRef<HTMLUListElement>(null);
+  // An unknown key's row disappears once it is cleared, taking the focused form with it.
+  const cleared = useRef<{ key: string; index: number } | null>(null);
+
+  useEffect(() => {
+    const gone = cleared.current;
+
+    cleared.current = null;
+
+    if (gone === null || rows.some((row) => row.setting.key === gone.key)) {
+      return;
+    }
+
+    const items = list.current?.children;
+
+    (items?.[gone.index] ?? items?.[gone.index - 1])?.querySelector("button")?.focus();
+  }, [rows]);
+
+  useEffect(
+    () => () => {
+      if (cleared.current !== null && focusWhenEmpty !== undefined) {
+        document.getElementById(focusWhenEmpty)?.focus();
+      }
+    },
+    [focusWhenEmpty],
+  );
 
   return (
-    <ul className="divide-border border-border mt-2 divide-y border-y">
-      {rows.map((row) => (
+    <ul ref={list} className="divide-border border-border mt-2 divide-y border-y">
+      {rows.map((row, index) => (
         <SettingRow
           key={row.setting.key}
           {...row}
           onSave={async (value) => {
+            const key = row.setting.key;
+
             try {
-              await set.mutateAsync({ key: row.setting.key, value });
+              await (value === "" ? clear.mutateAsync({ key }) : set.mutateAsync({ key, value }));
             } catch (error) {
               // The service's message names the setting and what it accepts; anything else is
               // not the household's to fix.
@@ -233,6 +271,10 @@ export function SettingRows({ rows }: { rows: SettingRowData[] }) {
               }
 
               throw new Error(`Could not save ${row.setting.label}. Try again.`);
+            }
+
+            if (value === "") {
+              cleared.current = { key, index };
             }
 
             router.refresh();

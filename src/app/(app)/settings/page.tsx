@@ -28,7 +28,8 @@ function Section({
 }) {
   return (
     <section aria-labelledby={`${id}-heading`} className="mt-10 first-of-type:mt-6">
-      <h2 id={`${id}-heading`} className="text-lg font-semibold">
+      {/* Focusable from script, so focus has somewhere to land when the Other section goes. */}
+      <h2 id={`${id}-heading`} tabIndex={-1} className="text-lg font-semibold">
         {title}
       </h2>
       {children}
@@ -134,7 +135,7 @@ export default async function Settings() {
           <p className="text-muted-foreground mt-1 text-sm">
             Settings the planner keeps under their stored names.
           </p>
-          <SettingRows rows={other} />
+          <SettingRows rows={other} focusWhenEmpty="appearance-heading" />
         </Section>
       )}
     </main>

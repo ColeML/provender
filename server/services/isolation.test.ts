@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
-import { getConfig, setConfigValue } from "@server/services/config";
+import { deleteConfigValue, getConfig, setConfigValue } from "@server/services/config";
 import {
   createPlan,
   deletePlan,
@@ -132,6 +132,13 @@ describe("config", () => {
 
     await expect(getConfig(A, db)).resolves.toEqual({ people: "4" });
     await expect(getConfig(B, db)).resolves.toEqual({ people: "10" });
+  });
+
+  it("deletes only the calling household's key", async () => {
+    await deleteConfigValue(A, "people", db);
+
+    await expect(getConfig(A, db)).resolves.toEqual({});
+    await expect(getConfig(B, db)).resolves.toEqual({ people: "9" });
   });
 });
 
