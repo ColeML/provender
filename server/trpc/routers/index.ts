@@ -1,7 +1,12 @@
 import "server-only";
 
 import { schema } from "@server/db";
-import { getConfig, InvalidSettingError, setConfigValue } from "@server/services/config";
+import {
+  deleteConfigValue,
+  getConfig,
+  InvalidSettingError,
+  setConfigValue,
+} from "@server/services/config";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
 import { weekPlan } from "@server/services/week-plan";
@@ -111,6 +116,9 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         setConfigValue(ctx.householdId, input.key, input.value, ctx.db).catch(rejectBadSetting),
       ),
+    delete: protectedProcedure
+      .input(z.object({ key: z.string().min(1) }))
+      .mutation(({ ctx, input }) => deleteConfigValue(ctx.householdId, input.key, ctx.db)),
   }),
   mealHistory: router({
     list: protectedProcedure

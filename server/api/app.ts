@@ -12,7 +12,12 @@ import { weatherRoutes } from "@server/api/routes/weather";
 import { recipesRoutes } from "@server/api/routes/recipes";
 import { sharesRoutes } from "@server/api/routes/shares";
 import { logError } from "@server/lib/log";
-import { getConfig, InvalidSettingError, setConfigValues } from "@server/services/config";
+import {
+  deleteConfigValue,
+  getConfig,
+  InvalidSettingError,
+  setConfigValues,
+} from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { PatternRouter } from "hono/router/pattern-router";
 
@@ -131,6 +136,28 @@ api.openapi(
     }
 
     return c.json(await getConfig(householdId), 200);
+  },
+);
+
+api.openapi(
+  createRoute({
+    method: "delete",
+    path: "/config/{key}",
+    summary: "Clear a household setting",
+    description:
+      "Code that reads the key uses its built-in default again. Clearing a key that is not set " +
+      "succeeds, since the result is the same.",
+    request: {
+      params: z.object({ key: z.string().min(1).openapi({ example: "no_repeat_days" }) }),
+    },
+    responses: {
+      200: { description: "Cleared", content: { "application/json": { schema: z.object({}) } } },
+    },
+  }),
+  async (c) => {
+    await deleteConfigValue(c.get("householdId"), c.req.valid("param").key);
+
+    return c.json({}, 200);
   },
 );
 

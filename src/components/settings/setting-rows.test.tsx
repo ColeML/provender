@@ -108,13 +108,14 @@ describe("SettingRow", () => {
     expect(screen.getByRole("textbox", { name: "Notes for the planner" }).tagName).toBe("TEXTAREA");
   });
 
-  it("will not save an empty field", async () => {
+  it("saves an empty field as a clear", async () => {
     const { user, onSave } = setup(people, "4");
 
     await user.click(screen.getByRole("button", { name: "Edit Servings per meal" }));
     await user.clear(screen.getByRole("textbox"));
+    await user.type(screen.getByRole("textbox"), "  ");
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(onSave).not.toHaveBeenCalled();
+    expect(onSave).toHaveBeenCalledWith("");
   });
 });

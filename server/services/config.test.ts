@@ -4,7 +4,13 @@ import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 import { SETTINGS } from "@server/lib/settings";
 
-import { getConfig, InvalidSettingError, setConfigValue, setConfigValues } from "./config";
+import {
+  deleteConfigValue,
+  getConfig,
+  InvalidSettingError,
+  setConfigValue,
+  setConfigValues,
+} from "./config";
 
 const rows = [
   { key: "people", value: "4", updatedAt: new Date("2026-01-01") },
@@ -118,6 +124,27 @@ describe("setConfigValues", () => {
       people: "6",
       location: "Edmond, OK",
     });
+
+    await close();
+  });
+});
+
+describe("deleteConfigValue", () => {
+  it("removes the one key and keeps the rest", async () => {
+    const { db, close } = await createTestDb();
+
+    await setConfigValues("loewer", { no_repeat_days: "14", people: "4" }, db);
+    await deleteConfigValue("loewer", "no_repeat_days", db);
+
+    await expect(getConfig("loewer", db)).resolves.toEqual({ people: "4" });
+
+    await close();
+  });
+
+  it("succeeds for a key that is not set", async () => {
+    const { db, close } = await createTestDb();
+
+    await expect(deleteConfigValue("loewer", "stores", db)).resolves.toBeUndefined();
 
     await close();
   });

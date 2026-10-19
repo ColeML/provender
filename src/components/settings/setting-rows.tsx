@@ -36,7 +36,10 @@ function shown(setting: RowSetting, value: string) {
 interface SettingFormProps {
   setting: RowSetting;
   initial: string;
-  /** Rejects with the message to show when nothing was saved, so the form keeps what was typed. */
+  /**
+   * An empty value clears the setting. Rejects with the message to show when nothing was saved,
+   * so the form keeps what was typed.
+   */
   onSave: (value: string) => Promise<void>;
   /** Called in the same commit that shows the saved value, so the form never flashes stale. */
   onSaved: () => void;
@@ -57,7 +60,7 @@ function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFor
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (value === "" || pending) {
+    if (pending) {
       return;
     }
 
@@ -120,7 +123,7 @@ function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFor
       <div className="flex gap-2">
         <button
           type="submit"
-          disabled={value === "" || pending}
+          disabled={pending}
           className={cn(BUTTON, "bg-primary text-primary-foreground")}
         >
           Save
@@ -215,6 +218,7 @@ export function SettingRows({ rows }: { rows: SettingRowData[] }) {
   const trpc = useTRPC();
   const router = useRouter();
   const set = useMutation(trpc.config.set.mutationOptions());
+  const clear = useMutation(trpc.config.delete.mutationOptions());
 
   return (
     <ul className="divide-border border-border mt-2 divide-y border-y">
@@ -224,7 +228,9 @@ export function SettingRows({ rows }: { rows: SettingRowData[] }) {
           {...row}
           onSave={async (value) => {
             try {
-              await set.mutateAsync({ key: row.setting.key, value });
+              const key = row.setting.key;
+
+              await (value === "" ? clear.mutateAsync({ key }) : set.mutateAsync({ key, value }));
             } catch (error) {
               // The service's message names the setting and what it accepts; anything else is
               // not the household's to fix.

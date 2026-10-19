@@ -2,7 +2,7 @@ import "server-only";
 
 import { db as defaultDb, schema, type Queryable } from "@server/db";
 import { findSetting } from "@server/lib/settings";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 /**
  * Household settings.
@@ -100,4 +100,15 @@ export async function setConfigValues(
       target: [schema.config.householdId, schema.config.key],
       set: { value: sql`excluded.value`, updatedAt: new Date() },
     });
+}
+
+/** Code that reads the key falls back to its built-in default once it is gone. */
+export async function deleteConfigValue(
+  householdId: string,
+  key: string,
+  db: Queryable = defaultDb,
+): Promise<void> {
+  await db
+    .delete(schema.config)
+    .where(and(eq(schema.config.householdId, householdId), eq(schema.config.key, key)));
 }

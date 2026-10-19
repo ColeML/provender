@@ -80,6 +80,26 @@ describe("PATCH /v1/config", () => {
   });
 });
 
+describe("DELETE /v1/config/{key}", () => {
+  it("clears the key, and GET no longer returns it", async () => {
+    const response = await api.request("/v1/config/default_budget", {
+      method: "DELETE",
+      ...authed,
+    });
+
+    expect(response.status).toBe(200);
+    await expect((await api.request("/v1/config", authed)).json()).resolves.toEqual({
+      people: "4",
+    });
+  });
+
+  it("answers 200 for a key that is not set", async () => {
+    const response = await api.request("/v1/config/stores", { method: "DELETE", ...authed });
+
+    expect(response.status).toBe(200);
+  });
+});
+
 describe("config.set", () => {
   const caller = () => createCallerFactory(appRouter)({ db, session, householdId });
 
@@ -96,6 +116,16 @@ describe("config.set", () => {
       code: "BAD_REQUEST",
       message: expect.stringContaining("Weekly budget"),
     });
+  });
+});
+
+describe("config.delete", () => {
+  it("clears the one key it is given", async () => {
+    const caller = createCallerFactory(appRouter)({ db, session, householdId });
+
+    await caller.config.delete({ key: "people" });
+
+    await expect(caller.config.get()).resolves.toEqual({ default_budget: "120" });
   });
 });
 
