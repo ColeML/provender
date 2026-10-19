@@ -4,6 +4,7 @@ import { db as defaultDb, schema, type Database, type Queryable } from "@server/
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 
 import { isCalendarDate } from "@server/lib/iso-week";
+import { DEFAULT_NO_REPEAT_DAYS } from "@server/lib/settings";
 
 import { getConfig } from "./config";
 import { InvalidDateError, PlanDayNotFoundError, type MealSlot } from "./plans";
@@ -32,9 +33,6 @@ export class MealHistoryNotFoundError extends Error {
     super(`No history entry named ${id}`);
   }
 }
-
-/** The default when Config has no `no_repeat_days`, matching v1. */
-const DEFAULT_NO_REPEAT_DAYS = 30;
 
 /** `<date>-<recipeId>`, so re-planning the same dish on the same day updates rather than duplicates. */
 export function historyId(date: string, recipeId: string) {

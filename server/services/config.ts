@@ -1,7 +1,8 @@
 import "server-only";
 
-import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
-import { eq } from "drizzle-orm";
+import { db as defaultDb, schema, type Queryable } from "@server/db";
+import { findSetting } from "@server/lib/settings";
+import { eq, sql } from "drizzle-orm";
 
 /**
  * Household settings.
@@ -28,17 +29,70 @@ export async function getConfig(householdId: string, db: Queryable = defaultDb):
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
 }
 
+export class InvalidSettingError extends Error {
+  constructor(
+    readonly key: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const WHOLE_NUMBER = /^[1-9]\d*$/;
+const AMOUNT = /^\d+(\.\d{1,2})?$/;
+
+/** Checked here rather than in either transport, so REST and tRPC refuse the same values. */
+function checkSetting(key: string, value: string) {
+  const setting = findSetting(key);
+
+  if (setting?.kind === "count") {
+    const max = setting.max;
+
+    if (!WHOLE_NUMBER.test(value) || (max !== undefined && Number(value) > max)) {
+      const range = max === undefined ? "of 1 or more" : `from 1 to ${max}`;
+
+      throw new InvalidSettingError(key, `${setting.label} must be a whole number ${range}.`);
+    }
+  }
+
+  if (setting?.kind === "money" && (!AMOUNT.test(value) || Number(value) === 0)) {
+    throw new InvalidSettingError(
+      key,
+      `${setting.label} must be an amount above zero, like 120 or 89.50, without a $.`,
+    );
+  }
+}
+
 export async function setConfigValue(
   householdId: string,
   key: string,
   value: string,
-  db: Database = defaultDb,
+  db: Queryable = defaultDb,
 ): Promise<void> {
+  await setConfigValues(householdId, { [key]: value }, db);
+}
+
+/** Every value is checked before any is written, so a refused one leaves the others unwritten. */
+export async function setConfigValues(
+  householdId: string,
+  values: Config,
+  db: Queryable = defaultDb,
+): Promise<void> {
+  const entries = Object.entries(values);
+
+  for (const [key, value] of entries) {
+    checkSetting(key, value);
+  }
+
+  if (entries.length === 0) {
+    return;
+  }
+
   await db
     .insert(schema.config)
-    .values({ householdId, key, value })
+    .values(entries.map(([key, value]) => ({ householdId, key, value })))
     .onConflictDoUpdate({
       target: [schema.config.householdId, schema.config.key],
-      set: { value, updatedAt: new Date() },
+      set: { value: sql`excluded.value`, updatedAt: new Date() },
     });
 }
