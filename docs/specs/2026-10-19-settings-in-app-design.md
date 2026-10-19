@@ -42,8 +42,8 @@ in Other.
 
 ## Page
 
-Top to bottom: Household, Food, Planning, Shopping (pantry staples, then the existing Stores and
-Where to buy lists, then the Kroger store), Appearance (theme), and Other. Other appears only
+Top to bottom: Appearance (theme), Household, Food, Planning, Shopping (pantry staples, then the
+existing Stores and Where to buy lists, then the Kroger store), and Other. Other appears only
 when the household has keys that aren't on the list. The "Edit them with `PATCH /v1/config`"
 line is removed.
 
