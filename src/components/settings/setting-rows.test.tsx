@@ -44,6 +44,12 @@ describe("SettingRow", () => {
     expect(screen.getByText("$120")).toBeInTheDocument();
   });
 
+  it("does not double the sign on a value stored with one", () => {
+    setup(budget, "$120");
+
+    expect(screen.getByText("$120")).toBeInTheDocument();
+  });
+
   it("saves only the edited value and closes the form", async () => {
     const { user, onSave } = setup(people, "4");
 

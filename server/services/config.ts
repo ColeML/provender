@@ -45,6 +45,11 @@ const AMOUNT = /^\d+(\.\d{1,2})?$/;
 function checkSetting(key: string, value: string) {
   const setting = findSetting(key);
 
+  // An empty value reads as unset everywhere it is used, so it stays allowed for every kind.
+  if (value === "") {
+    return;
+  }
+
   if (setting?.kind === "count") {
     const max = setting.max;
 

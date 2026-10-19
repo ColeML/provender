@@ -59,6 +59,7 @@ describe("setConfigValue", () => {
     ["default_budget", "89.50"],
     ["no_repeat_days", "365"],
     ["dislikes", ""],
+    ["no_repeat_days", ""],
     ["render_dir", "anything at all"],
   ])("accepts %s = %j", async (key, value) => {
     const db = await freshDb();
@@ -72,7 +73,6 @@ describe("setConfigValue", () => {
     ["people", "0"],
     ["people", "2.5"],
     ["people", "four"],
-    ["people", ""],
     ["default_meals", "8"],
     ["default_budget", "$120"],
     ["default_budget", "0"],

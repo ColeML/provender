@@ -29,7 +29,8 @@ const BUTTON =
 const INPUT_MODE = { count: "numeric", money: "decimal" } as const;
 
 function shown(setting: RowSetting, value: string) {
-  return setting.kind === "money" ? `$${value}` : value;
+  // Values written before the money check could already carry the sign.
+  return setting.kind === "money" && !value.startsWith("$") ? `$${value}` : value;
 }
 
 interface SettingFormProps {
