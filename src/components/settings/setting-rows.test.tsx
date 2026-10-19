@@ -4,9 +4,31 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SettingRow, type RowSetting } from "./setting-rows";
+import { SettingRow, SettingRows, type RowSetting, type SettingRowData } from "./setting-rows";
 
-afterEach(cleanup);
+const mutations = vi.hoisted(() => ({
+  set: vi.fn<(input: { key: string; value: string }) => Promise<void>>(),
+  delete: vi.fn<(input: { key: string }) => Promise<void>>(),
+}));
+
+vi.mock("@/lib/trpc/client", () => ({
+  useTRPC: () => ({
+    config: {
+      set: { mutationOptions: () => mutations.set },
+      delete: { mutationOptions: () => mutations.delete },
+    },
+  }),
+}));
+vi.mock("@tanstack/react-query", () => ({
+  useMutation: (mutateAsync: unknown) => ({ mutateAsync }),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {} }) }));
+
+afterEach(() => {
+  cleanup();
+  mutations.set.mockReset();
+  mutations.delete.mockReset();
+});
 
 const people: RowSetting = { key: "people", label: "Servings per meal", kind: "count" };
 const budget: RowSetting = { key: "default_budget", label: "Weekly budget", kind: "money" };
@@ -117,5 +139,74 @@ describe("SettingRow", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSave).toHaveBeenCalledWith("");
+  });
+});
+
+describe("SettingRows", () => {
+  const raw = (key: string, value: string): SettingRowData => ({
+    setting: { key, label: key, kind: "text" },
+    value,
+    raw: true,
+  });
+  const rows = [raw("a", "1"), raw("b", "2"), raw("c", "3")];
+
+  async function clearRow(user: ReturnType<typeof userEvent.setup>, key: string) {
+    await user.click(screen.getByRole("button", { name: `Edit ${key}` }));
+    await user.clear(screen.getByRole("textbox"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+  }
+
+  it("sends a value to config.set and an empty field to config.delete", async () => {
+    const user = userEvent.setup();
+
+    render(<SettingRows rows={rows} />);
+
+    await user.click(screen.getByRole("button", { name: "Edit a" }));
+    await user.type(screen.getByRole("textbox"), "0");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await clearRow(user, "b");
+
+    expect(mutations.set).toHaveBeenCalledWith({ key: "a", value: "10" });
+    expect(mutations.delete).toHaveBeenCalledWith({ key: "b" });
+  });
+
+  it("moves focus to the next row when a cleared row leaves the list", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<SettingRows rows={rows} />);
+
+    await clearRow(user, "b");
+    rerender(<SettingRows rows={[rows[0], rows[2]]} />);
+
+    expect(screen.getByRole("button", { name: "Edit c" })).toHaveFocus();
+  });
+
+  it("moves focus to the previous row when the last row is cleared", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<SettingRows rows={rows} />);
+
+    await clearRow(user, "c");
+    rerender(<SettingRows rows={[rows[0], rows[1]]} />);
+
+    expect(screen.getByRole("button", { name: "Edit b" })).toHaveFocus();
+  });
+
+  it("focuses the given element when clearing the only row takes the list away", async () => {
+    const user = userEvent.setup();
+    const heading = (
+      <h2 id="appearance-heading" tabIndex={-1}>
+        Appearance
+      </h2>
+    );
+    const { rerender } = render(
+      <>
+        {heading}
+        <SettingRows rows={[rows[0]]} focusWhenEmpty="appearance-heading" />
+      </>,
+    );
+
+    await clearRow(user, "a");
+    rerender(heading);
+
+    expect(screen.getByRole("heading", { name: "Appearance" })).toHaveFocus();
   });
 });

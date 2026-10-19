@@ -213,23 +213,55 @@ export function SettingRow({ setting, value, raw = false, onSave }: SettingRowPr
   );
 }
 
+interface SettingRowsProps {
+  rows: SettingRowData[];
+  /** The id to focus when clearing the last row takes this list off the page. */
+  focusWhenEmpty?: string;
+}
+
 /** Wires each row to tRPC. The page reads the settings, so a save refreshes it. */
-export function SettingRows({ rows }: { rows: SettingRowData[] }) {
+export function SettingRows({ rows, focusWhenEmpty }: SettingRowsProps) {
   const trpc = useTRPC();
   const router = useRouter();
   const set = useMutation(trpc.config.set.mutationOptions());
   const clear = useMutation(trpc.config.delete.mutationOptions());
+  const list = useRef<HTMLUListElement>(null);
+  // An unknown key's row disappears once it is cleared, taking the focused form with it.
+  const cleared = useRef<{ key: string; index: number } | null>(null);
+
+  useEffect(() => {
+    const gone = cleared.current;
+
+    cleared.current = null;
+
+    if (gone === null || rows.some((row) => row.setting.key === gone.key)) {
+      return;
+    }
+
+    const items = list.current?.children;
+
+    (items?.[gone.index] ?? items?.[gone.index - 1])?.querySelector("button")?.focus();
+  }, [rows]);
+
+  useEffect(
+    () => () => {
+      if (cleared.current !== null && focusWhenEmpty !== undefined) {
+        document.getElementById(focusWhenEmpty)?.focus();
+      }
+    },
+    [focusWhenEmpty],
+  );
 
   return (
-    <ul className="divide-border border-border mt-2 divide-y border-y">
-      {rows.map((row) => (
+    <ul ref={list} className="divide-border border-border mt-2 divide-y border-y">
+      {rows.map((row, index) => (
         <SettingRow
           key={row.setting.key}
           {...row}
           onSave={async (value) => {
-            try {
-              const key = row.setting.key;
+            const key = row.setting.key;
 
+            try {
               await (value === "" ? clear.mutateAsync({ key }) : set.mutateAsync({ key, value }));
             } catch (error) {
               // The service's message names the setting and what it accepts; anything else is
@@ -239,6 +271,10 @@ export function SettingRows({ rows }: { rows: SettingRowData[] }) {
               }
 
               throw new Error(`Could not save ${row.setting.label}. Try again.`);
+            }
+
+            if (value === "") {
+              cleared.current = { key, index };
             }
 
             router.refresh();
