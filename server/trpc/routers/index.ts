@@ -1,7 +1,7 @@
 import "server-only";
 
 import { schema } from "@server/db";
-import { getConfig } from "@server/services/config";
+import { getConfig, InvalidSettingError, setConfigValue } from "@server/services/config";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
 import { weekPlan } from "@server/services/week-plan";
@@ -86,6 +86,14 @@ function rejectBadStore(error: unknown): never {
   throw error;
 }
 
+function rejectBadSetting(error: unknown): never {
+  if (error instanceof InvalidSettingError) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error.message, cause: error });
+  }
+
+  throw error;
+}
+
 const AisleSchema = z.enum(schema.ingredientCategory.enumValues);
 
 /**
@@ -98,6 +106,11 @@ const AisleSchema = z.enum(schema.ingredientCategory.enumValues);
 export const appRouter = router({
   config: router({
     get: protectedProcedure.query(({ ctx }) => getConfig(ctx.householdId, ctx.db)),
+    set: protectedProcedure
+      .input(z.object({ key: z.string().min(1), value: z.string() }))
+      .mutation(({ ctx, input }) =>
+        setConfigValue(ctx.householdId, input.key, input.value, ctx.db).catch(rejectBadSetting),
+      ),
   }),
   mealHistory: router({
     list: protectedProcedure

@@ -12,7 +12,7 @@ import { weatherRoutes } from "@server/api/routes/weather";
 import { recipesRoutes } from "@server/api/routes/recipes";
 import { sharesRoutes } from "@server/api/routes/shares";
 import { logError } from "@server/lib/log";
-import { getConfig, setConfigValue } from "@server/services/config";
+import { getConfig, InvalidSettingError, setConfigValues } from "@server/services/config";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { PatternRouter } from "hono/router/pattern-router";
 
@@ -113,14 +113,21 @@ api.openapi(
         description: "The settings after the change",
         content: { "application/json": { schema: ConfigSchema } },
       },
+      400: { description: "A known setting has a value of the wrong kind; nothing was written" },
     },
   }),
   async (c) => {
     const householdId = c.get("householdId");
     const { values } = c.req.valid("json");
 
-    for (const [key, value] of Object.entries(values)) {
-      await setConfigValue(householdId, key, value);
+    try {
+      await setConfigValues(householdId, values);
+    } catch (error) {
+      if (error instanceof InvalidSettingError) {
+        return apiError(c, "INVALID_ARGUMENT", error.message);
+      }
+
+      throw error;
     }
 
     return c.json(await getConfig(householdId), 200);

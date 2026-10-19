@@ -50,6 +50,55 @@ describe("GET /v1/config", () => {
   });
 });
 
+describe("PATCH /v1/config", () => {
+  function patch(values: Record<string, string>) {
+    return api.request("/v1/config", {
+      method: "PATCH",
+      headers: { ...authed.headers, "content-type": "application/json" },
+      body: JSON.stringify({ values }),
+    });
+  }
+
+  it("answers 400 INVALID_ARGUMENT for a bad count, and writes nothing", async () => {
+    const response = await patch({ location: "Edmond, OK", people: "lots" });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT", message: expect.stringContaining("Servings per meal") },
+    });
+    await expect((await api.request("/v1/config", authed)).json()).resolves.toEqual({
+      people: "4",
+      default_budget: "120",
+    });
+  });
+
+  it("accepts any text for a key it does not know", async () => {
+    const response = await patch({ render_dir: "~/menus" });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ render_dir: "~/menus" });
+  });
+});
+
+describe("config.set", () => {
+  const caller = () => createCallerFactory(appRouter)({ db, session, householdId });
+
+  it("writes the one key it is given", async () => {
+    await caller().config.set({ key: "people", value: "6" });
+
+    await expect(caller().config.get()).resolves.toEqual({ people: "6", default_budget: "120" });
+  });
+
+  it("refuses a bad money value as BAD_REQUEST with the service's message", async () => {
+    await expect(
+      caller().config.set({ key: "default_budget", value: "$90" }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("Weekly budget"),
+    });
+  });
+});
+
 describe("the two transports", () => {
   /**
    * The drift guard. REST and tRPC exist side by side because each suits a different caller, and
