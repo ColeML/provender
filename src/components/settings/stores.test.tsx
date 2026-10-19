@@ -38,10 +38,28 @@ function setupWithRerender() {
   return { user, rerender, handlers };
 }
 
+/** The add form is folded away behind a button until asked for. */
+async function openAddForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "+ Add store" }));
+}
+
 describe("StoreList", () => {
+  it("folds the add form away until asked, and folds it again on cancel", async () => {
+    const { user } = setup([aldi]);
+
+    expect(screen.queryByRole("textbox", { name: "Store" })).not.toBeInTheDocument();
+
+    await openAddForm(user);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("textbox", { name: "Store" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Add store" })).toBeInTheDocument();
+  });
+
   it("makes the first store the main one by default", async () => {
     const { user, onCreate } = setup();
 
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Store" }), "Aldi");
     await user.type(
       screen.getByRole("textbox", { name: "Notes for the planner" }),
@@ -54,12 +72,15 @@ describe("StoreList", () => {
       notes: "Cheapest produce",
       primary: true,
     });
-    expect(screen.getByRole("textbox", { name: "Store" })).toHaveValue("");
+    // Folded away again once saved.
+    expect(await screen.findByRole("button", { name: "+ Add store" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Store" })).not.toBeInTheDocument();
   });
 
   it("does not make a later store the main one unless asked", async () => {
     const { user, onCreate } = setup([aldi]);
 
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Store" }), "Braum's");
     await user.click(screen.getByRole("button", { name: "Add store" }));
 
@@ -69,10 +90,12 @@ describe("StoreList", () => {
   it("unticks Main store for the next store once the first one is saved", async () => {
     const { user, rerender, handlers } = setupWithRerender();
 
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Store" }), "Aldi");
     await user.click(screen.getByRole("button", { name: "Add store" }));
     // What the page refresh does after a save.
     rerender(<StoreList stores={[aldi]} {...handlers} />);
+    await openAddForm(user);
 
     expect(screen.getByRole("checkbox", { name: /Main store/ })).not.toBeChecked();
     expect(screen.getByRole("textbox", { name: "Store" })).toHaveValue("");
@@ -81,6 +104,7 @@ describe("StoreList", () => {
   it("refuses a name that is already a store, before sending it", async () => {
     const { user, onCreate } = setup([aldi]);
 
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Store" }), "ALDI");
     await user.click(screen.getByRole("button", { name: "Add store" }));
 
@@ -92,6 +116,7 @@ describe("StoreList", () => {
     const { user, onCreate } = setup();
 
     onCreate.mockRejectedValue(new Error("offline"));
+    await openAddForm(user);
     await user.type(screen.getByRole("textbox", { name: "Store" }), "Aldi");
     await user.click(screen.getByRole("button", { name: "Add store" }));
 
@@ -111,7 +136,7 @@ describe("StoreList", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit Aldi" }));
 
-    // The edit form takes the row's place in the list, apart from the add form below it.
+    // The edit form takes the row's place in the list.
     const notes = within(screen.getByRole("list")).getByRole("textbox", {
       name: "Notes for the planner",
     });
