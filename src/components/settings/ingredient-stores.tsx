@@ -33,9 +33,12 @@ interface RuleFormProps {
   stores: { id: string; name: string }[];
   /** Rejects when nothing was saved, so the form keeps what was typed. */
   onAdd: (draft: RuleDraft) => Promise<void>;
+  /** Called in the same commit that lists the new rules, so the form never closes on stale data. */
+  onSaved: () => void;
+  onCancel: () => void;
 }
 
-function RuleForm({ stores, onAdd }: RuleFormProps) {
+function RuleForm({ stores, onAdd, onSaved, onCancel }: RuleFormProps) {
   const [text, setText] = useState("");
   // Defaults to the first store, which is the main one when there is one.
   const [storeId, setStoreId] = useState(stores[0]?.id ?? "");
@@ -64,7 +67,10 @@ function RuleForm({ stores, onAdd }: RuleFormProps) {
         await onAdd({ names, storeId: chosen, only });
         // The field stays editable while saving, so if it now holds the next ingredients, they
         // stay. State set after an `await` leaves the transition unless it is wrapped again.
-        startTransition(() => setText((current) => (current === submitted ? "" : current)));
+        startTransition(() => {
+          setText((current) => (current === submitted ? "" : current));
+          onSaved();
+        });
       } catch {
         setFailed(true);
       }
@@ -127,13 +133,22 @@ function RuleForm({ stores, onAdd }: RuleFormProps) {
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={names.length === 0 || pending}
-        className="bg-primary text-primary-foreground focus-visible:ring-ring min-h-11 self-start rounded-lg px-4 text-sm font-medium focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40"
-      >
-        Add
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={names.length === 0 || pending}
+          className="bg-primary text-primary-foreground focus-visible:ring-ring min-h-11 rounded-lg px-4 text-sm font-medium focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40"
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="focus-visible:ring-ring text-muted-foreground min-h-11 rounded-lg px-4 text-sm font-medium focus-visible:ring-3 focus-visible:outline-none"
+        >
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }
@@ -199,6 +214,8 @@ interface RuleListProps {
  * is testable without tRPC.
  */
 export function RuleList({ rules, stores, onAdd, onDelete }: RuleListProps) {
+  const [adding, setAdding] = useState(false);
+
   if (stores.length === 0) {
     return <p className="mt-4 text-sm">Add a store first.</p>;
   }
@@ -226,7 +243,23 @@ export function RuleList({ rules, stores, onAdd, onDelete }: RuleListProps) {
         ))
       )}
 
-      <RuleForm stores={stores} onAdd={onAdd} />
+      {adding ? (
+        <RuleForm
+          stores={stores}
+          onAdd={onAdd}
+          onSaved={() => setAdding(false)}
+          onCancel={() => setAdding(false)}
+        />
+      ) : (
+        // Folded away, like "+ Add store": these are set up once and rarely touched.
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="focus-visible:ring-ring text-muted-foreground mt-2 min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
+        >
+          + Add ingredient
+        </button>
+      )}
     </>
   );
 }
