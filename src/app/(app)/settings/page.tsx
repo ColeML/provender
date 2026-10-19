@@ -82,33 +82,41 @@ export default async function Settings() {
       <Section id="shopping" title="Shopping">
         <SettingRows rows={rowsIn("shopping", ["pantry_staples"])} />
 
-        <h3 className="mt-8 text-base font-semibold">Stores</h3>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Where you shop. The planner reads each store&apos;s notes when it decides where every item
-          on the shopping list comes from.
-        </p>
-        <Stores
-          stores={stores.map((store) => ({
-            id: store.id,
-            name: store.name,
-            notes: store.notes,
-            primary: store.primary,
-          }))}
-        />
+        <section aria-labelledby="stores-heading">
+          <h3 id="stores-heading" className="mt-8 text-base font-semibold">
+            Stores
+          </h3>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Where you shop. The planner reads each store&apos;s notes when it decides where every
+            item on the shopping list comes from.
+          </p>
+          <Stores
+            stores={stores.map((store) => ({
+              id: store.id,
+              name: store.name,
+              notes: store.notes,
+              primary: store.primary,
+            }))}
+          />
+        </section>
 
-        <h3 className="mt-8 text-base font-semibold">Where to buy</h3>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Ingredients you get from a particular store.
-        </p>
-        <IngredientStores
-          rules={rules.map((rule) => ({
-            id: rule.id,
-            name: rule.name,
-            storeId: rule.storeId,
-            only: rule.only,
-          }))}
-          stores={stores.map((store) => ({ id: store.id, name: store.name }))}
-        />
+        <section aria-labelledby="where-to-buy-heading">
+          <h3 id="where-to-buy-heading" className="mt-8 text-base font-semibold">
+            Where to buy
+          </h3>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Ingredients you get from a particular store.
+          </p>
+          <IngredientStores
+            rules={rules.map((rule) => ({
+              id: rule.id,
+              name: rule.name,
+              storeId: rule.storeId,
+              only: rule.only,
+            }))}
+            stores={stores.map((store) => ({ id: store.id, name: store.name }))}
+          />
+        </section>
 
         <div className="mt-8">
           <SettingRows rows={rowsIn("shopping", ["kroger_location_id"])} />

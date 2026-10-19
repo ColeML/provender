@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { isTRPCClientError } from "@trpc/client";
 import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { FIELD } from "@/components/ui/field";
 import { useTRPC } from "@/lib/trpc/client";
@@ -139,6 +139,21 @@ interface SettingRowProps extends SettingRowData {
 /** One setting, a ledger line until its pencil opens a one-field form in its place. */
 export function SettingRow({ setting, value, raw = false, onSave }: SettingRowProps) {
   const [editing, setEditing] = useState(false);
+  const pencil = useRef<HTMLButtonElement>(null);
+  // Set only by closing the form, so the page's first render never takes focus.
+  const closedForm = useRef(false);
+
+  useEffect(() => {
+    if (!editing && closedForm.current) {
+      closedForm.current = false;
+      pencil.current?.focus();
+    }
+  }, [editing]);
+
+  function close() {
+    closedForm.current = true;
+    setEditing(false);
+  }
 
   if (editing) {
     return (
@@ -147,8 +162,8 @@ export function SettingRow({ setting, value, raw = false, onSave }: SettingRowPr
           setting={setting}
           initial={value ?? ""}
           onSave={onSave}
-          onSaved={() => setEditing(false)}
-          onCancel={() => setEditing(false)}
+          onSaved={close}
+          onCancel={close}
         />
       </li>
     );
@@ -182,6 +197,7 @@ export function SettingRow({ setting, value, raw = false, onSave }: SettingRowPr
       </div>
 
       <button
+        ref={pencil}
         type="button"
         onClick={() => setEditing(true)}
         aria-label={`Edit ${setting.label}`}

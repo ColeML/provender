@@ -59,6 +59,7 @@ describe("SettingRow", () => {
 
     expect(onSave).toHaveBeenCalledExactlyOnceWith("6");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Servings per meal" })).toHaveFocus();
   });
 
   it("closes without saving on Cancel", async () => {

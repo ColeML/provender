@@ -73,7 +73,7 @@ export const SETTINGS: readonly Setting[] = [
     label: "Pantry staples",
     section: "shopping",
     kind: "text",
-    hint: "Left off the shopping list.",
+    hint: "Marked as already on hand when the shopping list is built.",
     placeholder: "Salt, olive oil, flour",
   },
   // A plain text row until the Kroger store picker replaces it.
