@@ -1,6 +1,6 @@
 "use client";
 
-import type { Setting } from "@server/lib/settings";
+import type { Setting, SettingKind } from "@server/lib/settings";
 import { useMutation } from "@tanstack/react-query";
 import { isTRPCClientError } from "@trpc/client";
 import { Pencil } from "lucide-react";
@@ -23,10 +23,16 @@ export interface SettingRowData {
   raw?: boolean;
 }
 
-const BUTTON =
+export const BUTTON =
   "focus-visible:ring-ring min-h-11 rounded-lg px-4 text-sm font-medium focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40";
 
-const INPUT_MODE = { count: "numeric", money: "decimal" } as const;
+export const PENCIL =
+  "focus-visible:ring-ring text-muted-foreground flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-3 focus-visible:outline-none";
+
+const INPUT_MODE: Partial<Record<SettingKind, "numeric" | "decimal">> = {
+  count: "numeric",
+  money: "decimal",
+};
 
 function shown(setting: RowSetting, value: string) {
   // Values written before the money check could already carry the sign.
@@ -102,7 +108,7 @@ function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFor
           <input
             {...fieldProps}
             type="text"
-            inputMode={setting.kind === "text" ? undefined : INPUT_MODE[setting.kind]}
+            inputMode={INPUT_MODE[setting.kind]}
             onChange={(event) => setDraft(event.target.value)}
             className={FIELD}
           />
@@ -205,7 +211,7 @@ export function SettingRow({ setting, value, raw = false, onSave }: SettingRowPr
         type="button"
         onClick={() => setEditing(true)}
         aria-label={`Edit ${setting.label}`}
-        className="focus-visible:ring-ring text-muted-foreground flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-3 focus-visible:outline-none"
+        className={PENCIL}
       >
         <Pencil aria-hidden className="size-4" />
       </button>

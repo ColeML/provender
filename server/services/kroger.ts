@@ -92,6 +92,11 @@ function credentials(): Credentials | null {
   return { clientId, clientSecret };
 }
 
+/** Whether the deployment has Kroger credentials. Says nothing about whether Kroger accepts them. */
+export function krogerConfigured(): boolean {
+  return credentials() !== null;
+}
+
 const TokenResponseSchema = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().optional(),
