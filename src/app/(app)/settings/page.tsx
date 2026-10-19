@@ -1,10 +1,12 @@
 import { householdForSession } from "@server/auth/household";
 import { findSetting, SETTINGS, type SettingSection } from "@server/lib/settings";
 import { getConfig } from "@server/services/config";
+import { krogerConfigured } from "@server/services/kroger";
 import { listIngredientStores, listStores } from "@server/services/stores";
 import { redirect } from "next/navigation";
 
 import { IngredientStores } from "@/components/settings/ingredient-stores";
+import { KrogerStoreRow } from "@/components/settings/kroger-store-row";
 import { SettingRows, type SettingRowData } from "@/components/settings/setting-rows";
 import { Stores } from "@/components/settings/stores";
 import { ThemePicker } from "@/components/theme/theme-picker";
@@ -120,7 +122,13 @@ export default async function Settings() {
         </section>
 
         <div className="mt-8">
-          <SettingRows rows={rowsIn("shopping", ["kroger_location_id"])} />
+          <ul className="divide-border border-border mt-2 divide-y border-y">
+            <KrogerStoreRow
+              locationId={config.kroger_location_id}
+              name={config.kroger_location_name}
+              configured={krogerConfigured()}
+            />
+          </ul>
         </div>
       </Section>
 

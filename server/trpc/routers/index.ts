@@ -6,7 +6,14 @@ import {
   getConfig,
   InvalidSettingError,
   setConfigValue,
+  setConfigValues,
 } from "@server/services/config";
+import {
+  findLocations,
+  KrogerNotConfiguredError,
+  KrogerRejectedRequestError,
+  KrogerUnavailableError,
+} from "@server/services/kroger";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
 import { weekPlan } from "@server/services/week-plan";
@@ -99,6 +106,23 @@ function rejectBadSetting(error: unknown): never {
   throw error;
 }
 
+/** The three cases the REST route tells apart: fix the deployment, fix the request, or retry. */
+function rejectKrogerFailure(error: unknown): never {
+  if (error instanceof KrogerNotConfiguredError) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message, cause: error });
+  }
+
+  if (error instanceof KrogerRejectedRequestError) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error.message, cause: error });
+  }
+
+  if (error instanceof KrogerUnavailableError) {
+    throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: error.message, cause: error });
+  }
+
+  throw error;
+}
+
 const AisleSchema = z.enum(schema.ingredientCategory.enumValues);
 
 /**
@@ -116,9 +140,21 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         setConfigValue(ctx.householdId, input.key, input.value, ctx.db).catch(rejectBadSetting),
       ),
+    setValues: protectedProcedure
+      .input(z.object({ values: z.record(z.string().min(1), z.string()) }))
+      .mutation(({ ctx, input }) =>
+        setConfigValues(ctx.householdId, input.values, ctx.db).catch(rejectBadSetting),
+      ),
     delete: protectedProcedure
       .input(z.object({ key: z.string().min(1) }))
       .mutation(({ ctx, input }) => deleteConfigValue(ctx.householdId, input.key, ctx.db)),
+  }),
+  kroger: router({
+    findLocations: protectedProcedure
+      .input(z.object({ zipCode: z.string().regex(/^\d{5}$/, "Enter a 5-digit ZIP code.") }))
+      .query(({ ctx, input }) =>
+        findLocations(ctx.householdId, { zipCode: input.zipCode }).catch(rejectKrogerFailure),
+      ),
   }),
   mealHistory: router({
     list: protectedProcedure

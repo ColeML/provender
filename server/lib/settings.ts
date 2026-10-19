@@ -4,7 +4,8 @@
  *
  * Outside `server/services/` because the settings form imports it, and services are `server-only`.
  */
-export type SettingKind = "text" | "longText" | "count" | "money";
+/** `krogerStore` is picked from a ZIP code search, never typed. */
+export type SettingKind = "text" | "longText" | "count" | "money" | "krogerStore";
 
 export type SettingSection = "household" | "food" | "planning" | "shopping";
 
@@ -76,8 +77,7 @@ export const SETTINGS: readonly Setting[] = [
     hint: "Marked as already on hand when the shopping list is built.",
     placeholder: "Salt, olive oil, flour",
   },
-  // A plain text row until the Kroger store picker replaces it.
-  { key: "kroger_location_id", label: "Kroger store", section: "shopping", kind: "text" },
+  { key: "kroger_location_id", label: "Kroger store", section: "shopping", kind: "krogerStore" },
   {
     key: "kroger_location_name",
     label: "Kroger store name",
