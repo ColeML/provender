@@ -4,8 +4,11 @@
  *
  * Outside `server/services/` because the settings form imports it, and services are `server-only`.
  */
-/** `krogerStore` is picked from a ZIP code search, never typed. */
-export type SettingKind = "text" | "longText" | "count" | "money" | "krogerStore";
+/**
+ * `krogerStore` is picked from a ZIP code search, never typed. A `list` is stored as its items
+ * joined with ", ", because the planning skills read it as written.
+ */
+export type SettingKind = "text" | "longText" | "list" | "count" | "money" | "krogerStore";
 
 export type SettingSection = "household" | "food" | "planning" | "shopping";
 
@@ -43,9 +46,9 @@ export const SETTINGS: readonly Setting[] = [
     hint: "For the weather forecast.",
     placeholder: "Oklahoma City, OK",
   },
-  { key: "allergies", label: "Allergies", section: "food", kind: "text" },
+  { key: "allergies", label: "Allergies", section: "food", kind: "list" },
   { key: "dietary_restrictions", label: "Dietary restrictions", section: "food", kind: "text" },
-  { key: "dislikes", label: "Dislikes", section: "food", kind: "text" },
+  { key: "dislikes", label: "Dislikes", section: "food", kind: "list" },
   {
     key: "preferences",
     label: "Notes for the planner",
@@ -66,14 +69,14 @@ export const SETTINGS: readonly Setting[] = [
     key: "equipment",
     label: "Equipment",
     section: "planning",
-    kind: "text",
+    kind: "list",
     placeholder: "Instant Pot, sheet pans",
   },
   {
     key: "pantry_staples",
     label: "Pantry staples",
     section: "shopping",
-    kind: "text",
+    kind: "list",
     hint: "Marked as already on hand when the shopping list is built.",
     placeholder: "Salt, olive oil, flour",
   },

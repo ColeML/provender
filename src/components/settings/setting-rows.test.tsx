@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SettingRow, SettingRows, type RowSetting, type SettingRowData } from "./setting-rows";
+import {
+  ListSettingRow,
+  SettingRow,
+  SettingRows,
+  type RowSetting,
+  type SettingRowData,
+} from "./setting-rows";
 
 const mutations = vi.hoisted(() => ({
   set: vi.fn<(input: { key: string; value: string }) => Promise<void>>(),
@@ -208,5 +214,238 @@ describe("SettingRows", () => {
     rerender(heading);
 
     expect(screen.getByRole("heading", { name: "Appearance" })).toHaveFocus();
+  });
+});
+
+const equipment: RowSetting = {
+  key: "equipment",
+  label: "Equipment",
+  kind: "list",
+  placeholder: "Instant Pot, sheet pans",
+};
+
+function setupList(value: string | undefined, setting = equipment) {
+  const onSave = vi.fn<(value: string) => Promise<void>>().mockResolvedValue();
+  const user = userEvent.setup();
+
+  const view = render(
+    <ul>
+      <ListSettingRow setting={setting} value={value} onSave={onSave} />
+    </ul>,
+  );
+
+  return { user, onSave, ...view };
+}
+
+function items() {
+  return within(screen.getByRole("list", { name: "Equipment" }))
+    .queryAllByRole("listitem")
+    .map((item) => item.textContent);
+}
+
+async function add(user: ReturnType<typeof userEvent.setup>, text: string) {
+  await user.click(screen.getByRole("button", { name: "Add to equipment" }));
+  await user.type(screen.getByRole("textbox", { name: "Equipment" }), text);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+}
+
+describe("ListSettingRow", () => {
+  it("shows one row per stored item, trimmed and without blanks", () => {
+    setupList("oven,  stovetop, , Instant Pot");
+
+    expect(items()).toEqual(["oven", "stovetop", "Instant Pot"]);
+  });
+
+  it("reads None in muted text when the list has no items", () => {
+    setupList(undefined);
+
+    expect(screen.getByText("None")).toHaveClass("text-muted-foreground");
+    expect(screen.queryByRole("list", { name: "Equipment" })).not.toBeInTheDocument();
+  });
+
+  it("saves the list without the deleted item", async () => {
+    const { user, onSave } = setupList("oven, stovetop, Instant Pot");
+
+    await user.click(screen.getByRole("button", { name: "Remove stovetop from equipment" }));
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, Instant Pot");
+  });
+
+  it("clears the setting when the last item is deleted", async () => {
+    const { user, onSave } = setupList("oven");
+
+    await user.click(screen.getByRole("button", { name: "Remove oven from equipment" }));
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("");
+  });
+
+  it("moves focus to the next item's delete button after a delete", async () => {
+    const { user, rerender, onSave } = setupList("oven, stovetop, Instant Pot");
+
+    await user.click(screen.getByRole("button", { name: "Remove stovetop from equipment" }));
+    rerender(
+      <ul>
+        <ListSettingRow setting={equipment} value="oven, Instant Pot" onSave={onSave} />
+      </ul>,
+    );
+
+    expect(screen.getByRole("button", { name: "Remove Instant Pot from equipment" })).toHaveFocus();
+  });
+
+  it("moves focus to the previous item when the bottom one is deleted", async () => {
+    const { user, rerender, onSave } = setupList("oven, stovetop");
+
+    await user.click(screen.getByRole("button", { name: "Remove stovetop from equipment" }));
+    rerender(
+      <ul>
+        <ListSettingRow setting={equipment} value="oven" onSave={onSave} />
+      </ul>,
+    );
+
+    expect(screen.getByRole("button", { name: "Remove oven from equipment" })).toHaveFocus();
+  });
+
+  it("moves focus to Add when the last item is deleted", async () => {
+    const { user, rerender, onSave } = setupList("oven");
+
+    await user.click(screen.getByRole("button", { name: "Remove oven from equipment" }));
+    rerender(
+      <ul>
+        <ListSettingRow setting={equipment} value={undefined} onSave={onSave} />
+      </ul>,
+    );
+
+    expect(screen.getByRole("button", { name: "Add to equipment" })).toHaveFocus();
+  });
+
+  it("says so and keeps the item when a delete fails", async () => {
+    const { user, onSave } = setupList("oven, stovetop");
+
+    onSave.mockRejectedValueOnce(new Error("Could not save Equipment. Try again."));
+    await user.click(screen.getByRole("button", { name: "Remove oven from equipment" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Not deleted — try again");
+    expect(screen.getByRole("button", { name: "Remove oven from equipment" })).toBeEnabled();
+  });
+
+  it("adds one item to the end", async () => {
+    const { user, onSave } = setupList("oven");
+
+    await add(user, "  air fryer ");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, air fryer");
+  });
+
+  it("adds several comma-separated items, dropping blanks and repeats", async () => {
+    const { user, onSave } = setupList("oven, Instant Pot");
+
+    await add(user, "sheet pans, , instant pot, Dutch oven, sheet pans");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, Instant Pot, sheet pans, Dutch oven");
+  });
+
+  it("starts the list when the setting is unset", async () => {
+    const { user, onSave } = setupList(undefined);
+
+    await add(user, "oven, stovetop");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, stovetop");
+  });
+
+  it("closes without saving when every item is already in the list", async () => {
+    const { user, onSave } = setupList("oven, Instant Pot");
+
+    await add(user, "OVEN, instant pot");
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to equipment" })).toHaveFocus();
+  });
+
+  it("folds the field away after a save and returns focus to Add", async () => {
+    const { user } = setupList("oven");
+
+    await add(user, "wok");
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to equipment" })).toHaveFocus();
+  });
+
+  it("folds the field away without saving on Cancel", async () => {
+    const { user, onSave } = setupList("oven");
+
+    await user.click(screen.getByRole("button", { name: "Add to equipment" }));
+    await user.type(screen.getByRole("textbox", { name: "Equipment" }), "wok");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to equipment" })).toHaveFocus();
+  });
+
+  it("keeps what was typed and shows the message when an add fails", async () => {
+    const { user, onSave } = setupList("oven");
+
+    onSave.mockRejectedValueOnce(new Error("Could not save Equipment. Try again."));
+    await add(user, "wok");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save Equipment. Try again.",
+    );
+    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("wok");
+  });
+
+  it("shows the setting's hint in the add field", async () => {
+    const { user } = setupList(undefined, {
+      ...equipment,
+      hint: "Marked as already on hand when the shopping list is built.",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Add to equipment" }));
+
+    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveAccessibleDescription(
+      "Marked as already on hand when the shopping list is built.",
+    );
+  });
+
+  it("ignores another delete while a save is in flight", async () => {
+    const { user, onSave } = setupList("oven, stovetop");
+
+    const { promise, resolve } = Promise.withResolvers<void>();
+
+    onSave.mockReturnValueOnce(promise);
+    await user.click(screen.getByRole("button", { name: "Remove oven from equipment" }));
+    await user.click(screen.getByRole("button", { name: "Remove stovetop from equipment" }));
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("stovetop");
+
+    // React holds every async transition pending until all of them settle, so an unsettled one
+    // would leak into the next test.
+    resolve();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Remove oven from equipment" })).toHaveAttribute(
+        "aria-disabled",
+        "false",
+      ),
+    );
+  });
+});
+
+describe("SettingRows with a list setting", () => {
+  it("saves a shorter list with config.set and an emptied one with config.delete", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <SettingRows rows={[{ setting: equipment, value: "oven, wok" }]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove wok from equipment" }));
+    rerender(<SettingRows rows={[{ setting: equipment, value: "oven" }]} />);
+    const oven = screen.getByRole("button", { name: "Remove oven from equipment" });
+
+    await waitFor(() => expect(oven).toHaveAttribute("aria-disabled", "false"));
+    await user.click(oven);
+
+    expect(mutations.set).toHaveBeenCalledWith({ key: "equipment", value: "oven" });
+    expect(mutations.delete).toHaveBeenCalledWith({ key: "equipment" });
   });
 });
