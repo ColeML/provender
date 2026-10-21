@@ -22,7 +22,7 @@ export interface RuleDraft {
 }
 
 /** "milk, buttermilk, hamburger buns" is three ingredients. */
-function splitNames(text: string) {
+export function splitNames(text: string) {
   return text
     .split(",")
     .map((name) => name.trim())
