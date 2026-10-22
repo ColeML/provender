@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AddNote } from "@/components/notes/add-note";
 import { WeekNoteItem } from "@/components/notes/note-item";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Verse } from "@/components/ui/verse";
 import { WeekNav } from "@/components/ui/week-nav";
 import { loginUrl } from "@/lib/login-url";
 
@@ -103,7 +104,9 @@ export default async function Notes({
       <AddNote key={weekId} weekId={weekId} dates={dates} />
 
       {notes.length === 0 ? (
-        <EmptyState>Nothing noted for this week.</EmptyState>
+        <EmptyState footer={<Verse reference="Psalm 23:1" />}>
+          Nothing noted for this week.
+        </EmptyState>
       ) : (
         <NoteGroups weekId={weekId} notes={notes} dates={dates} />
       )}

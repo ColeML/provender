@@ -357,6 +357,69 @@ describe("the shopping list", () => {
     renderList([], null, { planned: false });
 
     expect(screen.getByText(/not planned yet/i)).toBeInTheDocument();
+    expect(screen.getByText("Philippians 4:19 · CSB")).toBeInTheDocument();
+  });
+});
+
+describe("the verse at the foot of a finished list", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  const verse = () => screen.queryByText("Genesis 22:14 · CSB");
+
+  it("stays off the list while there is still shopping to do", () => {
+    renderList([
+      item({ id: "onion", name: "onion" }),
+      item({ id: "beef", name: "beef", category: "meat", purchased: true }),
+    ]);
+
+    expect(verse()).toBeNull();
+  });
+
+  it("appears once the last item is ticked", async () => {
+    mutate.mockResolvedValue(undefined);
+    const user = renderList([
+      item({ id: "onion", name: "onion" }),
+      item({ id: "beef", name: "beef", category: "meat", purchased: true }),
+    ]);
+
+    await user.click(screen.getByRole("checkbox", { name: /onion/ }));
+
+    expect(verse()).toBeInTheDocument();
+  });
+
+  it("does not count what the household already has as shopping left", () => {
+    renderList([
+      item({ id: "beef", name: "beef", category: "meat", purchased: true }),
+      item({ id: "salt", name: "salt", category: "pantry", haveAlready: true }),
+    ]);
+
+    expect(verse()).toBeInTheDocument();
+  });
+
+  it("waits for every store, not just the one on screen", async () => {
+    const user = renderList(
+      [
+        item({ id: "onion", name: "onion", storeId: "aldi", purchased: true }),
+        item({ id: "milk", name: "milk", category: "dairy", storeId: "braums" }),
+      ],
+      120,
+      {},
+      [
+        { id: "aldi", name: "Aldi" },
+        { id: "braums", name: "Braum's" },
+      ],
+    );
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Show items from" }), "aldi");
+
+    expect(screen.getByText(/0 left of 1 at Aldi/)).toBeInTheDocument();
+    expect(verse()).toBeNull();
+  });
+
+  it("is not shown for a planned week with nothing on its list", () => {
+    renderList([]);
+
+    expect(verse()).toBeNull();
   });
 });
 

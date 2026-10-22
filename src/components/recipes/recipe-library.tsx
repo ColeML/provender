@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Star } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import { Verse } from "@/components/ui/verse";
 
 export interface LibraryRecipe {
   recipeId: string;
@@ -30,7 +31,10 @@ function matches(recipe: LibraryRecipe, query: string) {
 function NothingToList({ query }: { query?: string }) {
   if (query === undefined) {
     return (
-      <EmptyState hint="Paste a recipe link and ask Claude Code to save it.">
+      <EmptyState
+        hint="Paste a recipe link and ask Claude Code to save it."
+        footer={<Verse reference="1 Timothy 6:17" />}
+      >
         No recipes saved yet.
       </EmptyState>
     );

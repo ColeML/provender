@@ -94,15 +94,17 @@ describe("the recipe library", () => {
 
     expect(screen.getByText(/No recipes saved yet/)).toBeInTheDocument();
     expect(screen.queryByText(/Nothing matches/)).toBeNull();
+    expect(screen.getByText("1 Timothy 6:17 · CSB")).toBeInTheDocument();
   });
 
-  it("says so when nothing matches", async () => {
+  it("says so when nothing matches, with no verse over a search in progress", async () => {
     const user = renderLibrary();
 
     await user.type(screen.getByRole("searchbox"), "sushi");
 
     expect(screen.queryAllByRole("link")).toHaveLength(0);
     expect(screen.getByText(/Nothing matches/)).toBeInTheDocument();
+    expect(screen.queryByText(/· CSB$/)).toBeNull();
   });
 
   it("shows a rated recipe's rating and leaves an unrated one bare", () => {

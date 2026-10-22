@@ -114,6 +114,7 @@ describe("the home screen", () => {
     await renderHome({ planId: null });
 
     expect(screen.getByText(/No week is planned yet/)).toBeInTheDocument();
+    expect(screen.getByText("Psalm 145:15-16 · CSB")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Plan one" })).toHaveAttribute("href", "/plan");
   });
 
@@ -284,5 +285,11 @@ describe("the home screen", () => {
     expect(screen.getByRole("link", { name: "Sunday" }).closest("li")).toHaveClass(
       "text-muted-foreground",
     );
+  });
+
+  it("closes a planned week with a verse", async () => {
+    await renderHome({ planId: "2026-W37", isCurrentWeek: true });
+
+    expect(screen.getByText("Matthew 6:11 · CSB")).toBeInTheDocument();
   });
 });

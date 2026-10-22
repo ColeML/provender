@@ -11,6 +11,7 @@ import { SettingRows, type SettingRowData } from "@/components/settings/setting-
 import { Stores } from "@/components/settings/stores";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { loginUrl } from "@/lib/login-url";
+import { CSB_NOTICE } from "@/lib/verses";
 
 import { auth } from "../../../../auth";
 
@@ -146,6 +147,8 @@ export default async function Settings() {
           <SettingRows rows={other} focusWhenEmpty="shopping-heading" />
         </Section>
       )}
+
+      <p className="text-muted-foreground mt-12 text-xs">{CSB_NOTICE}</p>
     </main>
   );
 }
