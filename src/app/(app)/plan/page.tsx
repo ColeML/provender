@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 
 import { WeekGrid, type DayForecast } from "@/components/plan/week-grid";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Verse } from "@/components/ui/verse";
 import { WeekNav } from "@/components/ui/week-nav";
 import { loginUrl } from "@/lib/login-url";
 
@@ -91,7 +92,10 @@ function NoWeek({ planId, atDefault }: { planId: string; atDefault: boolean }) {
         <h1 className="font-display text-2xl font-semibold">{planId}</h1>
         <WeekNav basePath="/plan" planId={planId} atDefault={atDefault} showWeek={false} />
       </div>
-      <EmptyState hint="Ask Claude Code to plan it — the grid edits a week that exists, and choosing a menu is the agent’s job.">
+      <EmptyState
+        hint="Ask Claude Code to plan it — the grid edits a week that exists, and choosing a menu is the agent’s job."
+        footer={<Verse reference="Exodus 16:4" />}
+      >
         That week is not planned yet.
       </EmptyState>
     </main>

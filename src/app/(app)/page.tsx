@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { WeekDays } from "@/components/home/week-days";
+import { Verse } from "@/components/ui/verse";
 
 import { auth } from "../../../auth";
 
@@ -63,6 +64,10 @@ export default async function Home() {
           <WeekDays dates={dates} days={days} />
         </>
       )}
+
+      <footer className="mt-12">
+        <Verse reference={planId === null ? "Psalm 145:15-16" : "Matthew 6:11"} />
+      </footer>
     </main>
   );
 }

@@ -134,6 +134,7 @@ describe("notes", () => {
     await renderNotes();
 
     expect(screen.getByText("Nothing noted for this week.")).toBeInTheDocument();
+    expect(screen.getByText("Psalm 23:1 · CSB")).toBeInTheDocument();
   });
 
   it("groups notes under any day first, then each day in the order listed", async () => {

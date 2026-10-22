@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { FIELD } from "@/components/ui/field";
+import { Verse } from "@/components/ui/verse";
 import { WeekNav } from "@/components/ui/week-nav";
 import { useStoredFlag, useStoredText } from "@/hooks/use-stored-flag";
 import { formatQuantity } from "@/lib/quantity";
@@ -635,7 +636,9 @@ export function ShoppingList(props: Props) {
       <main className="mx-auto max-w-2xl p-6">
         <h1 className="font-display text-2xl font-semibold">Shopping list</h1>
         <WeekNav basePath="/shop" planId={props.planId} atDefault={props.atDefault} />
-        <EmptyState>That week is not planned yet, so there is nothing to buy.</EmptyState>
+        <EmptyState footer={<Verse reference="Philippians 4:19" />}>
+          That week is not planned yet, so there is nothing to buy.
+        </EmptyState>
       </main>
     );
   }
@@ -778,6 +781,8 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
   const left = outstanding.length;
   // A hidden row is still recoverable: it moves into the "Bought" list rather than disappearing.
   const visible = hideBought ? outstanding : inView;
+  // Judged on the whole list, not the store on screen: one shop finished is not the week finished.
+  const allBought = toBuy.length > 0 && toBuy.every((item) => item.purchased);
   const rows: RowsProps = {
     failed,
     notDeleted,
@@ -876,6 +881,12 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
             {alreadyHave.map((item) => item.name).join(", ")}
           </p>
         </section>
+      ) : null}
+
+      {allBought ? (
+        <div className="px-4 pt-8 pb-4">
+          <Verse reference="Genesis 22:14" />
+        </div>
       ) : null}
 
       <footer className="border-border bg-background fixed inset-x-0 bottom-0 border-t">
