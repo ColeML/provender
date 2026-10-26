@@ -5,10 +5,11 @@ import { useMutation } from "@tanstack/react-query";
 import { isTRPCClientError } from "@trpc/client";
 import { Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { type Ref, useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { splitNames } from "@/components/settings/ingredient-stores";
 import { FIELD } from "@/components/ui/field";
+import { useLongPress } from "@/hooks/use-long-press";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -220,21 +221,65 @@ export function SettingRow({ setting, value, raw = false, onSave }: SettingRowPr
   );
 }
 
+type Open = { kind: "add" } | { kind: "edit"; index: number } | null;
+
+/** The names not already in `taken`, ignoring case, which it then holds too. */
+function unseen(names: string[], taken: Set<string>) {
+  return names.filter((name) => {
+    const folded = name.toLowerCase();
+    const fresh = !taken.has(folded);
+
+    taken.add(folded);
+
+    return fresh;
+  });
+}
+
+interface ListItemButtonProps {
+  item: string;
+  hintId: string;
+  onEdit: () => void;
+  ref: Ref<HTMLButtonElement>;
+}
+
+/** One item's text. A component of its own because each row needs its own hook. */
+function ListItemButton({ item, hintId, onEdit, ref }: ListItemButtonProps) {
+  const press = useLongPress(onEdit);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-describedby={hintId}
+      {...press}
+      className={cn(
+        press.className,
+        "focus-visible:ring-ring min-h-11 w-full py-2.5 text-left text-base break-words focus-visible:ring-3 focus-visible:outline-none",
+      )}
+    >
+      {item}
+    </button>
+  );
+}
+
 /** A comma-separated setting, one ruled line per item, like the Where to buy list. */
 export function ListSettingRow({ setting, value, onSave }: SettingRowProps) {
-  const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState<Open>(null);
   const [draft, setDraft] = useState("");
-  const [addError, setAddError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [failedDelete, setFailedDelete] = useState<number | null>(null);
-  // Shared by add and delete, so a second change never builds on the list the first replaces.
+  // Shared by every change, so a second change never builds on the list the first replaces.
   const [pending, startTransition] = useTransition();
   const labelId = useId();
   const fieldId = useId();
   const hintId = useId();
-  const list = useRef<HTMLUListElement>(null);
+  const editHintId = useId();
+  const itemButtons = useRef<(HTMLButtonElement | null)[]>([]);
+  const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const addButton = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLInputElement>(null);
-  const closedForm = useRef(false);
+  // Set only by closing a form, so the page's first render never takes focus.
+  const closedForm = useRef<Open>(null);
   const deleted = useRef<number | null>(null);
 
   const items = splitNames(value ?? "");
@@ -249,31 +294,72 @@ export function ListSettingRow({ setting, value, onSave }: SettingRowProps) {
       return;
     }
 
-    const buttons = list.current?.querySelectorAll("button");
-
-    (buttons?.[index] ?? buttons?.[index - 1] ?? addButton.current)?.focus();
+    (
+      removeButtons.current[index] ??
+      removeButtons.current[index - 1] ??
+      addButton.current
+    )?.focus();
   }, [value]);
 
   useEffect(() => {
-    // The Add button that opened the form is gone, so focus would otherwise fall back to the page.
-    if (adding) {
+    // The control that opened the form is gone, so focus would otherwise fall back to the page.
+    if (open !== null) {
+      const length = field.current?.value.length ?? 0;
+
       field.current?.focus();
-    } else if (closedForm.current) {
-      closedForm.current = false;
-      addButton.current?.focus();
+      field.current?.setSelectionRange(length, length);
+
+      return;
     }
-  }, [adding]);
+
+    const closed = closedForm.current;
+
+    closedForm.current = null;
+
+    if (closed?.kind === "add") {
+      addButton.current?.focus();
+    } else if (closed?.kind === "edit") {
+      // An edit that only repeats another item removes its row.
+      (
+        itemButtons.current[closed.index] ??
+        itemButtons.current[closed.index - 1] ??
+        addButton.current
+      )?.focus();
+    }
+  }, [open]);
+
+  function show(next: Open, text: string) {
+    setOpen(next);
+    setDraft(text);
+    setError(null);
+    setFailedDelete(null);
+  }
 
   function close() {
-    closedForm.current = true;
-    setDraft("");
-    setAddError(null);
-    setAdding(false);
+    closedForm.current = open;
+    show(null, "");
+  }
+
+  function save(next: string[]) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await onSave(next.join(", "));
+        startTransition(close);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Could not save that. Try again.");
+      }
+    });
   }
 
   function remove(index: number) {
     if (pending) {
       return;
+    }
+
+    // An open edit names its item by position, which this delete is about to shift.
+    if (open?.kind === "edit") {
+      show(null, "");
     }
 
     setFailedDelete(null);
@@ -291,36 +377,90 @@ export function ListSettingRow({ setting, value, onSave }: SettingRowProps) {
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (pending) {
+    if (pending || open === null) {
       return;
     }
 
-    const seen = new Set(items.map((item) => item.toLowerCase()));
-    const added = splitNames(draft).filter((item) => {
-      const folded = item.toLowerCase();
-      const fresh = !seen.has(folded);
+    const typed = splitNames(draft);
 
-      seen.add(folded);
+    if (open.kind === "add") {
+      const added = unseen(typed, new Set(items.map((item) => item.toLowerCase())));
 
-      return fresh;
-    });
+      if (added.length === 0) {
+        close();
+      } else {
+        save([...items, ...added]);
+      }
 
-    if (added.length === 0) {
+      return;
+    }
+
+    const { index } = open;
+
+    // A blank edit keeps the item; deleting is the trash button's job.
+    if (typed.length === 0 || (typed.length === 1 && typed[0] === items[index])) {
       close();
       return;
     }
 
-    setAddError(null);
-    setFailedDelete(null);
-    startTransition(async () => {
-      try {
-        await onSave([...items, ...added].join(", "));
-        startTransition(close);
-      } catch (caught) {
-        setAddError(caught instanceof Error ? caught.message : "Could not save that. Try again.");
-      }
-    });
+    const others = items.filter((_, at) => at !== index);
+    const replacement = unseen(typed, new Set(others.map((item) => item.toLowerCase())));
+
+    save([...items.slice(0, index), ...replacement, ...items.slice(index + 1)]);
   }
+
+  const form = (
+    <form
+      onSubmit={submit}
+      className={cn("flex flex-col gap-3", open?.kind === "add" ? "mt-3" : "py-3")}
+    >
+      <div className="flex flex-col gap-1">
+        <label htmlFor={fieldId} className="text-muted-foreground text-xs">
+          {setting.label}
+        </label>
+        <input
+          id={fieldId}
+          type="text"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              close();
+            }
+          }}
+          placeholder={setting.placeholder}
+          aria-describedby={setting.hint === undefined ? undefined : hintId}
+          autoComplete="off"
+          ref={field}
+          className={FIELD}
+        />
+        {setting.hint === undefined ? null : (
+          <p id={hintId} className="text-muted-foreground text-xs">
+            {setting.hint}
+          </p>
+        )}
+      </div>
+
+      {error === null ? null : (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className={cn(BUTTON, "bg-primary text-primary-foreground")}
+        >
+          Save
+        </button>
+        <button type="button" onClick={close} className={cn(BUTTON, "text-muted-foreground")}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
 
   return (
     <li className="py-2">
@@ -333,84 +473,59 @@ export function ListSettingRow({ setting, value, onSave }: SettingRowProps) {
       </div>
 
       {items.length === 0 ? null : (
-        <ul
-          ref={list}
-          aria-labelledby={labelId}
-          className="divide-border border-border divide-y border-y"
-        >
-          {items.map((item, index) => (
-            // Index keys: a stored list can name the same item twice.
-            <li key={index} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 py-2.5">
-                <span className="block text-base break-words">{item}</span>
-                {failedDelete === index ? (
-                  <span role="alert" className="text-destructive block text-xs">
-                    Not deleted — try again
-                  </span>
-                ) : null}
-              </span>
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                aria-disabled={pending}
-                aria-label={`Remove ${item} from ${noun}`}
-                className={cn(PENCIL, "aria-disabled:opacity-40")}
-              >
-                <Trash2 aria-hidden className="size-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p id={editHintId} className="sr-only">
+            Long press or press Enter to edit.
+          </p>
+          <ul aria-labelledby={labelId} className="divide-border border-border divide-y border-y">
+            {items.map((item, index) => (
+              // Index keys: a stored list can name the same item twice, and a position is the
+              // identity an edit or delete acts on.
+              <li key={index} className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  {open?.kind === "edit" && open.index === index ? (
+                    form
+                  ) : (
+                    <ListItemButton
+                      item={item}
+                      hintId={editHintId}
+                      onEdit={() => show({ kind: "edit", index }, item)}
+                      ref={(element) => {
+                        itemButtons.current[index] = element;
+                      }}
+                    />
+                  )}
+                  {failedDelete === index ? (
+                    <p role="alert" className="text-destructive pb-2 text-xs">
+                      Not deleted — try again
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  ref={(element) => {
+                    removeButtons.current[index] = element;
+                  }}
+                  type="button"
+                  onClick={() => remove(index)}
+                  aria-disabled={pending}
+                  aria-label={`Remove ${item} from ${noun}`}
+                  className={cn(PENCIL, "aria-disabled:opacity-40")}
+                >
+                  <Trash2 aria-hidden className="size-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
-      {adding ? (
-        <form onSubmit={submit} className="mt-3 flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={fieldId} className="text-muted-foreground text-xs">
-              {setting.label}
-            </label>
-            <input
-              id={fieldId}
-              type="text"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={setting.placeholder}
-              aria-describedby={setting.hint === undefined ? undefined : hintId}
-              autoComplete="off"
-              ref={field}
-              className={FIELD}
-            />
-            {setting.hint === undefined ? null : (
-              <p id={hintId} className="text-muted-foreground text-xs">
-                {setting.hint}
-              </p>
-            )}
-          </div>
-
-          {addError === null ? null : (
-            <p role="alert" className="text-destructive text-sm">
-              {addError}
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className={cn(BUTTON, "bg-primary text-primary-foreground")}
-            >
-              Save
-            </button>
-            <button type="button" onClick={close} className={cn(BUTTON, "text-muted-foreground")}>
-              Cancel
-            </button>
-          </div>
-        </form>
+      {open?.kind === "add" ? (
+        form
       ) : (
         <button
           ref={addButton}
           type="button"
-          onClick={() => setAdding(true)}
+          onClick={() => show({ kind: "add" }, "")}
           aria-label={`Add to ${noun}`}
           className="focus-visible:ring-ring text-muted-foreground mt-1 min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
         >
