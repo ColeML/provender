@@ -416,7 +416,7 @@ export function ListSettingRow({ setting, value, onSave }: SettingRowProps) {
     >
       <div className="flex flex-col gap-1">
         <label htmlFor={fieldId} className="text-muted-foreground text-xs">
-          {setting.label}
+          {open?.kind === "edit" ? `Edit ${setting.label}` : setting.label}
         </label>
         <input
           id={fieldId}

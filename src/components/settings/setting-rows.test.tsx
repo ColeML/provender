@@ -264,8 +264,8 @@ function longPress(element: HTMLElement) {
 
 async function edit(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
   longPress(item(from));
-  await user.clear(screen.getByRole("textbox", { name: "Equipment" }));
-  await user.type(screen.getByRole("textbox", { name: "Equipment" }), to);
+  await user.clear(screen.getByRole("textbox", { name: "Edit Equipment" }));
+  await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), to);
   await user.click(screen.getByRole("button", { name: "Save" }));
 }
 
@@ -469,7 +469,7 @@ describe("ListSettingRow editing", () => {
 
     longPress(item("stovetop"));
 
-    const field = screen.getByRole("textbox", { name: "Equipment" });
+    const field = screen.getByRole("textbox", { name: "Edit Equipment" });
 
     expect(field).toHaveValue("stovetop");
     expect(field).toHaveFocus();
@@ -490,13 +490,13 @@ describe("ListSettingRow editing", () => {
     item("oven").focus();
     await user.keyboard("{Enter}");
 
-    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("oven");
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("oven");
 
     await user.keyboard("{Escape}");
     item("stovetop").focus();
     await user.keyboard(" ");
 
-    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("stovetop");
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("stovetop");
   });
 
   it("saves an edit in its place", async () => {
@@ -552,7 +552,7 @@ describe("ListSettingRow editing", () => {
     const { user, onSave } = setupList("oven");
 
     longPress(item("oven"));
-    await user.type(screen.getByRole("textbox", { name: "Equipment" }), "  ");
+    await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), "  ");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSave).not.toHaveBeenCalled();
@@ -573,7 +573,7 @@ describe("ListSettingRow editing", () => {
 
     item("oven").focus();
     await user.keyboard("{Enter}");
-    await user.type(screen.getByRole("textbox", { name: "Equipment" }), "s");
+    await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), "s");
     await user.keyboard("{Escape}");
 
     expect(onSave).not.toHaveBeenCalled();
@@ -599,7 +599,7 @@ describe("ListSettingRow editing", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not save Equipment. Try again.",
     );
-    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("ovens");
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("ovens");
   });
 
   it("shows the setting's hint in the edit field", () => {
@@ -607,7 +607,7 @@ describe("ListSettingRow editing", () => {
 
     longPress(item("oven"));
 
-    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveAccessibleDescription(
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveAccessibleDescription(
       "Cite a device only if the recipe uses it.",
     );
   });
@@ -620,7 +620,7 @@ describe("ListSettingRow editing", () => {
     longPress(item("oven"));
 
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
-    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("oven");
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("oven");
 
     await user.click(screen.getByRole("button", { name: "Add to equipment" }));
 
@@ -632,11 +632,11 @@ describe("ListSettingRow editing", () => {
     const { user } = setupList("oven, wok");
 
     longPress(item("oven"));
-    await user.type(screen.getByRole("textbox", { name: "Equipment" }), "s");
+    await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), "s");
     longPress(item("wok"));
 
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
-    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("wok");
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("wok");
   });
 
   it("closes an open edit when another item is deleted, since the rows shift", async () => {
