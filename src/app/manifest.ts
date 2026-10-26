@@ -9,8 +9,10 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Weekly meal planning, provisioned.",
     start_url: "/",
     display: "standalone",
-    background_color: THEME_COLORS.light,
-    theme_color: THEME_COLORS.light,
+    // Android colors an installed app's navigation bar from theme_color and Chrome has no
+    // dark-mode variant, so it is the dark ground, whose bar icons are legible in either theme.
+    background_color: THEME_COLORS.dark,
+    theme_color: THEME_COLORS.dark,
     // The glyph sits inside the maskable safe zone, so one image serves both purposes.
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
