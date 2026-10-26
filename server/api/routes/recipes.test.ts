@@ -57,6 +57,7 @@ describe("POST /v1/recipes", () => {
       title: "Chicken Fajitas",
       tags: ["mexican"],
       rating: null,
+      notes: [],
     });
   });
 
@@ -247,6 +248,21 @@ describe("PATCH /v1/recipes/{recipe}", () => {
       title: "Beef Fajitas",
       baseServings: 8,
     });
+  });
+
+  it("replaces the notes named in the mask, normalized, and returns them", async () => {
+    const response = await patch("updateMask=notes", {
+      notes: ["Double the sauce", " ", "double the SAUCE"],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ notes: ["Double the sauce"] });
+  });
+
+  it("rejects notes that are not a list of strings", async () => {
+    const response = await patch("updateMask=notes", { notes: "Double the sauce" });
+
+    expect(response.status).toBe(400);
   });
 
   it("rejects a mask naming an unknown field instead of silently doing nothing", async () => {
