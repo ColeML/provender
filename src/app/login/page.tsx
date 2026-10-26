@@ -1,11 +1,14 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 
+import { FIELD } from "@/components/ui/field";
 import { LogoMark } from "@/components/ui/logo-mark";
+import { Verse } from "@/components/ui/verse";
 import { Wordmark } from "@/components/ui/wordmark";
 import { isInternalPath } from "@/lib/login-url";
 
 import { signIn } from "../../../auth";
+import { SubmitButton } from "./submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -38,39 +41,44 @@ export default async function Login({ searchParams }: Props) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-8">
-      <LogoMark height={96} className="mb-4 rounded-2xl dark:p-2" />
-      <h1 className="text-2xl">
-        <Wordmark />
-      </h1>
-      <p className="text-muted-foreground mt-1 text-sm">Enter the household password.</p>
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col p-8">
+      <div className="my-auto">
+        <header className="flex flex-col items-center border-y py-8 text-center">
+          <LogoMark height={96} className="mb-4 rounded-2xl dark:p-2" />
+          <h1 className="text-2xl">
+            <Wordmark />
+          </h1>
+          {error ? (
+            <p id="login-error" role="alert" className="text-destructive mt-1 text-sm">
+              That password is not right.
+            </p>
+          ) : (
+            <p className="text-muted-foreground mt-1 text-sm">Enter the household password.</p>
+          )}
+        </header>
 
-      <form action={authenticate} className="mt-8 flex flex-col gap-3">
-        <label className="text-sm font-medium" htmlFor="password">
-          Password
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className="border-muted-foreground bg-background focus-visible:ring-ring h-11 rounded-lg border px-3 text-base focus-visible:ring-3 focus-visible:outline-none"
-        />
+        <form action={authenticate} className="mt-8 flex flex-col gap-3">
+          <label className="text-sm font-medium" htmlFor="password">
+            Password
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "login-error" : undefined}
+            className={FIELD}
+          />
 
-        {error ? (
-          <p role="alert" className="text-destructive text-sm">
-            That password is not right.
-          </p>
-        ) : null}
+          <SubmitButton />
+        </form>
+      </div>
 
-        <button
-          type="submit"
-          className="bg-primary text-primary-foreground mt-2 h-11 rounded-lg text-sm font-medium"
-        >
-          Sign in
-        </button>
-      </form>
+      <footer className="mt-12 text-center">
+        <Verse reference="Genesis 22:14" />
+      </footer>
     </main>
   );
 }
