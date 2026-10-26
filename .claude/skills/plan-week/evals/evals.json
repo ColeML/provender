@@ -156,6 +156,49 @@
       ],
       "baseline": "5/5 control reps excluded sheet-pan-gnocchi and butter-chicken, filled the novelty quota with chicken-shawarma-bowls plus one scraped dish, and left beef-stew out as blocked.",
       "result": "5/5 reps on the new step 9 excluded sheet-pan-gnocchi (unplanned, rating 1) and butter-chicken (rating 2), filled the novelty quota with chicken-shawarma-bowls plus one scraped dish, and left beef-stew out as blocked. Same as the control: the edit is a factual correction, not a behavior change."
+    },
+    {
+      "id": "recipe-note-asking-for-lasting-change-is-offered",
+      "added": "2026-10-25",
+      "source": "Recipes carry household notes (#206), and GET /planning/rotation returns them. Step 2 rule 10, step 5 and step 6 were added for them.",
+      "type": "regression",
+      "scenario": "evals/scenarios/recipe-notes.md",
+      "control": "The skill before #206, given the same rotation rows with notes.",
+      "agents_line": "The control plus one prepended line: weigh rotation notes when choosing, carry a relevant one into the day's note, and raise one asking for a lasting change to amounts or ingredients as an offer to change the saved recipe.",
+      "reps": 5,
+      "asserts": [
+        "teriyaki (eligible, rating 5, note 'Make 1.5x, we always run out') is planned, and step 5 offers to change the saved recipe's amounts, asking rather than doing it.",
+        "greek-chicken-sheet-pan (note 'Skip the olives, nobody eats them') is planned, and step 5 offers to remove the olives from the saved recipe.",
+        "No API write is sent before approval.",
+        "chicken-fajitas is planned and its day carries the rotisserie-chicken tip.",
+        "baked-ziti (note 'Only when it's cold out') is not planned in a mild week."
+      ],
+      "canaries": [
+        "butter-chicken (rating 2) is not planned.",
+        "beef-stew (blocked) is not planned and is offered as a pull-from option."
+      ],
+      "decoys": [
+        "garlic-bread's note ('broil 2 more minutes') draws no offer to change the saved recipe."
+      ],
+      "baseline": "Control, 5 reps: all planned teriyaki and the Greek chicken. Two offered, as an aside, to scale teriyaki first; one said it would not save the recipe at 12; two only mentioned the note. None offered to remove the olives; all five put 'skip the olives' in that day only. All five carried the rotisserie tip and skipped the ziti. No writes before approval.",
+      "result": "Edited skill, 5 reps: 5/5 offered both recipe changes as questions, 5/5 carried the rotisserie tip, 5/5 skipped the ziti, 0 writes before approval, 0 offers on garlic bread. agents_line arm, 5 reps: the same 5/5 on every assert. The skill text ships anyway, because it also carries the post-approval step (apply, then PATCH the note away) that a step-5 eval cannot reach, and this repo keeps workflow steps in SKILL.md only."
+    },
+    {
+      "id": "approved-recipe-note-is-written-then-removed",
+      "added": "2026-10-25",
+      "source": "Review of #206: step 6 said 'follow scale-recipe to change the amounts, or PATCH the ingredients', but scale-recipe writes nothing, and the notes PATCH replaces the whole list.",
+      "type": "regression",
+      "scenario": "evals/scenarios/recipe-notes-approved.md",
+      "control": "Step 6 as first written for #206.",
+      "reps": 5,
+      "asserts": [
+        "teriyaki's scaled amounts are written with PATCH ?updateMask=baseServings,ingredients before its notes PATCH.",
+        "greek-chicken-sheet-pan's ingredients are written without the olives before its notes PATCH.",
+        "Each notes PATCH is built from a fresh GET /recipes/<recipe>, so 'Kids want extra sauce on the side' and 'Double the lemon' survive.",
+        "'Double the lemon', never offered, is not applied."
+      ],
+      "baseline": "Control, 5 reps: 5/5 passed every assert, because the scenario shows each response. 3/5 said they were guessing the PATCH paths or field names, and 1 sent PATCH /plans/2026-W44/days/2026-10-27?updateMask=servings, an endpoint that does not exist.",
+      "result": "Edited step 6, 5 reps: 5/5 passed every assert, with no guessed paths and no calls outside the API. The edit is a correction: it names the writes the control had to guess."
     }
   ]
 }

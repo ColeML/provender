@@ -55,6 +55,7 @@ function toRecipeResource(recipe: Recipe) {
     tags: recipe.tags,
     instructions: recipe.instructions,
     rating: recipe.rating,
+    notes: recipe.notes,
     createTime: recipe.createTime.toISOString(),
     updateTime: recipe.updateTime.toISOString(),
   };
@@ -84,6 +85,7 @@ const UPDATABLE_FIELDS = new Set([
   "tags",
   "instructions",
   "rating",
+  "notes",
   "ingredients",
 ]);
 
@@ -232,6 +234,7 @@ recipesRoutes.openapi(
           "application/json": {
             schema: RecipeInputSchema.partial().extend({
               rating: z.number().int().min(1).max(5).nullish(),
+              notes: z.array(z.string()).optional(),
             }),
           },
         },

@@ -29,6 +29,7 @@ export interface RotationEntry {
   timesPlanned: number;
   daysUntilEligible: number | null;
   rating: number | null;
+  notes: string[];
 }
 
 const TIER_ORDER: Record<RotationTier, number> = { unplanned: 0, eligible: 1, blocked: 2 };
@@ -78,6 +79,7 @@ export async function planningRotation(
       costEstimate: recipe.costEstimate === null ? null : Number(recipe.costEstimate),
       baseServings: recipe.baseServings,
       rating: recipe.rating,
+      notes: recipe.notes,
     };
 
     if (!used) {

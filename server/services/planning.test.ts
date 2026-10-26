@@ -199,4 +199,13 @@ describe("planningRotation", () => {
 
     expect(await tierOf("ziti")).toMatchObject({ tier: "unplanned", rating: 2 });
   });
+
+  it("reports the recipe's notes", async () => {
+    await recipe(H, "tacos", "Tacos");
+    await recipe(H, "ziti", "Baked Ziti");
+    await updateRecipe(H, "tacos", ["notes"], { notes: ["Warm the tortillas"] }, undefined, db);
+
+    expect(await tierOf("tacos")).toMatchObject({ notes: ["Warm the tortillas"] });
+    expect(await tierOf("ziti")).toMatchObject({ notes: [] });
+  });
 });

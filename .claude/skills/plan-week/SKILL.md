@@ -53,10 +53,15 @@ Apply in order:
 9. **Ratings.** Each rotation row carries `rating`, the household's 1–5 rating of the recipe.
    Drop mains rated 1–2 from the pool unless the user asks for one; favor 4–5. `rating: null`
    means unrated, not low-rated.
-10. **Rotation for the rest.** Order whatever the earlier rules left in the pool — oldest
+10. **Recipe notes.** Each rotation row carries `notes`, the household's tips on that recipe
+    ("use a rotisserie chicken", "only when it's cold out"). Weigh them like ratings when
+    choosing, and carry one into the day's note when it changes how the day goes: a shortcut, a
+    longer time. A note asking for a lasting change to amounts or ingredients ("make 1.5x", "skip
+    the olives") is not followed here. Raise it in step 5.
+11. **Rotation for the rest.** Order whatever the earlier rules left in the pool — oldest
     `lastPlanned` first by default, overridden by weather, time or ingredient overlap. For mains, do
     not reach back into a tier or rating excluded above.
-11. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
+12. **Ingredient overlap.** Bias toward shared ingredients across the week — it cuts cost and
     waste.
 
 ## 3. Source the recipes
@@ -73,7 +78,8 @@ Then check the draft's slug against the `recipes` list from step 1, which is the
 - **Not there.** Keep the draft. It will be committed with the week in step 6.
 
 Never `PATCH` a recipe from here. A slug that collides belongs to a dish the household already
-owns, and rewriting it changes something nobody asked to change.
+owns, and rewriting it changes something nobody asked to change. Step 6 has the one exception,
+and it needs the household's yes.
 
 Rotate the source across the week and across weeks — new dishes that all come from one site are
 one house style, not exploration:
@@ -110,6 +116,8 @@ arithmetic and mark which lines came from `./scripts/prov GET /prices` rather th
 
 One line per day: the main, the side, the time, the cost, and why that day. Then the total against
 the budget. Then one line per note: the day that answers it, or why it went unhonored.
+Then one line per recipe note asking for a lasting change: what it asks, and an offer to change
+the saved recipe.
 
 Wait for approval. Write nothing yet.
 
@@ -158,6 +166,17 @@ check missed it, most likely a same-dish-different-slug case add-recipe left to 
 entry from `recipes`, point the day that named it at the existing id instead, and re-commit.
 `replaceExistingDays` does not apply here; it only gates the days check, so setting it will not
 clear this error and retrying unchanged just repeats it.
+
+**A recipe note the household said yes to.** After the commit, write the change to the recipe:
+
+- An amount ("make 1.5x"): follow **scale-recipe** for the corrected list, which writes nothing,
+  then `PATCH /recipes/<recipe>?updateMask=baseServings,ingredients` with it.
+- An ingredient ("skip the olives"): `PATCH /recipes/<recipe>?updateMask=ingredients` with the
+  edited list.
+
+Once that write succeeds, `GET /recipes/<recipe>` and `PATCH /recipes/<recipe>?updateMask=notes`
+with its current `notes` minus that one. The PATCH replaces the list, and the household may have
+added a note since step 1.
 
 ## 7. Hand off
 

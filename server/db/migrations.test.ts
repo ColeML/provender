@@ -157,3 +157,30 @@ describe("the recipe rating migration", () => {
     await client.close();
   }, 60_000);
 });
+
+describe("the recipe notes migration", () => {
+  it("gives every existing recipe an empty list of notes", async () => {
+    const client = new PGlite();
+    const files = await migrationFiles();
+    const notes = files.findIndex((file) => file.includes("add_recipe_notes"));
+
+    expect(notes).toBeGreaterThan(0);
+
+    for (const file of files.slice(0, notes)) {
+      await apply(client, file);
+    }
+
+    await client.exec(`
+      INSERT INTO households (id, name) VALUES ('loewer', 'Loewer') ON CONFLICT (id) DO NOTHING;
+      INSERT INTO recipes (household_id, id, title, base_servings) VALUES ('loewer', 'tacos', 'Tacos', 4);
+    `);
+
+    await apply(client, files[notes]);
+
+    const recipes = await client.query<{ notes: string[] }>("SELECT notes FROM recipes");
+
+    expect(recipes.rows).toEqual([{ notes: [] }]);
+
+    await client.close();
+  }, 60_000);
+});

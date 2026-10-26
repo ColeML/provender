@@ -57,6 +57,7 @@ describe("POST /v1/recipes", () => {
       title: "Chicken Fajitas",
       tags: ["mexican"],
       rating: null,
+      notes: [],
     });
   });
 
@@ -247,6 +248,34 @@ describe("PATCH /v1/recipes/{recipe}", () => {
       title: "Beef Fajitas",
       baseServings: 8,
     });
+  });
+
+  it("replaces the notes named in the mask, normalized, and returns them", async () => {
+    const response = await patch("updateMask=notes", {
+      notes: ["Double the sauce", " ", "double the SAUCE"],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ notes: ["Double the sauce"] });
+  });
+
+  it("rejects notes that are not a list of strings", async () => {
+    expect((await patch("updateMask=notes", { notes: "Double the sauce" })).status).toBe(400);
+    expect((await patch("updateMask=notes", { notes: [1] })).status).toBe(400);
+  });
+
+  it("clears the notes when the mask names them and the body leaves them out", async () => {
+    await patch("updateMask=notes", { notes: ["Double the sauce"] });
+
+    const response = await patch("updateMask=notes", {});
+
+    await expect(response.json()).resolves.toMatchObject({ notes: [] });
+  });
+
+  it("ignores notes in the body when the mask does not name them", async () => {
+    const response = await patch("updateMask=title", { title: "Beef Fajitas", notes: ["Ignored"] });
+
+    await expect(response.json()).resolves.toMatchObject({ title: "Beef Fajitas", notes: [] });
   });
 
   it("rejects a mask naming an unknown field instead of silently doing nothing", async () => {

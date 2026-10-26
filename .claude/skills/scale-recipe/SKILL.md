@@ -10,6 +10,7 @@ The API does the arithmetic. You correct what does not scale linearly.
 ## 1. Scale
 
 ```bash
+./scripts/prov GET /recipes/<recipe>
 ./scripts/prov GET /recipes/<recipe>/ingredients
 ./scripts/prov POST '/recipes/<recipe>:scale' '{"targetServings":<n>}'
 ```
@@ -19,6 +20,9 @@ started from. Scaling writes nothing. Volumes snap to measurable amounts and may
 `4/9 cup` comes back as `7⅛ tbsp`.
 
 For a recipe not in the library, scale it by hand at the factor and apply the same corrections.
+
+Read the recipe's `notes`. One like "we eat double" bears on the target, so mention it if the
+target ignores it. One naming an amount ("go light on the cayenne") still applies after scaling.
 
 ## 2. Correct the linear output
 
@@ -34,8 +38,8 @@ Multiplying everything by the factor is wrong for:
 - **An ingredient that is both the seasoning and the sauce** (soy sauce, stock, a marinade) keeps
   its volume: the food needs the liquid to coat. Cut the salt by choosing a lower-sodium version,
   not a smaller pour.
-- **Notes** were written against the base servings, so "start with 4-5 tbsp" is wrong the moment
-  the amount changes. Re-read every note and restate it at the new count.
+- **Ingredient notes** were written against the base servings, so "start with 4-5 tbsp" is wrong
+  the moment the amount changes. Re-read every note and restate it at the new count.
 
 ## 3. Adjust time and vessel
 

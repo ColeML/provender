@@ -62,6 +62,7 @@ export const RecipeSchema = z
     tags: z.array(z.string()),
     instructions: z.array(z.string()),
     rating: z.number().int().min(1).max(5).nullable(),
+    notes: z.array(z.string()).openapi({ example: ["Use a rotisserie chicken"] }),
     createTime: z.string().openapi({ example: "2026-09-07T03:00:00.000Z" }),
     updateTime: z.string(),
   })

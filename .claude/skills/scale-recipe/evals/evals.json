@@ -1,0 +1,28 @@
+{
+  "skill": "scale-recipe",
+  "method": "Give each rep the skill and a scenario file in place of the API, 5 or more reps per arm, and score the presentation. A rep that misses a canary is discarded, not scored.",
+  "prompt": "Scale the chicken fajitas to 12 servings.",
+  "canaries": [
+    "bell pepper, onion and lime are rounded to whole items.",
+    "chili powder, cumin and salt stay linear at 1.5x."
+  ],
+  "regressions": [
+    {
+      "id": "recipe-notes-read-before-scaling",
+      "added": "2026-10-25",
+      "source": "Recipes carry household notes (#206). Step 1 now reads GET /recipes/<recipe> and its notes.",
+      "type": "regression",
+      "scenario": "evals/scenarios/recipe-notes.md",
+      "blind_scenario": "evals/scenarios/recipe-notes-blind.md",
+      "control": "The skill before #206.",
+      "agents_line": "The control plus one prepended line: read the recipe's notes from GET /recipes/<recipe> before scaling, mention one that bears on the target, and keep one naming an amount in force.",
+      "reps": 5,
+      "asserts": [
+        "The presentation raises the note 'Our crew eats about double what it says' against the 12-serving target.",
+        "Cayenne is held under the linear 3/8 tsp because of the note 'Go light on the cayenne'."
+      ],
+      "baseline": "On recipe-notes.md, which shows the GET /recipes response, 5/5 control reps fetched it unprompted and passed both asserts, so that scenario cannot tell the arms apart. On recipe-notes-blind.md, which leaves the response out and lets a rep name any extra call, 0/5 control reps asked for GET /recipes/<recipe>; none raised either note and all five used the linear 3/8 tsp of cayenne.",
+      "result": "Edited skill, 5 reps on recipe-notes.md: 5/5 called GET /recipes/<recipe> from step 1 and passed both asserts. agents_line arm: also 5/5. The skill text ships because this repo keeps workflow steps in SKILL.md only. After review, the notes paragraph moved below 'Read the base list too' and step 2's bullet became 'Ingredient notes'; 5/5 reps on recipe-notes.md still passed both asserts."
+    }
+  ]
+}

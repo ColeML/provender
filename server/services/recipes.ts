@@ -339,6 +339,25 @@ export async function insertRecipe(
   return recipe;
 }
 
+/** What every write stores: trimmed, no blanks, and no note twice when only the case differs. */
+export function normalizeNotes(notes: string[]) {
+  const seen = new Set<string>();
+
+  return notes
+    .map((note) => note.trim())
+    .filter((note) => {
+      const folded = note.toLowerCase();
+
+      if (note === "" || seen.has(folded)) {
+        return false;
+      }
+
+      seen.add(folded);
+
+      return true;
+    });
+}
+
 /**
  * Partial update (AIP-134). Only the fields named in `updateMask` are touched.
  *
@@ -349,7 +368,7 @@ export async function updateRecipe(
   householdId: string,
   recipeId: string,
   updateMask: string[],
-  input: Partial<RecipeInput> & { rating?: number | null },
+  input: Partial<RecipeInput> & { rating?: number | null; notes?: string[] },
   ingredients: IngredientInput[] | undefined,
   db: Database = defaultDb,
 ) {
@@ -385,6 +404,7 @@ export async function updateRecipe(
     if (fields.has("tags")) patch.tags = input.tags ?? [];
     if (fields.has("instructions")) patch.instructions = input.instructions ?? [];
     if (fields.has("rating")) patch.rating = input.rating ?? null;
+    if (fields.has("notes")) patch.notes = normalizeNotes(input.notes ?? []);
 
     const [recipe] = await tx
       .update(schema.recipes)
