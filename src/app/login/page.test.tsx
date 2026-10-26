@@ -43,6 +43,12 @@ describe("login", () => {
     },
   );
 
+  it("loads the logo up front, since it is the first thing on the page", async () => {
+    const { container } = render(await Login({ searchParams: Promise.resolve({}) }));
+
+    expect(container.querySelector("img")).not.toHaveAttribute("loading", "lazy");
+  });
+
   it("says the password is wrong after a failed sign-in", async () => {
     render(await Login({ searchParams: Promise.resolve({ error: "1" }) }));
 

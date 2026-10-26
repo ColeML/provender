@@ -44,7 +44,7 @@ export default async function Login({ searchParams }: Props) {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col p-8">
       <div className="my-auto">
         <header className="flex flex-col items-center border-y py-8 text-center">
-          <LogoMark height={96} className="mb-4 rounded-2xl dark:p-2" />
+          <LogoMark height={96} loading="eager" className="mb-4 rounded-2xl dark:p-2" />
           <h1 className="text-2xl">
             <Wordmark />
           </h1>

@@ -12,13 +12,22 @@ export const LOGO_MARK_SIZE = { width: 238, height: 288 };
  * sits on a parchment tile: on the dark ground its teal loses contrast and its white details,
  * which are transparent in the image, turn dark.
  */
-export function LogoMark({ height, className }: { height: number; className?: string }) {
+export function LogoMark({
+  height,
+  loading,
+  className,
+}: {
+  height: number;
+  loading?: "eager" | "lazy";
+  className?: string;
+}) {
   return (
     <Image
       src="/logo-mark.png"
       alt=""
       width={Math.round((height * LOGO_MARK_SIZE.width) / LOGO_MARK_SIZE.height)}
       height={height}
+      loading={loading}
       className={cn("dark:bg-foreground box-content", className)}
     />
   );
