@@ -167,9 +167,16 @@ entry from `recipes`, point the day that named it at the existing id instead, an
 `replaceExistingDays` does not apply here; it only gates the days check, so setting it will not
 clear this error and retrying unchanged just repeats it.
 
-**A recipe note the household said yes to.** After the commit, follow **scale-recipe** to change
-the amounts, or `PATCH` the ingredients. Then `PATCH /recipes/<recipe>?updateMask=notes` with that
-note removed, so it is never applied twice.
+**A recipe note the household said yes to.** After the commit, write the change to the recipe:
+
+- An amount ("make 1.5x"): follow **scale-recipe** for the corrected list, which writes nothing,
+  then `PATCH /recipes/<recipe>?updateMask=baseServings,ingredients` with it.
+- An ingredient ("skip the olives"): `PATCH /recipes/<recipe>?updateMask=ingredients` with the
+  edited list.
+
+Once that write succeeds, `GET /recipes/<recipe>` and `PATCH /recipes/<recipe>?updateMask=notes`
+with its current `notes` minus that one. The PATCH replaces the list, and the household may have
+added a note since step 1.
 
 ## 7. Hand off
 
