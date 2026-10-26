@@ -10,9 +10,13 @@ The API does the arithmetic. You correct what does not scale linearly.
 ## 1. Scale
 
 ```bash
+./scripts/prov GET /recipes/<recipe>
 ./scripts/prov GET /recipes/<recipe>/ingredients
 ./scripts/prov POST '/recipes/<recipe>:scale' '{"targetServings":<n>}'
 ```
+
+Read the recipe's `notes`. One like "we eat double" bears on the target, so mention it if the
+target ignores it. One naming an amount ("go light on the cayenne") still applies after scaling.
 
 Read the base list too — step 2 is you overriding this arithmetic, so you need the numbers it
 started from. Scaling writes nothing. Volumes snap to measurable amounts and may change unit —

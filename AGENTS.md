@@ -95,7 +95,8 @@ agents read them as instructions):
 
 - **Recipes are stored at the servings you'll cook**, not the source's yield. The shopping step
   reads quantities as-is and never re-scales. Single-batch dishes (a sheet-pan pizza, a whole
-  roast) keep their natural yield.
+  roast) keep their natural yield. A recipe note asking for more or less ("make 1.5x") is applied
+  to the recipe and then removed, never left for the shopping step to miss.
 - **Repeat-avoidance applies to mains only.** Sides may repeat freely, and only mains go to
   `mealHistory`.
 - **History records what was planned, not what was eaten.** A dish there may never have been
