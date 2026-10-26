@@ -119,6 +119,31 @@ describe("useLongPress", () => {
     expect(fireEvent.contextMenu(button)).toBe(false);
   });
 
+  it("buzzes once the page has had a tap, and stays quiet before one", () => {
+    const vibrate = vi.fn(() => true);
+    const activation = { hasBeenActive: false };
+
+    vi.stubGlobal("navigator", { ...navigator, vibrate, userActivation: activation });
+
+    try {
+      const { onLongPress, button } = setup();
+
+      fireEvent.pointerDown(button, touch);
+      vi.advanceTimersByTime(500);
+
+      expect(onLongPress).toHaveBeenCalledTimes(1);
+      expect(vibrate).not.toHaveBeenCalled();
+
+      activation.hasBeenActive = true;
+      fireEvent.pointerDown(button, touch);
+      vi.advanceTimersByTime(500);
+
+      expect(vibrate).toHaveBeenCalledExactlyOnceWith(10);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("clears the timer when the element unmounts", () => {
     const { onLongPress, button, view } = setup();
 

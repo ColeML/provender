@@ -50,7 +50,9 @@ export function useLongPress(
         timer.current = null;
         origin.current = null;
 
-        if ("vibrate" in navigator) {
+        // Chrome blocks vibrate and logs an error until the page has had a tap, and a touch
+        // still held down does not count as one yet.
+        if ("vibrate" in navigator && navigator.userActivation?.hasBeenActive) {
           navigator.vibrate(10);
         }
 
