@@ -77,7 +77,7 @@ export default async function Login({ searchParams }: Props) {
       </div>
 
       <footer className="mt-12 text-center">
-        <Verse reference="Genesis 22:14" />
+        <Verse reference="Psalm 111:5" />
       </footer>
     </main>
   );

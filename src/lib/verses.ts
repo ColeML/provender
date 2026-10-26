@@ -10,6 +10,7 @@ export const CSB_VERSES = {
   "1 Timothy 6:17":
     "Instruct those who are rich in the present age not to be arrogant or to set their hope on the uncertainty of wealth, but on God, who richly provides us with all things to enjoy.",
   "Psalm 23:1": "The LORD is my shepherd; I have what I need.",
+  "Psalm 111:5": "He has provided food for those who fear him; he remembers his covenant forever.",
   "Exodus 16:4":
     "Then the LORD said to Moses, “I am going to rain bread from heaven for you. The people are to go out each day and gather enough for that day. This way I will test them to see whether or not they will follow my instructions.",
 } as const;

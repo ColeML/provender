@@ -49,6 +49,12 @@ describe("login", () => {
     expect(container.querySelector("img")).not.toHaveAttribute("loading", "lazy");
   });
 
+  it("closes with a verse no other page uses", async () => {
+    render(await Login({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText("Psalm 111:5 · CSB")).toBeInTheDocument();
+  });
+
   it("says the password is wrong after a failed sign-in", async () => {
     render(await Login({ searchParams: Promise.resolve({ error: "1" }) }));
 
