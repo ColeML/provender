@@ -53,6 +53,8 @@ export const recipes = pgTable(
     instructions: text("instructions").array().notNull().default([]),
     /** 1–5. Null means unrated, not low-rated. */
     rating: integer("rating"),
+    /** The household's tips, one per element, in the order they were added. */
+    notes: text("notes").array().notNull().default([]),
     createTime: timestamp("create_time", { withTimezone: true }).notNull().defaultNow(),
     updateTime: timestamp("update_time", { withTimezone: true }).notNull().defaultNow(),
   },

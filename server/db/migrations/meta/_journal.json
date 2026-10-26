@@ -113,6 +113,13 @@
       "when": 1792362010678,
       "tag": "0015_add_stores",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792979317591,
+      "tag": "0016_add_recipe_notes",
+      "breakpoints": true
     }
   ]
 }
