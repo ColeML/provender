@@ -339,12 +339,6 @@ export async function insertRecipe(
   return recipe;
 }
 
-/**
- * Partial update (AIP-134). Only the fields named in `updateMask` are touched.
- *
- * `ingredients` in the mask replaces the whole set, because an ingredient list is edited as a list
- * — reconciling individual rows against a client's copy is how duplicates appear.
- */
 /** What every write stores: trimmed, no blanks, and no note twice when only the case differs. */
 export function normalizeNotes(notes: string[]) {
   const seen = new Set<string>();
@@ -364,6 +358,12 @@ export function normalizeNotes(notes: string[]) {
     });
 }
 
+/**
+ * Partial update (AIP-134). Only the fields named in `updateMask` are touched.
+ *
+ * `ingredients` in the mask replaces the whole set, because an ingredient list is edited as a list
+ * — reconciling individual rows against a client's copy is how duplicates appear.
+ */
 export async function updateRecipe(
   householdId: string,
   recipeId: string,

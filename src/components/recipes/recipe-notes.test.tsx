@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { NoteList } from "./recipe-notes";
+import { NoteList, RecipeNotes } from "./recipe-notes";
+
+const setNotes = vi.fn();
+const refresh = vi.fn();
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("@/lib/trpc/client", () => ({
+  useTRPC: () => ({
+    recipes: { setNotes: { mutationOptions: () => ({ mutationFn: setNotes }) } },
+  }),
+}));
 
 const NOTES = ["Use a rotisserie chicken", "Double the sauce"];
 
@@ -159,6 +170,43 @@ describe("NoteList", () => {
     ).toBeInTheDocument();
   });
 
+  it("takes no second change while the first is still saving", async () => {
+    const { user, onSave } = setup();
+    let finish = () => {};
+
+    onSave.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await user.click(screen.getByRole("button", { name: "Remove note: Use a rotisserie chicken" }));
+    await user.click(screen.getByRole("button", { name: "Remove note: Double the sauce" }));
+
+    expect(onSave).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      finish();
+    });
+    await user.click(screen.getByRole("button", { name: "Remove note: Double the sauce" }));
+
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("closes an open edit when another note is deleted, since the rows shift", async () => {
+    const { user, onSave, rerender } = setup(["First", "Second", "Third"]);
+
+    longPress(note("Third"));
+    await user.click(screen.getByRole("button", { name: "Remove note: First" }));
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(["Second", "Third"]);
+    expect(screen.queryByRole("textbox", { name: "Edit note" })).not.toBeInTheDocument();
+
+    rerender(["Second", "Third"]);
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("says 'Not deleted — try again' under the row when deleting fails", async () => {
     const { user, onSave } = setup();
 
@@ -301,5 +349,29 @@ describe("NoteList", () => {
     expect(screen.getByRole("textbox", { name: "Edit note" })).toHaveValue(
       "Use a rotisserie chicken",
     );
+  });
+});
+
+describe("RecipeNotes", () => {
+  it("saves the whole list for its recipe, then refreshes the page", async () => {
+    const user = userEvent.setup();
+
+    setNotes.mockReset().mockResolvedValue({});
+    refresh.mockReset();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RecipeNotes recipeId="fajitas" notes={["Warm the tortillas"]} />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add a note" }));
+    await user.type(screen.getByRole("textbox", { name: "New note" }), "Double the sauce");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(setNotes.mock.calls[0][0]).toEqual({
+      recipeId: "fajitas",
+      notes: ["Warm the tortillas", "Double the sauce"],
+    });
   });
 });

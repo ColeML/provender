@@ -31,5 +31,6 @@ describe("the shared recipe page", () => {
 
     expect(container).toHaveTextContent("Chicken Fajitas");
     expect(container).not.toHaveTextContent("cilantro");
+    expect(container).not.toHaveTextContent(/notes/i);
   });
 });
