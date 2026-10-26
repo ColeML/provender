@@ -55,6 +55,7 @@ export default async function Recipe({ params }: { params: Promise<{ slug: strin
         totalMin: recipe.totalMin,
         sourceUrl: recipe.sourceUrl,
         rating: recipe.rating,
+        notes: recipe.notes,
         instructions: recipe.instructions,
         ingredients: ingredients.map((ingredient) => ({
           id: ingredient.id,
