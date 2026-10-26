@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -243,6 +243,32 @@ function items() {
     .map((item) => item.textContent);
 }
 
+function item(text: string) {
+  return within(screen.getByRole("list", { name: "Equipment" })).getByRole("button", {
+    name: text,
+  });
+}
+
+function longPress(element: HTMLElement) {
+  vi.useFakeTimers();
+
+  try {
+    fireEvent.pointerDown(element, { button: 0, pointerType: "touch", clientX: 10, clientY: 10 });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+async function edit(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+  longPress(item(from));
+  await user.clear(screen.getByRole("textbox", { name: "Edit Equipment" }));
+  await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), to);
+  await user.click(screen.getByRole("button", { name: "Save" }));
+}
+
 async function add(user: ReturnType<typeof userEvent.setup>, text: string) {
   await user.click(screen.getByRole("button", { name: "Add to equipment" }));
   await user.type(screen.getByRole("textbox", { name: "Equipment" }), text);
@@ -428,6 +454,199 @@ describe("ListSettingRow", () => {
         "false",
       ),
     );
+  });
+});
+
+describe("ListSettingRow editing", () => {
+  it("tells a screen reader how to edit an item", () => {
+    setupList("oven");
+
+    expect(item("oven")).toHaveAccessibleDescription("Long press or press Enter to edit.");
+  });
+
+  it("opens an item on a long press, with its text and the cursor at the end", () => {
+    setupList("oven, stovetop");
+
+    longPress(item("stovetop"));
+
+    const field = screen.getByRole("textbox", { name: "Edit Equipment" });
+
+    expect(field).toHaveValue("stovetop");
+    expect(field).toHaveFocus();
+    expect(field).toHaveProperty("selectionStart", "stovetop".length);
+  });
+
+  it("does not open an item on a tap", async () => {
+    const { user } = setupList("oven");
+
+    await user.click(item("oven"));
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("opens an item with Enter or Space", async () => {
+    const { user } = setupList("oven, stovetop");
+
+    item("oven").focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("oven");
+
+    await user.keyboard("{Escape}");
+    item("stovetop").focus();
+    await user.keyboard(" ");
+
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("stovetop");
+  });
+
+  it("saves an edit in its place", async () => {
+    const { user, onSave } = setupList("oven, Insant Pot, wok");
+
+    await edit(user, "Insant Pot", "Instant Pot");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, Instant Pot, wok");
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+  });
+
+  it("splits an edit with commas into several items at its place, dropping repeats", async () => {
+    const { user, onSave } = setupList("oven, pans, wok");
+
+    await edit(user, "pans", "sheet pans, , WOK, Dutch oven");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, sheet pans, Dutch oven, wok");
+  });
+
+  it("drops the item when the edit repeats another one", async () => {
+    const { user, onSave } = setupList("oven, stove, stovetop");
+
+    await edit(user, "stove", "Stovetop");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven, stovetop");
+  });
+
+  it("moves focus to the previous item when an edit drops the bottom one", async () => {
+    const { user, rerender, onSave } = setupList("oven, stove");
+
+    onSave.mockImplementationOnce(async (value) => {
+      rerender(
+        <ul>
+          <ListSettingRow setting={equipment} value={value} onSave={onSave} />
+        </ul>,
+      );
+    });
+    await edit(user, "stove", "Oven");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("oven");
+    await waitFor(() => expect(item("oven")).toHaveFocus());
+  });
+
+  it("saves a change of case", async () => {
+    const { user, onSave } = setupList("instant pot");
+
+    await edit(user, "instant pot", "Instant Pot");
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("Instant Pot");
+  });
+
+  it("closes without saving when the edit is unchanged", async () => {
+    const { user, onSave } = setupList("oven");
+
+    longPress(item("oven"));
+    await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), "  ");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(item("oven")).toHaveFocus();
+  });
+
+  it("closes without saving, keeping the old item, when the edit is blank", async () => {
+    const { user, onSave } = setupList("oven");
+
+    await edit(user, "oven", " , ");
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(item("oven")).toHaveFocus();
+  });
+
+  it("closes on Escape without saving and returns focus to the item", async () => {
+    const { user, onSave } = setupList("oven");
+
+    item("oven").focus();
+    await user.keyboard("{Enter}");
+    await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), "s");
+    await user.keyboard("{Escape}");
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(item("oven")).toHaveFocus();
+  });
+
+  it("returns focus to the item on Cancel", async () => {
+    const { user } = setupList("oven");
+
+    longPress(item("oven"));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(item("oven")).toHaveFocus();
+  });
+
+  it("keeps what was typed and shows the message when an edit fails", async () => {
+    const { user, onSave } = setupList("oven");
+
+    onSave.mockRejectedValueOnce(new Error("Could not save Equipment. Try again."));
+    await edit(user, "oven", "ovens");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save Equipment. Try again.",
+    );
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("ovens");
+  });
+
+  it("shows the setting's hint in the edit field", () => {
+    setupList("oven", { ...equipment, hint: "Cite a device only if the recipe uses it." });
+
+    longPress(item("oven"));
+
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveAccessibleDescription(
+      "Cite a device only if the recipe uses it.",
+    );
+  });
+
+  it("closes the add field when an item is opened, and the other way round", async () => {
+    const { user } = setupList("oven");
+
+    await user.click(screen.getByRole("button", { name: "Add to equipment" }));
+    await user.type(screen.getByRole("textbox", { name: "Equipment" }), "dropped");
+    longPress(item("oven"));
+
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("oven");
+
+    await user.click(screen.getByRole("button", { name: "Add to equipment" }));
+
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: "Equipment" })).toHaveValue("");
+  });
+
+  it("opening one item closes another's edit", async () => {
+    const { user } = setupList("oven, wok");
+
+    longPress(item("oven"));
+    await user.type(screen.getByRole("textbox", { name: "Edit Equipment" }), "s");
+    longPress(item("wok"));
+
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: "Edit Equipment" })).toHaveValue("wok");
+  });
+
+  it("closes an open edit when another item is deleted, since the rows shift", async () => {
+    const { user, onSave } = setupList("oven, wok");
+
+    longPress(item("wok"));
+    await user.click(screen.getByRole("button", { name: "Remove oven from equipment" }));
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith("wok");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });
 
