@@ -38,11 +38,9 @@ the dish comes up.
 
 - `0016_add_recipe_notes`: `ALTER TABLE "recipes" ADD COLUMN "notes" text[] DEFAULT '{}' NOT NULL;`
   No backfill.
-- Drizzle names every column it knows in `select()`, `insert()` and `returning()`. The Vercel
-  deploy is live about 30 seconds after a push to `main`, and the CI `migrate` job runs minutes
-  later, so this PR's code would fail every recipe read in between. Apply the migration to
-  production before merging, as the ratings change did. The code on `main` works against the
-  migrated schema, because it never names the column.
+- The CI `migrate` job applies it after merge. Drizzle names every column it knows in queries, so
+  recipe reads fail for the few minutes between the Vercel deploy and the migration. That is
+  accepted while the household is the only user, so there is no manual production migration.
 
 ## API
 

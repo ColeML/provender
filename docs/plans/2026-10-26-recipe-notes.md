@@ -873,10 +873,6 @@ Expected: every command exits 0.
 
 - [ ] **Step 3: Review gate.** Invoke `cml:rigorous-review` on `main...claude/epic-noether-7snbrq`, since the diff has a migration. Fix blocking findings and re-run Step 1.
 
-- [ ] **Step 4: Apply migration 0016 to production before merging, with the user's approval.** Vercel's production deploy is live about 30 seconds after the push, and the CI `migrate` job runs minutes later. This PR's code names `recipes.notes` in every recipes select, insert and returning, so in between, recipe pages, `/r/{token}`, `GET /planning/rotation` and `:commit` would fail with `column "notes" does not exist`. The code on `main` never names the column, so migrating first is safe.
+- [ ] **Step 4: Push and open the PR.** Invoke `cml:git-workflow` first. Keep the description to a short summary, and use `Closes #206`. The CI `migrate` job applies 0016 after merge. Recipe pages fail for the few minutes before it runs, which is accepted while the household is the only user.
 
-  `pnpm db:migrate` from this branch with `DATABASE_URL_UNPOOLED` set to the production direct connection. Confirm with `./scripts/prov GET /recipes/teriyaki` that main's code still serves it. The CI `migrate` job then finds nothing to apply. No other migration may merge to `main` in between.
-
-- [ ] **Step 5: Push and open the PR.** Invoke `cml:git-workflow` first. Keep the description to a short summary, and use `Closes #206`.
-
-- [ ] **Step 6: After merge, confirm production.** The `migrate` job is green, and `./scripts/prov GET /recipes/teriyaki` returns `"notes": []`.
+- [ ] **Step 5: After merge, confirm production.** The `migrate` job is green, and `./scripts/prov GET /recipes/teriyaki` returns `"notes": []`.
