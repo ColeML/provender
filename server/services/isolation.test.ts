@@ -192,6 +192,15 @@ describe("recipes", () => {
     await expect(getRecipe(B, "fajitas", db)).resolves.toMatchObject({ rating: 1 });
   });
 
+  it("will not let one household's notes change another's recipe of the same id", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+
+    await updateRecipe(B, "fajitas", ["notes"], { notes: ["Theirs"] }, undefined, db);
+
+    await expect(getRecipe(A, "fajitas", db)).resolves.toMatchObject({ notes: [] });
+    await expect(getRecipe(B, "fajitas", db)).resolves.toMatchObject({ notes: ["Theirs"] });
+  });
+
   // Naming `ingredients` in the mask replaces the list, which deletes the recipe's rows before
   // inserting the new ones. B's inserts are its own rows, so a delete that reached A's would raise
   // nothing — A's recipe would just empty. Only this mask reaches that statement.

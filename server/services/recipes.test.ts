@@ -17,6 +17,7 @@ import {
   getRecipe,
   listIngredients,
   listRecipes,
+  normalizeNotes,
   RecipeExistsError,
   RecipeNotFoundError,
   scaleRecipe,
@@ -219,6 +220,26 @@ describe("getIngredient", () => {
   });
 });
 
+describe("normalizeNotes", () => {
+  it("trims, drops blanks and drops a repeat ignoring case, keeping order", () => {
+    expect(
+      normalizeNotes([
+        "  Use a rotisserie chicken ",
+        "",
+        "   ",
+        "Double the sauce",
+        "use a ROTISSERIE chicken",
+      ]),
+    ).toEqual(["Use a rotisserie chicken", "Double the sauce"]);
+  });
+
+  it("keeps the line breaks inside a note", () => {
+    expect(normalizeNotes(["Sear in batches.\nDon't crowd the pan."])).toEqual([
+      "Sear in batches.\nDon't crowd the pan.",
+    ]);
+  });
+});
+
 describe("updateRecipe", () => {
   beforeEach(async () => {
     await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
@@ -248,6 +269,37 @@ describe("updateRecipe", () => {
     await updateRecipe(HOUSEHOLD, "fajitas", ["rating"], { rating: null }, undefined, db);
 
     expect((await getRecipe(HOUSEHOLD, "fajitas", db)).rating).toBeNull();
+  });
+
+  it("sets notes, normalized, and clears them", async () => {
+    await updateRecipe(
+      HOUSEHOLD,
+      "fajitas",
+      ["notes"],
+      { notes: [" Warm the tortillas ", ""] },
+      undefined,
+      db,
+    );
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).notes).toEqual(["Warm the tortillas"]);
+
+    await updateRecipe(HOUSEHOLD, "fajitas", ["notes"], {}, undefined, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).notes).toEqual([]);
+  });
+
+  it("leaves notes alone when the mask does not name them", async () => {
+    await updateRecipe(
+      HOUSEHOLD,
+      "fajitas",
+      ["notes"],
+      { notes: ["Warm the tortillas"] },
+      undefined,
+      db,
+    );
+    await updateRecipe(HOUSEHOLD, "fajitas", ["title"], { title: "Beef Fajitas" }, undefined, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).notes).toEqual(["Warm the tortillas"]);
   });
 
   it("refuses a rating outside 1–5 at the database", async () => {
