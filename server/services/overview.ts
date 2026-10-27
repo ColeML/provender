@@ -21,6 +21,8 @@ export interface WeekOverview {
   /** The plan week's seven dates, Monday first, so the screen can show the days nothing is planned. */
   dates: string[];
   days: OverviewDay[];
+  /** Every recipe the week links to, sides and extras included, so the home page can save them offline. */
+  recipeIds: string[];
   /** Items still to buy: not ticked, and not flagged as already owned. */
   outstandingItems: number;
 }
@@ -44,12 +46,19 @@ export async function weekOverview(
   const plan = await currentOrLatestPlan(householdId, db);
 
   if (!plan) {
-    return { planId: null, isCurrentWeek: false, dates: [], days: [], outstandingItems: 0 };
+    return {
+      planId: null,
+      isCurrentWeek: false,
+      dates: [],
+      days: [],
+      recipeIds: [],
+      outstandingItems: 0,
+    };
   }
 
   // Days come from `plan_days`, not from the recipe rows: a main is optional, so a potluck day
   // has a day row and no main, and sourcing from the recipes would drop it from a planned week.
-  const [days, mains, items] = await Promise.all([
+  const [days, dishes, items] = await Promise.all([
     db
       .select({
         date: schema.planDays.date,
@@ -64,13 +73,13 @@ export async function weekOverview(
         date: schema.planDayRecipes.date,
         mealSlot: schema.planDayRecipes.mealSlot,
         recipeId: schema.planDayRecipes.recipeId,
+        role: schema.planDayRecipes.role,
       })
       .from(schema.planDayRecipes)
       .where(
         and(
           eq(schema.planDayRecipes.householdId, householdId),
           eq(schema.planDayRecipes.planId, plan.id),
-          eq(schema.planDayRecipes.role, "main"),
         ),
       ),
     db
@@ -89,6 +98,7 @@ export async function weekOverview(
 
   // Keyed on both, because the slot is half the day key: a date can carry a dinner and a lunch.
   const dayKey = (date: string, mealSlot: string) => `${date}\u0000${mealSlot}`;
+  const mains = dishes.filter((row) => row.role === "main");
   const mainFor = new Map(mains.map((row) => [dayKey(row.date, row.mealSlot), row.recipeId]));
 
   const recipes = await recipesByIds(
@@ -118,6 +128,7 @@ export async function weekOverview(
           mainTitle: mainRecipeId === null ? null : (recipes.get(mainRecipeId)?.title ?? null),
         };
       }),
+    recipeIds: [...new Set(dishes.map((row) => row.recipeId))],
     outstandingItems: items.filter((item) => !item.purchased && !item.haveAlready).length,
   };
 }
