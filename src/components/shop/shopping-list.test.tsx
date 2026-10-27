@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShoppingList, type ShopItem, type ShopStore } from "./shopping-list";
 
@@ -177,6 +177,123 @@ describe("hiding what is already purchased", () => {
 
     expect(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ })).toBeChecked();
     expect(screen.queryByRole("checkbox", { name: /beef/ })).toBeNull();
+  });
+});
+
+describe("locking the list", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    mutate.mockClear();
+    deleteItemFn.mockClear();
+  });
+  // The later suites never clear storage, and would inherit a locked list.
+  afterEach(() => window.localStorage.clear());
+
+  const lock = () => screen.getByRole("button", { name: "Lock list" });
+
+  it("starts unlocked", () => {
+    renderList([item({ id: "onion", name: "onion" })]);
+
+    expect(lock()).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unlock list" })).toBeNull();
+  });
+
+  it("ignores a tap on a row while locked, and sends nothing", async () => {
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+
+    await user.click(lock());
+    await user.click(screen.getByText("onion"));
+    await user.click(screen.getByRole("checkbox", { name: /onion/ }));
+
+    expect(screen.getByRole("checkbox", { name: /onion/ })).not.toBeChecked();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("still shows what is ticked, and drops the row's tap highlight", async () => {
+    const user = renderList([
+      item({ id: "onion", name: "onion" }),
+      item({ id: "beef", name: "beef", category: "meat", purchased: true }),
+    ]);
+
+    expect(screen.getByText("onion").closest("label")).toHaveClass("active:bg-muted");
+
+    await user.click(lock());
+
+    expect(screen.getByRole("checkbox", { name: /beef/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /onion/ })).not.toBeChecked();
+    expect(screen.getByText("onion").closest("label")).not.toHaveClass("active:bg-muted");
+  });
+
+  it("ignores a tap in the purchased list too", async () => {
+    const user = renderList([
+      item({ id: "onion", name: "onion" }),
+      item({ id: "beef", name: "beef", category: "meat", purchased: true }),
+    ]);
+
+    await user.click(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ }));
+    await user.click(screen.getByRole("button", { name: /Show the 1 purchased/ }));
+    await user.click(lock());
+    await user.click(screen.getByRole("checkbox", { name: /beef/ }));
+
+    expect(screen.getByRole("checkbox", { name: /beef/ })).toBeChecked();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("leaves hiding, the store filter, adding and deleting working", async () => {
+    deleteItemFn.mockResolvedValue(undefined);
+    addItemFn.mockResolvedValue(row({ id: "foil", name: "foil" }));
+
+    const user = renderList(
+      [
+        item({ id: "onion", name: "onion", storeId: "aldi" }),
+        item({ id: "milk", name: "milk", category: "dairy", storeId: "braums", purchased: true }),
+        item({ id: "dish-soap", name: "dish soap", category: "other", source: "manual" }),
+      ],
+      120,
+      {},
+      [
+        { id: "aldi", name: "Aldi" },
+        { id: "braums", name: "Braum's" },
+      ],
+    );
+
+    await user.click(lock());
+
+    await user.click(screen.getByRole("checkbox", { name: /Hide the \d+ purchased/ }));
+    expect(screen.queryByRole("checkbox", { name: /milk/ })).toBeNull();
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Show items from" }), "aldi");
+    expect(screen.getByRole("combobox", { name: "Show items from" })).toHaveValue("aldi");
+
+    await user.click(screen.getByRole("button", { name: "Delete dish soap" }));
+    await waitFor(() => expect(screen.queryByText("dish soap")).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "+ Add item" }));
+    await user.type(screen.getByLabelText("Item"), "foil");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("foil")).toBeInTheDocument();
+  });
+
+  it("unlocks again, and the next tap ticks", async () => {
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+
+    await user.click(lock());
+    await user.click(screen.getByRole("button", { name: "Unlock list" }));
+    await user.click(screen.getByRole("checkbox", { name: /onion/ }));
+
+    expect(screen.getByRole("checkbox", { name: /onion/ })).toBeChecked();
+    expect(mutate).toHaveBeenCalled();
+  });
+
+  it("stays locked through a reload on this phone", async () => {
+    const user = renderList([item({ id: "onion", name: "onion" })]);
+
+    await user.click(lock());
+    cleanup();
+    renderList([item({ id: "onion", name: "onion" })]);
+
+    expect(screen.getByRole("button", { name: "Unlock list" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /onion/ })).toBeDisabled();
   });
 });
 

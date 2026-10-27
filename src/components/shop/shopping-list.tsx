@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { slug } from "@server/lib/slug";
-import { Check, ChevronDown, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Lock, LockOpen, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -79,6 +79,7 @@ interface TickBoxProps {
   onChange: (checked: boolean) => void;
   size: keyof typeof TICK_SIZES;
   describedBy?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -93,7 +94,7 @@ interface TickBoxProps {
  * suppresses the user-agent outline, so a call site that forgot a ring rule would have no
  * focus indicator at all.
  */
-function TickBox({ checked, onChange, size, describedBy }: TickBoxProps) {
+function TickBox({ checked, onChange, size, describedBy, disabled }: TickBoxProps) {
   const sizing = TICK_SIZES[size];
 
   return (
@@ -103,6 +104,7 @@ function TickBox({ checked, onChange, size, describedBy }: TickBoxProps) {
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
         aria-describedby={describedBy}
+        disabled={disabled}
         className={cn(
           "peer appearance-none rounded-md border-2 focus-visible:outline-none",
           "focus-visible:ring-ring focus-visible:ring-3",
@@ -471,6 +473,7 @@ interface RowsProps {
   failed: Set<string>;
   /** Ids whose delete did not go through. */
   notDeleted: Set<string>;
+  locked: boolean;
   onToggle: (item: ShopItem) => void;
   onDelete: (item: ShopItem) => void;
 }
@@ -479,11 +482,12 @@ interface ItemRowProps {
   item: ShopItem;
   failed: boolean;
   notDeleted: boolean;
+  locked: boolean;
   onToggle: () => void;
   onDelete: () => void;
 }
 
-function ItemRow({ item, failed, notDeleted, onToggle, onDelete }: ItemRowProps) {
+function ItemRow({ item, failed, notDeleted, locked, onToggle, onDelete }: ItemRowProps) {
   return (
     <li className="border-border flex items-center border-b">
       {/*
@@ -495,13 +499,14 @@ function ItemRow({ item, failed, notDeleted, onToggle, onDelete }: ItemRowProps)
       <label
         className={cn(
           "flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-3",
-          "active:bg-muted",
+          !locked && "active:bg-muted",
         )}
       >
         <TickBox
           size="lg"
           checked={item.purchased}
           onChange={onToggle}
+          disabled={locked}
           describedBy={failed ? `${item.id}-failed` : undefined}
         />
 
@@ -580,6 +585,7 @@ function Aisles({ items, rows }: AislesProps) {
               item={item}
               failed={rows.failed.has(item.id)}
               notDeleted={rows.notDeleted.has(item.id)}
+              locked={rows.locked}
               onToggle={() => rows.onToggle(item)}
               onDelete={() => rows.onDelete(item)}
             />
@@ -658,12 +664,16 @@ const HIDE_BOUGHT_KEY = "provender.shop.hideBought";
  */
 const STORE_FILTER_KEY = "provender.shop.store";
 
+/** Kept on this phone only: one shopper locking against stray taps should not lock the other. */
+const LOCKED_KEY = "provender.shop.locked";
+
 function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) {
   const trpc = useTRPC();
   const [items, setItems] = useState(initialItems);
   const [hideBought, setHideBought] = useStoredFlag(HIDE_BOUGHT_KEY);
   const [showBought, setShowBought] = useState(false);
   const [storeFilter, setStoreFilter] = useStoredText(STORE_FILTER_KEY);
+  const [locked, setLocked] = useStoredFlag(LOCKED_KEY);
 
   function onHideBoughtChange(next: boolean) {
     setHideBought(next);
@@ -786,6 +796,7 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
   const rows: RowsProps = {
     failed,
     notDeleted,
+    locked,
     onToggle,
     onDelete: (item) => remove.mutate({ planId, itemId: item.id }),
   };
@@ -847,7 +858,7 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
                 <li key={item.id}>
                   {/* Still a checkbox, so a mis-tap can be undone without turning hiding off. */}
                   <label className="flex min-h-11 items-center gap-3 py-1.5 text-sm">
-                    <TickBox size="sm" checked onChange={() => onToggle(item)} />
+                    <TickBox size="sm" checked onChange={() => onToggle(item)} disabled={locked} />
                     <span className="text-muted-foreground line-through">{item.name}</span>
                   </label>
                 </li>
@@ -890,27 +901,44 @@ function List({ planId, atDefault, budgetTarget, initialItems, stores }: Props) 
       ) : null}
 
       <footer className="border-border bg-background fixed inset-x-0 bottom-0 border-t">
-        <div className="mx-auto flex max-w-2xl items-baseline justify-between px-4 py-3">
-          <span className="text-sm">
-            <span className="text-muted-foreground">Still to buy</span>{" "}
-            {/* Labelled, because a bare "$6.00" read aloud says nothing about what it is. */}
-            <span
-              aria-label={`Still to buy: $${remaining.toFixed(2)}`}
-              className="font-mono text-lg font-semibold"
-            >
-              ${remaining.toFixed(2)}
+        <div className="mx-auto flex max-w-2xl items-center gap-2 py-1.5 pr-1 pl-4">
+          <div className="flex min-w-0 flex-1 items-baseline justify-between gap-2">
+            <span className="text-sm whitespace-nowrap">
+              <span className="text-muted-foreground">Still to buy</span>{" "}
+              {/* Labelled, because a bare "$6.00" read aloud says nothing about what it is. */}
+              <span
+                aria-label={`Still to buy: $${remaining.toFixed(2)}`}
+                className="font-mono text-lg font-semibold"
+              >
+                ${remaining.toFixed(2)}
+              </span>
             </span>
-          </span>
-          {budgetTarget === null ? null : (
-            <span
-              className={cn(
-                "font-mono text-sm",
-                remaining > budgetTarget ? "text-destructive" : "text-muted-foreground",
-              )}
-            >
-              of ${budgetTarget.toFixed(2)}
-            </span>
-          )}
+            {budgetTarget === null ? null : (
+              <span
+                className={cn(
+                  "font-mono text-sm whitespace-nowrap",
+                  remaining > budgetTarget ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                of ${budgetTarget.toFixed(2)}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setLocked(!locked)}
+            aria-label={locked ? "Unlock list" : "Lock list"}
+            className={cn(
+              "focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-md focus-visible:ring-3 focus-visible:outline-none",
+              locked ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            {locked ? (
+              <Lock aria-hidden className="size-5" />
+            ) : (
+              <LockOpen aria-hidden className="size-5" />
+            )}
+          </button>
         </div>
       </footer>
     </main>
