@@ -240,6 +240,32 @@ describe("sw.js", () => {
     expect(caches.saved()).toEqual([]);
   });
 
+  it("writes nothing from a save that was still running when the user signed out", async () => {
+    let answer: (response: Response) => void = () => {};
+    network.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+
+    const saving = saveWeek(["/recipes/soup"]);
+
+    await request("/login");
+    answer(page("soup"));
+    await saving;
+
+    expect(caches.saved()).toEqual([]);
+  });
+
+  it("writes nothing from a page that arrives after the user signed out", async () => {
+    let answer: (response: Response) => void = () => {};
+    network.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+
+    const loading = request("/recipes/soup");
+
+    await request("/login");
+    answer(page("soup"));
+    await loading;
+
+    expect(caches.saved()).toEqual([]);
+  });
+
   it.each([
     ["opening /login", "/login?from=/shop", "GET"],
     ["signing out", "/api/auth/signout", "POST"],

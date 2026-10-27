@@ -24,18 +24,22 @@ function landsOnLogin(response) {
   return response.redirected && new URL(response.url).pathname === "/login";
 }
 
+/** Bumped on sign-out, so a fetch that started before it cannot write its page after it. */
+let signOuts = 0;
+
 /** The saved pages are one household's data, so a signed-out browser must not keep them. */
 async function forget() {
+  signOuts += 1;
   await Promise.all([caches.delete(PAGES), caches.delete(ASSETS)]);
 }
 
-async function keep(key, response) {
+async function keep(key, response, signOutsAtStart) {
   if (landsOnLogin(response)) {
     await forget();
     return;
   }
 
-  if (!response.ok || response.redirected) {
+  if (!response.ok || response.redirected || signOuts !== signOutsAtStart) {
     return;
   }
 
@@ -46,10 +50,12 @@ async function keep(key, response) {
 }
 
 async function networkFirst(event, url) {
+  const signOutsAtStart = signOuts;
+
   try {
     const response = await fetch(event.request);
 
-    event.waitUntil(keep(pageKey(url), response));
+    event.waitUntil(keep(pageKey(url), response, signOutsAtStart));
 
     return response;
   } catch {
@@ -132,6 +138,7 @@ const ASSET_PATH = /\/_next\/static\/[^"'\s\\)]+/g;
  * is fetched before anything is written, so a save that fails offline keeps the last good week.
  */
 async function saveWeek(paths) {
+  const signOutsAtStart = signOuts;
   const keys = paths.map((path) => pageKey(new URL(path, self.location.origin)));
   const responses = await Promise.all(keys.map((key) => fetch(key)));
 
@@ -153,7 +160,9 @@ async function saveWeek(paths) {
         assetKeys.add(new URL(path, self.location.origin).href);
       }
 
-      await pages.put(keys[index], response);
+      if (signOuts === signOutsAtStart) {
+        await pages.put(keys[index], response);
+      }
     }),
   );
 

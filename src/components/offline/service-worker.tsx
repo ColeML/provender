@@ -9,7 +9,10 @@ export function RegisterServiceWorker() {
       return;
     }
 
-    void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
+    // A browser that refuses workers, as Firefox does in a private window, just gets no saved copy.
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/", updateViaCache: "none" })
+      .catch(() => {});
   }, []);
 
   return null;
