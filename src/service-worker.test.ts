@@ -220,16 +220,6 @@ describe("sw.js", () => {
     expect(caches.saved()).toContain(`${ORIGIN}/recipes/chili`);
   });
 
-  it("clears every saved page when a page lands on /login", async () => {
-    network.mockResolvedValueOnce(page("saved"));
-    await request("/plan/2026-09-14");
-
-    network.mockResolvedValueOnce(page("sign in", "/login?from=/recipes/ziti"));
-    await request("/recipes/ziti");
-
-    expect(caches.saved()).toEqual([]);
-  });
-
   it("clears every saved page when saving the week lands on /login", async () => {
     network.mockResolvedValueOnce(page("saved"));
     await request("/plan/2026-09-14");

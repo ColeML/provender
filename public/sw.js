@@ -33,13 +33,12 @@ async function forget() {
   await Promise.all([caches.delete(PAGES), caches.delete(ASSETS)]);
 }
 
+/**
+ * A navigation fetch does not follow redirects, so a page that sends the visitor to sign in comes
+ * back as an opaque redirect, which is not `ok`. The browser's next request, to `/login`, clears.
+ */
 async function keep(key, response, signOutsAtStart) {
-  if (landsOnLogin(response)) {
-    await forget();
-    return;
-  }
-
-  if (!response.ok || response.redirected || signOuts !== signOutsAtStart) {
+  if (!response.ok || signOuts !== signOutsAtStart) {
     return;
   }
 
