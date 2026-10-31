@@ -17,6 +17,7 @@ import {
   DaysAlreadyPlannedError,
   DuplicateCommitDayError,
   DuplicateCommitRecipeError,
+  OversizedSideError,
   UnknownRecipeError,
   UnreferencedRecipeError,
 } from "./week-commit";
@@ -387,5 +388,50 @@ describe("commitWeek", () => {
         db,
       ),
     ).rejects.toThrow(DuplicateCommitRecipeError);
+  });
+
+  it("rejects a saved side stored at three times the day's servings, and writes nothing", async () => {
+    await createRecipe(H, "cinnamon-rolls", { title: "Cinnamon Rolls", baseServings: 27 }, [], db);
+
+    const commit = commitWeek(
+      H,
+      WEEK,
+      oneDay({ days: [{ date: MONDAY, servings: 8, main: "gnocchi", side: "cinnamon-rolls" }] }),
+      db,
+    );
+
+    await expect(commit).rejects.toThrow(OversizedSideError);
+    await expect(commit).rejects.toThrow(/cinnamon-rolls.*27.*2026-08-31.*8/);
+    expect(await db.query.plans.findFirst()).toBeUndefined();
+  });
+
+  it("rejects an extra this commit creates at three times the day's servings", async () => {
+    await expect(
+      commitWeek(
+        H,
+        WEEK,
+        oneDay({
+          recipes: [
+            { recipeId: "gnocchi", title: "Sheet-Pan Gnocchi", baseServings: 8 },
+            { recipeId: "dinner-rolls", title: "Dinner Rolls", baseServings: 24 },
+          ],
+          days: [{ date: MONDAY, servings: 8, main: "gnocchi", extras: ["dinner-rolls"] }],
+        }),
+        db,
+      ),
+    ).rejects.toThrow(OversizedSideError);
+  });
+
+  it("accepts a side under three times the day's servings, such as a single batch of cookies", async () => {
+    await createRecipe(H, "cookies", { title: "Cookies", baseServings: 23 }, [], db);
+
+    const result = await commitWeek(
+      H,
+      WEEK,
+      oneDay({ days: [{ date: MONDAY, servings: 8, main: "gnocchi", side: "cookies" }] }),
+      db,
+    );
+
+    expect(result.days[0]).toMatchObject({ side: "cookies" });
   });
 });

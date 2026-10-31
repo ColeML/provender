@@ -34,6 +34,7 @@ import {
   DaysAlreadyPlannedError,
   DuplicateCommitDayError,
   DuplicateCommitRecipeError,
+  OversizedSideError,
   UnknownRecipeError,
   UnreferencedRecipeError,
 } from "@server/services/week-commit";
@@ -81,6 +82,10 @@ function planError(c: Parameters<typeof apiError>[0], error: unknown) {
     error instanceof UnreferencedRecipeError
   ) {
     return apiError(c, "INVALID_ARGUMENT", error.message);
+  }
+
+  if (error instanceof OversizedSideError) {
+    return apiError(c, "FAILED_PRECONDITION", error.message);
   }
 
   if (
@@ -342,7 +347,8 @@ plansRoutes.openapi(
       "Creates the recipes, upserts the plan, writes the days and records one history entry per " +
       "day's main, all or nothing. Recipes are create-only: an id that already exists fails the " +
       "commit rather than updating it. A day already in the plan is refused unless " +
-      "`replaceExistingDays` is set, because it may carry edits made after the week was planned.",
+      "`replaceExistingDays` is set, because it may carry edits made after the week was planned. " +
+      "A side or extra stored at 3x the day's servings or more is refused with FAILED_PRECONDITION.",
     request: {
       params: PlanParam,
       body: { content: { "application/json": { schema: WeekCommitRequestSchema } } },

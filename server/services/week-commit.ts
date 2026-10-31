@@ -95,6 +95,24 @@ export class UnreferencedRecipeError extends Error {
   }
 }
 
+/** How many of the day's meals a side or extra may cover before it is a batch for a crowd. */
+const SIDE_SERVINGS_LIMIT = 3;
+
+export class OversizedSideError extends Error {
+  constructor(
+    readonly recipeId: string,
+    readonly baseServings: number,
+    readonly date: string,
+    readonly servings: number,
+  ) {
+    super(
+      `${recipeId} is stored at ${baseServings} servings, but ${date} serves ${servings}; ` +
+        `a side or extra at ${SIDE_SERVINGS_LIMIT}x the day's servings or more is a batch for a ` +
+        "crowd. Rescale it to one batch for this meal, or pick a different dish.",
+    );
+  }
+}
+
 function assertNoDuplicateRecipes(recipes: CommitRecipeInput[]) {
   const seen = new Set<string>();
 
@@ -140,29 +158,51 @@ function referencedRecipeIds(days: PreparedDay[]) {
   ].filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
-async function assertRecipesResolve(
+/** Resolve every recipe the days name to its stored servings, from this commit or the library. */
+async function resolveRecipeServings(
   householdId: string,
   committed: CommitRecipeInput[],
   days: PreparedDay[],
   db: Queryable,
 ) {
-  const creating = new Set(committed.map((recipe) => recipe.recipeId));
-  const wanted = referencedRecipeIds(days).filter((id) => !creating.has(id));
+  const servings = new Map(committed.map((recipe) => [recipe.recipeId, recipe.baseServings]));
+  const wanted = referencedRecipeIds(days).filter((id) => !servings.has(id));
 
   if (wanted.length === 0) {
-    return;
+    return servings;
   }
 
   const found = await db
-    .select({ id: schema.recipes.id })
+    .select({ id: schema.recipes.id, baseServings: schema.recipes.baseServings })
     .from(schema.recipes)
     .where(and(eq(schema.recipes.householdId, householdId), inArray(schema.recipes.id, wanted)));
 
-  const have = new Set(found.map((row) => row.id));
-  const missing = wanted.filter((id) => !have.has(id));
+  for (const row of found) {
+    servings.set(row.id, row.baseServings);
+  }
+
+  const missing = wanted.filter((id) => !servings.has(id));
 
   if (missing.length > 0) {
     throw new UnknownRecipeError(missing);
+  }
+
+  return servings;
+}
+
+/**
+ * A recipe has one stored yield, so a side saved for a potluck carries its crowd-sized batch into
+ * every later week that links it.
+ */
+function assertSidesFitDays(days: PreparedDay[], servings: Map<string, number>) {
+  for (const day of days) {
+    for (const recipeId of [day.input.side, ...(day.input.extras ?? [])]) {
+      const baseServings = recipeId ? servings.get(recipeId) : undefined;
+
+      if (recipeId && baseServings && baseServings >= SIDE_SERVINGS_LIMIT * day.input.servings) {
+        throw new OversizedSideError(recipeId, baseServings, day.date, day.input.servings);
+      }
+    }
   }
 }
 
@@ -238,7 +278,9 @@ export async function commitWeek(
   return db.transaction(async (tx) => {
     // The two checks that read stored state are the transaction's first reads rather than queries
     // ahead of it: both decide whether to write based on what is already there.
-    await assertRecipesResolve(householdId, recipes, prepared, tx);
+    const servings = await resolveRecipeServings(householdId, recipes, prepared, tx);
+
+    assertSidesFitDays(prepared, servings);
 
     if (!input.replaceExistingDays) {
       await assertDaysUnplanned(householdId, planId, prepared, tx);
