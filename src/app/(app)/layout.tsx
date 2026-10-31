@@ -2,6 +2,7 @@ import { Settings } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { RegisterServiceWorker } from "@/components/offline/service-worker";
 import { BareSurfaceLinks, SurfaceLinks } from "@/components/ui/surface-links";
 import { Wordmark } from "@/components/ui/wordmark";
 
@@ -47,6 +48,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {children}
+
+      <RegisterServiceWorker />
     </>
   );
 }

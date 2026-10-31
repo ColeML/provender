@@ -85,11 +85,13 @@ describe("proxy", () => {
     "/icon-512.png",
     "/apple-touch-icon.png",
     "/favicon.ico",
+    // An update check that redirects to /login fails, and the browser keeps the old worker.
+    "/sw.js",
   ])("keeps the static asset %s outside the gate", (url) => {
     expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false);
   });
 
-  it.each(["/", "/shop", "/icon-editor", "/icon-192.png/x", "/recipes/ziti"])(
+  it.each(["/", "/shop", "/icon-editor", "/icon-192.png/x", "/recipes/ziti", "/plan/sw.js"])(
     "still runs on %s",
     (url) => {
       expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true);

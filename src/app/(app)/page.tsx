@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { WeekDays } from "@/components/home/week-days";
+import { SaveWeekOffline } from "@/components/offline/service-worker";
 import { Verse } from "@/components/ui/verse";
 
 import { auth } from "../../../auth";
@@ -28,7 +29,7 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { planId, isCurrentWeek, dates, days, outstandingItems } = await weekOverview(
+  const { planId, isCurrentWeek, dates, days, recipeIds, outstandingItems } = await weekOverview(
     householdForSession(session),
   );
 
@@ -62,6 +63,13 @@ export default async function Home() {
           </p>
 
           <WeekDays dates={dates} days={days} />
+          <SaveWeekOffline
+            paths={[
+              "/",
+              ...dates.map((date) => `/plan/${date}`),
+              ...recipeIds.map((id) => `/recipes/${id}`),
+            ]}
+          />
         </>
       )}
 

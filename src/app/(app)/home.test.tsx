@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { WeekOverview } from "@server/services/overview";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const W37 = [
@@ -38,6 +38,7 @@ async function renderHome(week: Partial<WeekOverview>) {
     isCurrentWeek: false,
     dates: W37,
     days: [],
+    recipeIds: [],
     outstandingItems: 0,
     ...week,
   });
@@ -291,5 +292,38 @@ describe("the home screen", () => {
     await renderHome({ planId: "2026-W37", isCurrentWeek: true });
 
     expect(screen.getByText("Matthew 6:11 · CSB")).toBeInTheDocument();
+  });
+});
+
+describe("saving the week for offline", () => {
+  const postMessage = vi.fn();
+
+  beforeEach(() => {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { ready: Promise.resolve({ active: { postMessage } }) },
+    });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "serviceWorker");
+  });
+
+  it("asks the service worker for the home page, each day, and every recipe the week links to", async () => {
+    await renderHome({ planId: "2026-W37", isCurrentWeek: true, recipeIds: ["ziti", "rice"] });
+
+    await waitFor(() =>
+      expect(postMessage).toHaveBeenCalledWith({
+        type: "save-week",
+        paths: ["/", ...W37.map((date) => `/plan/${date}`), "/recipes/ziti", "/recipes/rice"],
+      }),
+    );
+  });
+
+  it("saves nothing when no week is planned", async () => {
+    await renderHome({ planId: null });
+    await Promise.resolve();
+
+    expect(postMessage).not.toHaveBeenCalled();
   });
 });

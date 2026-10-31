@@ -742,6 +742,7 @@ describe("week overview", () => {
       isCurrentWeek: false,
       dates: [],
       days: [],
+      recipeIds: [],
       outstandingItems: 0,
     });
   });
@@ -773,6 +774,7 @@ describe("week overview", () => {
           mainTitle: null,
         },
       ],
+      recipeIds: [],
       outstandingItems: 0,
     });
   });

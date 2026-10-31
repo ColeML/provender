@@ -38,6 +38,7 @@ describe("weekOverview", () => {
       isCurrentWeek: false,
       dates: [],
       days: [],
+      recipeIds: [],
       outstandingItems: 0,
     });
   });
@@ -103,6 +104,38 @@ describe("weekOverview", () => {
         mainRecipeId: null,
         mainTitle: null,
       },
+    ]);
+  });
+
+  it("lists every recipe the week links to, sides and extras included, once each", async () => {
+    await createPlan(H, THIS_WEEK, 120, db);
+
+    for (const id of ["fajitas", "rice", "cake", "soup"]) {
+      await createRecipe(H, id, { title: id, baseServings: 8 }, [], db);
+    }
+
+    await setPlanDay(
+      H,
+      THIS_WEEK,
+      MONDAY_OF_THIS_WEEK,
+      "dinner",
+      { servings: 8, main: "fajitas", side: "rice", extras: ["cake"] },
+      db,
+    );
+    await setPlanDay(
+      H,
+      THIS_WEEK,
+      "2026-09-15",
+      "dinner",
+      { servings: 8, main: "soup", side: "rice" },
+      db,
+    );
+
+    expect((await weekOverview(H, db)).recipeIds.toSorted()).toEqual([
+      "cake",
+      "fajitas",
+      "rice",
+      "soup",
     ]);
   });
 

@@ -66,5 +66,6 @@ export const config = {
   // Everything except Next's own build output and static files. Those carry no data and gating
   // them would keep the login page from rendering its own stylesheet. Chrome fetches the manifest
   // without cookies, so gating it and its icons would redirect them to `/login` and block install.
-  matcher: ["/((?!_next/static|_next/image|.*\\.(?:ico|png|svg|webmanifest)$).*)"],
+  // A browser refuses a service worker script that redirects, so `/sw.js` stays out as well.
+  matcher: ["/((?!_next/static|_next/image|sw\\.js$|.*\\.(?:ico|png|svg|webmanifest)$).*)"],
 };
