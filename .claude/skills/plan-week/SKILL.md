@@ -78,8 +78,13 @@ Then check the draft's slug against the `recipes` list from step 1, which is the
 - **Not there.** Keep the draft. It will be committed with the week in step 6.
 
 Never `PATCH` a recipe from here. A slug that collides belongs to a dish the household already
-owns, and rewriting it changes something nobody asked to change. Step 6 has the one exception,
-and it needs the household's yes.
+owns, and rewriting it changes something nobody asked to change. Step 6 has the two exceptions,
+and both need the household's yes.
+
+Check each side and dessert's `baseServings` against its day's `servings`. A recipe has one
+stored yield, so a dish once scaled up for a potluck brings that batch to every week that reuses
+it. One stored at more than a single batch for this meal goes to step 5. At 3x the day's
+servings or more, the commit refuses it as it stands.
 
 Rotate the source across the week and across weeks — new dishes that all come from one site are
 one house style, not exploration:
@@ -117,7 +122,8 @@ arithmetic and mark which lines came from `./scripts/prov GET /prices` rather th
 One line per day: the main, the side, the time, the cost, and why that day. Then the total against
 the budget. Then one line per note: the day that answers it, or why it went unhonored.
 Then one line per recipe note asking for a lasting change: what it asks, and an offer to change
-the saved recipe.
+the saved recipe. Then one line per oversized side or dessert from step 3: its stored yield, and
+an offer to rescale the saved recipe to one batch or choose a different dish.
 
 Wait for approval. Write nothing yet.
 
@@ -161,11 +167,20 @@ History is recorded for you, one entry per day's main. Do not call `POST /mealHi
 household and ask. They may have been edited since the week was planned, and `replaceExistingDays`
 discards whatever is on them — so set it only when the household says to.
 
+**`FAILED_PRECONDITION` naming a side or extra means it is stored at 3x the day's servings or
+more.** Take it to the household as step 5 does. Do not raise the day's `servings` to fit it.
+
 **`ALREADY_EXISTS` naming a recipe id means that dish is already in the library** — step 3's slug
 check missed it, most likely a same-dish-different-slug case add-recipe left to judgment. Drop that
 entry from `recipes`, point the day that named it at the existing id instead, and re-commit.
 `replaceExistingDays` does not apply here; it only gates the days check, so setting it will not
 clear this error and retrying unchanged just repeats it.
+
+**An oversized side the household said yes to rescaling.** Before the commit, which refuses it
+otherwise: follow **scale-recipe** down to one batch for this meal (the source's own yield, or
+add-recipe's side target when that yield is itself 3x the day's servings), then
+`PATCH /recipes/<recipe>?updateMask=baseServings,ingredients,instructions,costEstimate`. The
+instructions and cost go too, since both were written for the larger batch.
 
 **A recipe note the household said yes to.** After the commit, write the change to the recipe:
 
