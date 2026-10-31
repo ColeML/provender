@@ -15,7 +15,8 @@ export function StepText({ parts }: Props) {
           part
         ) : (
           // Parts never reorder, so the position is a stable key.
-          <span key={index} className="font-mono">
+          // A mono space is as wide as a digit, so "1 cup" reads as double-spaced in a sentence.
+          <span key={index} className="font-mono [word-spacing:-0.3em]">
             {formatQuantity(part.quantity, part.unit)}
           </span>
         ),
