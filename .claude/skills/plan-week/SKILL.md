@@ -180,7 +180,8 @@ clear this error and retrying unchanged just repeats it.
 otherwise: follow **scale-recipe** down to one batch for this meal (the source's own yield, or
 add-recipe's side target when that yield is itself 3x the day's servings), then
 `PATCH /recipes/<recipe>?updateMask=baseServings,ingredients,instructions,costEstimate`. The
-instructions and cost go too, since both were written for the larger batch.
+instructions and cost go too, since both were written for the larger batch. A side that is a
+draft from step 3 has no saved recipe yet, so rescale the draft file instead.
 
 **A recipe note the household said yes to.** After the commit, write the change to the recipe:
 
