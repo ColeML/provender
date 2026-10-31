@@ -6,12 +6,13 @@ day and scales at shopping time, is rejected for now.
 
 The library is the household's saved recipes, and each has one stored yield, `baseServings`. In
 the ISO week 2026-W44, `homemade-cinnamon-rolls` came back as a 27-roll side for one family dinner.
-It had been tripled to 27 rolls for the Sept 3 potluck and never scaled back.
-ColeML/provender#217 added a check to the week commit (`POST /plans/{plan}:commit`) and a step in
-the plan-week skill that offers a rescale. The production recipe is back at 9.
+For the Sept 3 potluck, the saved recipe itself had been tripled to 27 rolls, and nothing scaled
+it back. ColeML/provender#217 added a check to the week commit (`POST /plans/{plan}:commit`) and a
+step in the plan-week skill that offers a rescale. The production recipe has been rescaled to 9
+rolls.
 
-Production already holds two event copies made by hand: `chicken-salad-potluck` and
-`italian-grinder-sliders-potluck-3x-batch`. Option A writes that habit down as a rule.
+Production already holds two event copies made by hand: `chicken-salad-potluck` at 20 servings and
+`italian-grinder-sliders-potluck-3x-batch` at 18. Option A writes that habit down as a rule.
 
 ## Comparison
 
@@ -28,8 +29,8 @@ the week's shopping list, which keeps the shopper's ticks on rows whose name and
 | Write paths that change | None | `plan_day_recipes`, `:commit`, `PUT /plans/{plan}/days/{date}`, and the `/plan` swap UI |
 | Library | One extra recipe per event | No copies |
 
-B fits a household that cooks one dish at many sizes. This one does it for the occasional potluck:
-production has three crowd-size dishes, all from potlucks. B rewrites a core invariant and four
+B fits a household that cooks one dish at many sizes. This household does it for the occasional potluck.
+All three crowd-size batches in production history came from potlucks. B rewrites a core invariant and four
 write paths for that case.
 
 B's scaling has two possible homes, and both cost more than A. If the agent redoes it on each
@@ -40,17 +41,19 @@ option A without the recipe page.
 
 The change is to the skills and AGENTS.md only, with no schema or API change.
 
-In plan-week step 3, a day whose `servings` is well above the household's usual takes event copies.
-A potluck or a hosted dinner is such a day. For each dish on it, follow scale-recipe from the
+In plan-week step 3 (sourcing the recipes), a day planned for an event takes event copies. Its
+`status` names the event, such as `potluck`. For each dish on it, follow scale-recipe from the
 library recipe to the event count. Save the result as a new draft with the same `sourceUrl` and an
 `event-batch` tag.
 
-The draft's slug is `<library-slug>-<event>-batch`, such as `homemade-cinnamon-rolls-potluck-batch`.
-It is committed with the week like any other draft. Never `PATCH` the library recipe to the event
-size, because that is how W44 happened.
+The draft's slug is `<library-slug>-<event>-<factor>x-batch`, the shape
+`italian-grinder-sliders-potluck-3x-batch` already uses. A later event at the same size reuses that
+recipe. The draft is committed with the week like any other draft. Never `PATCH` the library recipe
+to the event size, because that is how W44 happened.
 
-In plan-week step 2, a recipe tagged `event-batch` is not a candidate for a regular day. Offer it
-only when the household names an event at the same size.
+In plan-week step 2 (choosing the menu), a recipe tagged `event-batch` is not a candidate for a regular day. Offer it
+only when the household names an event at the same size. The existing `potluck` tag cannot mark a
+copy, because the library `homemade-cinnamon-rolls` carries it too.
 
 When the scale-recipe skill is asked to scale a saved recipe for one event, it makes a copy by the
 rule above. It does not offer to write the new size over the original.
@@ -62,7 +65,8 @@ The AGENTS.md invariant gets one more sentence: "A dish cooked at a crowd size f
 own recipe, tagged `event-batch`. The library recipe keeps the household's size."
 
 `OversizedSideError` stays at 3x as the backstop for a copy that reaches a regular day. The two
-existing copies get the `event-batch` tag by a one-time `PATCH ?updateMask=tags`.
+existing copies get the `event-batch` tag by a one-time `PATCH ?updateMask=tags` against
+production.
 
 ## Open questions
 
@@ -72,7 +76,7 @@ accept that, or should plan-week copy the notes across when it makes the batch?
 History is keyed by recipe id, so a potluck main does not block its library recipe the next week.
 That seems right for a potluck. Confirm it.
 
-Mains are not checked. A day's `servings` comes from its main's `baseServings`, so a crowd-size main
+The commit check covers sides and extras, not mains. A day's `servings` comes from its main's `baseServings`, so a crowd-size main
 on a family day passes the 3x check. Should the commit also refuse an `event-batch` main on a day
 whose `status` names no event, such as `potluck`?
 
