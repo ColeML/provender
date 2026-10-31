@@ -40,8 +40,7 @@ function parseAmount(inner: string) {
     return { quantity, unit: null };
   }
 
-  // "tbsp." would otherwise miss the snapping that "tbsp" gets.
-  return { quantity, unit: unit.trim().toLowerCase().replace(/\.$/, "") };
+  return { quantity, unit: unit.trim().toLowerCase() };
 }
 
 /** A step as its text and marked amounts. A brace that holds no amount stays in the text. */

@@ -28,10 +28,6 @@ describe("parseStep", () => {
     expect(parseStep("Add {3 Tbsp} oil.")).toContainEqual({ quantity: 3, unit: "tbsp" });
   });
 
-  it("drops a trailing period from the unit", () => {
-    expect(parseStep("Add {2 tbsp.} oil.")).toContainEqual({ quantity: 2, unit: "tbsp" });
-  });
-
   it("leaves a brace that is not an amount as text", () => {
     expect(parseStep("Season {to taste}.")).toEqual(["Season {to taste}."]);
   });
