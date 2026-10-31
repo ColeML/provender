@@ -519,9 +519,13 @@ recipesRoutes.openapi(
     try {
       const scaled = await scaleRecipe(c.get("householdId"), recipe, targetServings);
 
+      // Listed rather than spread: the cook view's scaled steps are not part of this contract.
       return c.json(
         {
-          ...scaled,
+          recipeId: scaled.recipeId,
+          baseServings: scaled.baseServings,
+          targetServings: scaled.targetServings,
+          factor: scaled.factor,
           ingredients: scaled.ingredients.map((ingredient) => ({
             ingredientName: ingredient.name,
             quantity: ingredient.quantity,

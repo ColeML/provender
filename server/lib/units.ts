@@ -169,6 +169,38 @@ export function snapToKitchenUnit(
   };
 }
 
+// Without these, "2 tablespoons" would scale linearly beside a "2 tbsp" that snaps.
+const LADDER_SPELLINGS: Record<string, (typeof VOLUME_LADDER)[number]> = {
+  cups: "cup",
+  tablespoon: "tbsp",
+  tablespoons: "tbsp",
+  tbsps: "tbsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+  tsps: "tsp",
+};
+
+/**
+ * One amount at a scale factor: cup, tbsp and tsp snap to a measurable fraction, which may change
+ * the unit, and anything else scales linearly.
+ */
+export function scaleQuantity(
+  quantity: number,
+  unit: string | null,
+  factor: number,
+): { quantity: number; unit: string | null } {
+  const raw = quantity * factor;
+  const ladderUnit = unit === null ? null : (LADDER_SPELLINGS[normalize(unit)] ?? unit);
+
+  // A count like "3 cloves" has no fraction worth cleaning up, and snapping a mass would round
+  // away a real difference.
+  if (ladderUnit === null || !isVolumeLadderUnit(ladderUnit)) {
+    return { quantity: Number(raw.toFixed(3)), unit };
+  }
+
+  return snapToKitchenUnit(raw, ladderUnit);
+}
+
 /**
  * The multiplier from one serving count to another.
  *

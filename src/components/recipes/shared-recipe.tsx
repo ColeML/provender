@@ -1,6 +1,10 @@
+import { parseStep } from "@server/lib/step-quantities";
+
 import { LogoMark } from "@/components/ui/logo-mark";
 import { Wordmark } from "@/components/ui/wordmark";
 import { formatQuantity } from "@/lib/quantity";
+
+import { StepText } from "./step-text";
 
 export interface SharedIngredient {
   id: string;
@@ -108,7 +112,7 @@ export function SharedRecipe({ recipe }: Props) {
                   {index + 1}
                 </span>
 
-                <span className="text-xl leading-snug">{instruction}</span>
+                <StepText parts={parseStep(instruction)} />
               </li>
             ))}
           </ol>

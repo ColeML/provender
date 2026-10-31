@@ -146,6 +146,51 @@ describe("the cook view", () => {
     expect(warnings).not.toContain("same key");
   });
 
+  it("shows a marked step amount as a fraction, without its braces", () => {
+    renderCook({ instructions: ["Rub {1 1/2 tbsp} chili powder over the chicken."] });
+
+    expect(screen.getByRole("list", { name: "Method" })).toHaveTextContent(
+      "1Rub 1½ tbsp chili powder over the chicken.",
+    );
+  });
+
+  it("scales a marked step amount along with the ingredients", async () => {
+    scale.mockResolvedValue({
+      ingredients: [{ name: "chicken breast", quantity: 3, unit: "lb", notes: null }],
+      instructions: [["Rub ", { quantity: 3, unit: "tbsp" }, " chili powder over the chicken."]],
+    });
+
+    const user = renderCook({ instructions: ["Rub {1 1/2 tbsp} chili powder over the chicken."] });
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("list", { name: "Method" })).toHaveTextContent(
+        "1Rub 3 tbsp chili powder over the chicken.",
+      );
+    });
+  });
+
+  it("marks the steps stale while it scales, as it does the ingredients", async () => {
+    scale.mockImplementation(() => new Promise(() => {}));
+
+    const user = renderCook({ instructions: ["Rub {1 1/2 tbsp} chili powder over the chicken."] });
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    expect(screen.getByRole("list", { name: "Method" })).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("leaves steps with nothing to scale undimmed while it scales", async () => {
+    scale.mockImplementation(() => new Promise(() => {}));
+
+    const user = renderCook();
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    expect(screen.getByRole("list", { name: "Method" })).toHaveAttribute("aria-busy", "false");
+  });
+
   it("does not call the API while the servings are the stored ones", () => {
     renderCook();
 

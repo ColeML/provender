@@ -5,6 +5,7 @@ import {
   IncompatibleUnitsError,
   isKnownUnit,
   scaleFactor,
+  scaleQuantity,
   snapToKitchenUnit,
   UnknownUnitError,
 } from "./units";
@@ -107,4 +108,17 @@ describe("scaleFactor", () => {
       expect(scaleFactor(base, 4)).toBe(1);
     },
   );
+});
+
+describe("scaleQuantity", () => {
+  it("snaps a spelled-out volume as it snaps the short unit", () => {
+    expect(scaleQuantity(1 / 3, "cups", 4 / 3)).toEqual(scaleQuantity(1 / 3, "cup", 4 / 3));
+    expect(scaleQuantity(1 / 3, "cups", 4 / 3)).toEqual({ quantity: 7.125, unit: "tbsp" });
+    expect(scaleQuantity(2, "Tablespoons", 4 / 3)).toEqual({ quantity: 2.6667, unit: "tbsp" });
+  });
+
+  it("scales a mass or a count linearly, keeping its unit", () => {
+    expect(scaleQuantity(1.5, "lb", 4 / 3)).toEqual({ quantity: 2, unit: "lb" });
+    expect(scaleQuantity(3, null, 4 / 3)).toEqual({ quantity: 4, unit: null });
+  });
 });
