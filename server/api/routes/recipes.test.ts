@@ -92,6 +92,24 @@ describe("POST /v1/recipes", () => {
 
     expect(body.error.details[0].fieldViolations[0].field).toBe("baseServings");
   });
+
+  it("refuses a step whose braces hold no amount, naming the step", async () => {
+    const response = await post("/v1/recipes?recipeId=fajitas", {
+      ...fajitas,
+      instructions: ["Slice {1 lb} chicken.", "Season {to taste}."],
+    });
+
+    expect(response.status).toBe(400);
+
+    const body = (await response.json()) as {
+      error: { details: [{ fieldViolations: [{ field: string; description: string }] }] };
+    };
+
+    expect(body.error.details[0].fieldViolations[0]).toMatchObject({
+      field: "instructions.1",
+      description: expect.stringContaining("{to taste}"),
+    });
+  });
 });
 
 describe("GET /v1/recipes", () => {

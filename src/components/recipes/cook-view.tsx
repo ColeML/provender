@@ -1,5 +1,6 @@
 "use client";
 
+import { parseStep } from "@server/lib/step-quantities";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import { RecipeNotes } from "./recipe-notes";
 import { RecipeRating } from "./recipe-rating";
+import { StepText } from "./step-text";
 
 export interface CookIngredient {
   id: string;
@@ -58,9 +60,15 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           ...ingredient,
         })) ?? recipe.ingredients);
 
+  const steps =
+    servings === recipe.baseServings
+      ? recipe.instructions.map(parseStep)
+      : (scaled.data?.instructions ?? recipe.instructions.map(parseStep));
+
   // The amounts on screen belong to a different serving count than the one displayed. Saying so
   // matters more here than anywhere else in the app: these are numbers someone measures by.
   const stale = servings !== recipe.baseServings && !scaled.isSuccess;
+  const stepsStale = stale && steps.some((parts) => parts.some((part) => typeof part !== "string"));
 
   const time = recipe.totalMin === null ? null : `${recipe.totalMin} min`;
 
@@ -208,10 +216,14 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
             Method
           </h2>
 
-          <ol aria-labelledby="method" className="mt-2 space-y-5">
+          <ol
+            aria-busy={stepsStale}
+            aria-labelledby="method"
+            className={cn("mt-2 space-y-5", stepsStale && "opacity-40")}
+          >
             {/* Keyed on position, not text: steps repeat — `pizza` says "Rest" twice — and this
                 list is never reordered, so the index is the stable identity. */}
-            {recipe.instructions.map((instruction, index) => (
+            {steps.map((parts, index) => (
               <li key={index} className="flex gap-3">
                 <span
                   aria-hidden
@@ -220,7 +232,7 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
                   {index + 1}
                 </span>
 
-                <span className="text-xl leading-snug">{instruction}</span>
+                <StepText parts={parts} />
               </li>
             ))}
           </ol>

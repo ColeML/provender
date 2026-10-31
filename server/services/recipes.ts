@@ -1,7 +1,8 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
-import { scaleFactor, snapToKitchenUnit, VOLUME_LADDER } from "@server/lib/units";
+import { parseStep, type StepPart } from "@server/lib/step-quantities";
+import { scaleFactor, scaleQuantity } from "@server/lib/units";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
 /**
@@ -549,10 +550,12 @@ export interface ScaledRecipe {
   targetServings: number;
   factor: number;
   ingredients: ScaledIngredient[];
+  /** Each step split into text and marked amounts, the amounts scaled as an ingredient is. */
+  instructions: StepPart[][];
 }
 
 /**
- * A recipe's ingredients at a different serving count, without writing anything.
+ * A recipe's ingredients and marked step amounts at a different serving count, writing nothing.
  *
  * The mechanical half of scaling only. The judgment — spices and leavening that do not scale
  * linearly, rounding eggs and cans to whole numbers, adjusting cook time and pan size — stays with
@@ -588,23 +591,20 @@ export async function scaleRecipe(
         };
       }
 
-      const raw = Number(ingredient.quantity) * factor;
-      const unit = ingredient.unit ?? "";
-      const onLadder = (VOLUME_LADDER as readonly string[]).includes(unit.trim().toLowerCase());
-
-      // Only ladder units are snapped. A count like "3 cloves" has no fraction worth cleaning up,
-      // and snapping a mass would round away a real difference.
-      const scaled = onLadder
-        ? snapToKitchenUnit(raw, unit)
-        : { quantity: Number(raw.toFixed(3)), unit: ingredient.unit };
+      const scaled = scaleQuantity(Number(ingredient.quantity), ingredient.unit, factor);
 
       return {
         name: ingredient.name,
         quantity: scaled.quantity,
-        unit: scaled.unit ?? ingredient.unit,
+        unit: scaled.unit,
         category: ingredient.category,
         notes: ingredient.notes,
       };
     }),
+    instructions: recipe.instructions.map((step) =>
+      parseStep(step).map((part) =>
+        typeof part === "string" ? part : scaleQuantity(part.quantity, part.unit, factor),
+      ),
+    ),
   };
 }

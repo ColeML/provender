@@ -401,7 +401,15 @@ describe("scaleRecipe", () => {
     await createRecipe(
       HOUSEHOLD,
       "stirfry",
-      { title: "Stir fry", baseServings: 6 },
+      {
+        title: "Stir fry",
+        baseServings: 6,
+        instructions: [
+          "Whisk {1/3 cup} soy sauce with half the garlic.",
+          "Stir-fry {1 1/2 lb} chicken over high heat for 5 minutes.",
+          "Season to taste.",
+        ],
+      },
       [
         { name: "soy sauce", quantity: 1 / 3, unit: "cup", category: "pantry" },
         { name: "chicken breast", quantity: 1.5, unit: "lb", category: "meat" },
@@ -440,6 +448,27 @@ describe("scaleRecipe", () => {
     const salt = scaled.ingredients.find((row) => row.name === "salt");
 
     expect(salt).toMatchObject({ quantity: null, notes: "to taste" });
+  });
+
+  it("scales a marked step amount exactly as the ingredient list scales the same amount", async () => {
+    const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
+
+    expect(scaled.instructions[0]).toEqual([
+      "Whisk ",
+      { quantity: 7.125, unit: "tbsp" },
+      " soy sauce with half the garlic.",
+    ]);
+    expect(scaled.instructions[1]).toEqual([
+      "Stir-fry ",
+      { quantity: 2, unit: "lb" },
+      " chicken over high heat for 5 minutes.",
+    ]);
+  });
+
+  it("leaves a step with no marked amount as its text", async () => {
+    const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
+
+    expect(scaled.instructions[2]).toEqual(["Season to taste."]);
   });
 
   it("writes nothing — the stored recipe is unchanged", async () => {

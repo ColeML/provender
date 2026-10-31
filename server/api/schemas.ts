@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
+import { malformedQuantity } from "@server/lib/step-quantities";
 import type { IngredientInput } from "@server/services/recipes";
 
 /** The store aisles the shopping list groups by. Mirrors the `ingredient_category` enum. */
@@ -79,7 +80,18 @@ export const RecipeInputSchema = z
     totalMin: z.number().int().nonnegative().nullish(),
     costEstimate: z.number().nonnegative().nullish(),
     tags: z.array(z.string()).optional(),
-    instructions: z.array(z.string()).optional(),
+    instructions: z
+      .array(
+        z
+          .string()
+          .refine((step) => malformedQuantity(step) === null, {
+            error: (issue) =>
+              `${malformedQuantity(String(issue.input))} is not an amount. Braces mark an amount ` +
+              "that scales with the servings, such as {1/3 cup}, {1 1/2 tsp} or {8}.",
+          })
+          .openapi({ example: "Whisk {1/3 cup} mayonnaise with the honey." }),
+      )
+      .optional(),
     ingredients: z.array(IngredientInputSchema).optional(),
   })
   .openapi("RecipeInput");

@@ -40,6 +40,8 @@ Multiplying everything by the factor is wrong for:
   not a smaller pour.
 - **Ingredient notes** were written against the base servings, so "start with 4-5 tbsp" is wrong
   the moment the amount changes. Re-read every note and restate it at the new count.
+- **Step amounts in braces** (`Whisk {1/3 cup} mayonnaise`) are ingredient amounts. `:scale` does
+  not return steps, so scale each one with the correction its ingredient got.
 
 ## 3. Adjust time and vessel
 

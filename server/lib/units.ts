@@ -169,6 +169,57 @@ export function snapToKitchenUnit(
   };
 }
 
+// Without these, "2 tablespoons" would scale linearly beside a "2 tbsp" that snaps.
+const LADDER_SPELLINGS: Record<string, (typeof VOLUME_LADDER)[number]> = {
+  cups: "cup",
+  tablespoon: "tbsp",
+  tablespoons: "tbsp",
+  tbsps: "tbsp",
+  teaspoon: "tsp",
+  teaspoons: "tsp",
+  tsps: "tsp",
+};
+
+/**
+ * A stored third as the exact third it stands for.
+ *
+ * JSON has no 1/3, so `1/3 cup` is stored as `0.333` or `0.33`. Scaled as written it misses the
+ * snapping tolerance and lands on a different unit than the exact `{1/3 cup}` in a step.
+ */
+function exactThirds(quantity: number) {
+  const whole = Math.floor(quantity);
+
+  for (const third of [1 / 3, 2 / 3]) {
+    if (Math.abs(quantity - whole - third) < 0.01) {
+      return whole + third;
+    }
+  }
+
+  return quantity;
+}
+
+/**
+ * One amount at a scale factor: cup, tbsp and tsp snap to a measurable fraction, which may change
+ * the unit, and anything else scales linearly.
+ */
+export function scaleQuantity(
+  quantity: number,
+  unit: string | null,
+  factor: number,
+): { quantity: number; unit: string | null } {
+  const raw = exactThirds(quantity) * factor;
+  const key = unit === null ? null : normalize(unit).replace(/\.$/, "");
+  const ladderUnit = key === null ? null : (LADDER_SPELLINGS[key] ?? key);
+
+  // A count like "3 cloves" has no fraction worth cleaning up, and snapping a mass would round
+  // away a real difference.
+  if (ladderUnit === null || !isVolumeLadderUnit(ladderUnit)) {
+    return { quantity: Number(raw.toFixed(3)), unit };
+  }
+
+  return snapToKitchenUnit(raw, ladderUnit);
+}
+
 /**
  * The multiplier from one serving count to another.
  *

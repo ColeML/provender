@@ -38,6 +38,14 @@ Parse each raw line, so `"2 cloves garlic, minced"` becomes
 - The shopping list keys a row on name plus unit, so reuse the unit a saved recipe already uses
   for that ingredient, or the two lines never merge.
 - Add `tags`: cuisine, "quick", equipment, "kid-friendly".
+
+Mark each amount in a step that measures out an ingredient by putting it in braces:
+`Whisk {1/3 cup} mayonnaise with the honey`, `Fill all {8} tortillas`. The recipe page scales a
+marked amount with the servings and shows the rest of the step as written. Leave unmarked anything
+that stays put when the batch grows: temperatures, times, pan and cut sizes, and a per-piece
+portion such as `1/3 cup batter per waffle`. A brace holds a whole number, a decimal, `1/3` or
+`1 1/2`, then an optional unit, and the API refuses anything else. Drop a second measure in
+parentheses, such as `(19g)`, since it would not scale.
 - `costEstimate` covers the whole recipe. Price from `./scripts/prov GET /prices` first, then
   `./scripts/prov GET '/kroger/prices?term=<item>'`, then estimate the rest; count
   `config.pantry_staples` as free and say which lines you estimated. Kroger is opt-in and answers
@@ -53,7 +61,8 @@ that, so `people` x 1.2 rounded up. Treat a dish that could be either as a main 
 
 A single-batch dish overrides both: a sheet-pan pizza and a whole roast feed what they feed.
 
-Where the target differs from the source's yield, multiply as you parse — spices and leavening are
+Where the target differs from the source's yield, multiply as you parse, marked step amounts
+included — spices and leavening are
 not linear, eggs and cans round to whole numbers, and times rise when the batch cooks in shifts.
 (`:scale` needs a saved recipe, so it cannot help a draft.) The shopping list reads stored
 quantities as-is and never re-scales.
@@ -76,7 +85,7 @@ cat > .provender/drafts/<slug>.json <<'JSON'
   "ingredients": [
     { "ingredientName": "skirt steak", "quantity": 2, "unit": "lb", "category": "meat", "notes": null }
   ],
-  "instructions": ["Marinate the steak.", "Grill 4 minutes per side."]
+  "instructions": ["Marinate {2 lb} skirt steak for at least 1 hour.", "Grill 4 minutes per side."]
 }
 JSON
 ```
