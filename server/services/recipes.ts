@@ -605,18 +605,33 @@ export async function deleteIngredient(
   ingredientId: string,
   db: Database = defaultDb,
 ) {
-  const deleted = await db
-    .delete(schema.ingredients)
-    .where(
-      and(
-        eq(schema.ingredients.householdId, householdId),
-        eq(schema.ingredients.recipeId, recipeId),
-        eq(schema.ingredients.id, ingredientId),
-      ),
-    )
-    .returning({ id: schema.ingredients.id });
+  return db.transaction(async (tx) => {
+    const ofRecipe = and(
+      eq(schema.ingredients.householdId, householdId),
+      eq(schema.ingredients.recipeId, recipeId),
+    );
 
-  return deleted.length > 0;
+    const deleted = await tx
+      .delete(schema.ingredients)
+      .where(and(ofRecipe, eq(schema.ingredients.id, ingredientId)))
+      .returning({ id: schema.ingredients.id });
+
+    if (deleted.length === 0) {
+      return false;
+    }
+
+    const [recipe] = await tx
+      .select({ instructions: schema.recipes.instructions })
+      .from(schema.recipes)
+      .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)));
+
+    assertStepLinks(
+      recipe.instructions,
+      await tx.select({ name: schema.ingredients.name }).from(schema.ingredients).where(ofRecipe),
+    );
+
+    return true;
+  });
 }
 
 export interface ScaledIngredient {
@@ -701,7 +716,6 @@ export async function scaleRecipe(
               part.quantity,
               part.unit,
               factor,
-              // Not found only for a link whose ingredient was deleted on its own since.
               (part.ingredient === undefined
                 ? undefined
                 : kinds.get(ingredientKey(part.ingredient))) ?? "linear",

@@ -101,8 +101,8 @@ agents read them as instructions):
 - **A step amount in braces (`Whisk {1/3 cup|mayonnaise} mayonnaise`) scales with the servings
   stepper** on the recipe page; the rest of the step stays as written. The name after the `|`
   links the amount to an ingredient of the same recipe, ignoring case, so it scales on that
-  ingredient's curve. A write whose link names no ingredient is refused, and a brace with no link
-  scales linearly. The link sets only the curve: change the step's amount whenever you change the
+  ingredient's curve. A write that would leave a link naming no ingredient is refused, deleting
+  the linked ingredient included, and a brace with no link scales linearly. The link sets only the curve: change the step's amount whenever you change the
   ingredient's, and keep the link when you rewrite it.
 - **Every ingredient write carries `scaling`**: `linear`, `seasoning`, `leavening` or `whole`. The
   agent picks it when saving a recipe, and the servings stepper and `:scale` apply its curve on

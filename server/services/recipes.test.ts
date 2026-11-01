@@ -447,13 +447,21 @@ describe("step links", () => {
     ]);
   });
 
-  it("scales a link whose ingredient was since deleted on its own linearly", async () => {
+  it("refuses to delete an ingredient a step links to, keeping it", async () => {
     await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
-    await deleteIngredient(HOUSEHOLD, "muffins", "muffins_cinnamon", db);
 
-    const scaled = await scaleRecipe(HOUSEHOLD, "muffins", 24, db);
+    await expect(
+      deleteIngredient(HOUSEHOLD, "muffins", "muffins_cinnamon", db),
+    ).rejects.toBeInstanceOf(StepLinkError);
+    expect(await listIngredients(HOUSEHOLD, "muffins", db)).toHaveLength(2);
+  });
 
-    expect(scaled.instructions[0][1]).toEqual({ quantity: 2, unit: "tsp" });
+  it("deletes a linked ingredient while another of the same name remains", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, [...batter, { ...batter[1] }], db);
+
+    await expect(deleteIngredient(HOUSEHOLD, "muffins", "muffins_cinnamon", db)).resolves.toBe(
+      true,
+    );
   });
 
   it("keeps saving a recipe whose braces have no links", async () => {
