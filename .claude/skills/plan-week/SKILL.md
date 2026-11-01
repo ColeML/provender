@@ -176,6 +176,10 @@ entry from `recipes`, point the day that named it at the existing id instead, an
 `replaceExistingDays` does not apply here; it only gates the days check, so setting it will not
 clear this error and retrying unchanged just repeats it.
 
+**Every ingredient in a list you send carries its `scaling`**, copied from
+`GET /recipes/<recipe>/ingredients` or the `:scale` response. A `PATCH` that names `ingredients`
+replaces the whole list, and the API refuses one with an ingredient missing it.
+
 **An oversized side the household said yes to rescaling.** Before the commit, which refuses it
 otherwise: follow **scale-recipe** down to one batch for this meal (the source's own yield, or
 add-recipe's side target when that yield is itself 3x the day's servings), then

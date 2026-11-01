@@ -20,6 +20,7 @@ import {
   normalizeNotes,
   RecipeExistsError,
   RecipeNotFoundError,
+  ScalingConflictError,
   scaleRecipe,
   updateRecipe,
 } from "./recipes";
@@ -44,9 +45,28 @@ const fajitas = {
 };
 
 const ingredients = [
-  { name: "chili powder", quantity: 2, unit: "Tbsp", category: "pantry" as const },
-  { name: "bell pepper", quantity: 3, unit: "ea", category: "produce" as const },
-  { name: "salt", quantity: null, unit: null, category: "pantry" as const, notes: "to taste" },
+  {
+    name: "chili powder",
+    quantity: 2,
+    unit: "Tbsp",
+    category: "pantry" as const,
+    scaling: "linear" as const,
+  },
+  {
+    name: "bell pepper",
+    quantity: 3,
+    unit: "ea",
+    category: "produce" as const,
+    scaling: "linear" as const,
+  },
+  {
+    name: "salt",
+    quantity: null,
+    unit: null,
+    category: "pantry" as const,
+    notes: "to taste",
+    scaling: "linear" as const,
+  },
 ];
 
 describe("createRecipe", () => {
@@ -84,8 +104,15 @@ describe("createRecipe", () => {
       "stew",
       fajitas,
       [
-        { name: "onion", quantity: 1, unit: "ea", category: "produce" },
-        { name: "onion", quantity: 2, unit: "ea", category: "produce", notes: "for the garnish" },
+        { name: "onion", quantity: 1, unit: "ea", category: "produce", scaling: "linear" },
+        {
+          name: "onion",
+          quantity: 2,
+          unit: "ea",
+          category: "produce",
+          notes: "for the garnish",
+          scaling: "linear",
+        },
       ],
       db,
     );
@@ -110,7 +137,15 @@ describe("createRecipe", () => {
         HOUSEHOLD,
         "broken",
         fajitas,
-        [{ name: "mystery", quantity: 1, unit: "ea", category: "not-an-aisle" as never }],
+        [
+          {
+            name: "mystery",
+            quantity: 1,
+            unit: "ea",
+            category: "not-an-aisle" as never,
+            scaling: "linear",
+          },
+        ],
         db,
       ),
     ).rejects.toThrow();
@@ -168,6 +203,157 @@ describe("listRecipes", () => {
   });
 });
 
+describe("scaling kinds", () => {
+  const muffins = { title: "Muffins", baseServings: 12 };
+  const batter = [
+    {
+      name: "flour",
+      quantity: 2,
+      unit: "cup",
+      category: "pantry" as const,
+      scaling: "linear" as const,
+    },
+    {
+      name: "cinnamon",
+      quantity: 1,
+      unit: "tsp",
+      category: "pantry" as const,
+      scaling: "seasoning" as const,
+    },
+    {
+      name: "baking powder",
+      quantity: 2,
+      unit: "tsp",
+      category: "pantry" as const,
+      scaling: "leavening" as const,
+    },
+    {
+      name: "eggs",
+      quantity: 2,
+      unit: null,
+      category: "dairy" as const,
+      scaling: "whole" as const,
+    },
+    {
+      name: "salt",
+      quantity: null,
+      unit: null,
+      category: "pantry" as const,
+      notes: "a pinch",
+      scaling: "seasoning" as const,
+    },
+  ];
+
+  it("stores each ingredient's kind", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    const stored = await listIngredients(HOUSEHOLD, "muffins", db);
+
+    expect(stored.map((row) => row.scaling)).toEqual([
+      "linear",
+      "seasoning",
+      "leavening",
+      "whole",
+      "seasoning",
+    ]);
+  });
+
+  it("reads a row written without a kind as linear", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, [], db);
+    await db.insert(schema.ingredients).values({
+      householdId: HOUSEHOLD,
+      id: "muffins_flour",
+      recipeId: "muffins",
+      name: "flour",
+      quantity: "2",
+      unit: "cup",
+      category: "pantry",
+      position: 0,
+    });
+
+    const [flour] = await listIngredients(HOUSEHOLD, "muffins", db);
+
+    expect(flour.scaling).toBe("linear");
+  });
+
+  it("puts each kind on its curve when scaling up", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    const scaled = await scaleRecipe(HOUSEHOLD, "muffins", 24, db);
+
+    expect(scaled.ingredients).toMatchObject([
+      { name: "flour", quantity: 4, unit: "cup", scaling: "linear" },
+      // 2^0.6 is 1.52, and 1.52 tsp snaps to 1 1/2.
+      { name: "cinnamon", quantity: 1.5, unit: "tsp", scaling: "seasoning" },
+      // 2 x 2^0.8 is 3.48, which snaps to 3 1/2.
+      { name: "baking powder", quantity: 3.5, unit: "tsp", scaling: "leavening" },
+      { name: "eggs", quantity: 4, unit: null, scaling: "whole" },
+      { name: "salt", quantity: null, notes: "a pinch", scaling: "seasoning" },
+    ]);
+  });
+
+  it("rounds a whole item, halves up", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    const scaled = await scaleRecipe(HOUSEHOLD, "muffins", 15, db);
+
+    // 2 x 15/12 is 2.5.
+    expect(scaled.ingredients.find((row) => row.name === "eggs")?.quantity).toBe(3);
+  });
+
+  it("scales every kind linearly when scaling down", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    const scaled = await scaleRecipe(HOUSEHOLD, "muffins", 6, db);
+
+    expect(scaled.ingredients.map((row) => row.quantity)).toEqual([1, 0.5, 1, 1, null]);
+  });
+
+  it("refuses two ingredients that share a name but not a kind, ignoring case", async () => {
+    await expect(
+      createRecipe(
+        HOUSEHOLD,
+        "muffins",
+        muffins,
+        [...batter, { ...batter[1], name: "Cinnamon ", scaling: "linear" as const }],
+        db,
+      ),
+    ).rejects.toBeInstanceOf(ScalingConflictError);
+    await expect(getRecipe(HOUSEHOLD, "muffins", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
+  });
+
+  it("accepts a repeated name that keeps its kind", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, [...batter, { ...batter[1] }], db);
+
+    expect(await listIngredients(HOUSEHOLD, "muffins", db)).toHaveLength(6);
+  });
+
+  it("refuses a replacement list that splits a name across kinds, keeping the stored list", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    await expect(
+      updateRecipe(
+        HOUSEHOLD,
+        "muffins",
+        ["ingredients"],
+        {},
+        [batter[3], { ...batter[3], scaling: "linear" }],
+        db,
+      ),
+    ).rejects.toBeInstanceOf(ScalingConflictError);
+    expect(await listIngredients(HOUSEHOLD, "muffins", db)).toHaveLength(5);
+  });
+
+  it("refuses an added ingredient whose kind differs from a stored one of the same name", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    await expect(
+      addIngredient(HOUSEHOLD, "muffins", { ...batter[3], name: "Eggs", scaling: "linear" }, db),
+    ).rejects.toBeInstanceOf(ScalingConflictError);
+    expect(await listIngredients(HOUSEHOLD, "muffins", db)).toHaveLength(5);
+  });
+});
+
 describe("addIngredient", () => {
   beforeEach(async () => {
     await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
@@ -177,7 +363,7 @@ describe("addIngredient", () => {
     await addIngredient(
       HOUSEHOLD,
       "fajitas",
-      { name: "lime", quantity: 1, unit: "ea", category: "produce" },
+      { name: "lime", quantity: 1, unit: "ea", category: "produce", scaling: "linear" },
       db,
     );
 
@@ -191,7 +377,7 @@ describe("addIngredient", () => {
     const added = await addIngredient(
       HOUSEHOLD,
       "fajitas",
-      { name: "salt", quantity: 1, unit: "tsp", category: "pantry" },
+      { name: "salt", quantity: 1, unit: "tsp", category: "pantry", scaling: "linear" },
       db,
     );
 
@@ -203,7 +389,7 @@ describe("addIngredient", () => {
       addIngredient(
         HOUSEHOLD,
         "nope",
-        { name: "lime", quantity: 1, unit: "ea", category: "produce" },
+        { name: "lime", quantity: 1, unit: "ea", category: "produce", scaling: "linear" },
         db,
       ),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
@@ -314,7 +500,7 @@ describe("updateRecipe", () => {
       "fajitas",
       ["ingredients"],
       {},
-      [{ name: "steak", quantity: 1, unit: "lb", category: "meat" }],
+      [{ name: "steak", quantity: 1, unit: "lb", category: "meat", scaling: "linear" }],
       db,
     );
 
@@ -411,10 +597,17 @@ describe("scaleRecipe", () => {
         ],
       },
       [
-        { name: "soy sauce", quantity: 1 / 3, unit: "cup", category: "pantry" },
-        { name: "chicken breast", quantity: 1.5, unit: "lb", category: "meat" },
-        { name: "garlic", quantity: 3, unit: "clove", category: "produce" },
-        { name: "salt", quantity: null, unit: null, category: "pantry", notes: "to taste" },
+        { name: "soy sauce", quantity: 1 / 3, unit: "cup", category: "pantry", scaling: "linear" },
+        { name: "chicken breast", quantity: 1.5, unit: "lb", category: "meat", scaling: "linear" },
+        { name: "garlic", quantity: 3, unit: "clove", category: "produce", scaling: "linear" },
+        {
+          name: "salt",
+          quantity: null,
+          unit: null,
+          category: "pantry",
+          notes: "to taste",
+          scaling: "linear",
+        },
       ],
       db,
     );
@@ -439,7 +632,7 @@ describe("scaleRecipe", () => {
     const scaled = await scaleRecipe(HOUSEHOLD, "stirfry", 8, db);
     const garlic = scaled.ingredients.find((row) => row.name === "garlic");
 
-    // 4 cloves exactly; rounding to whole is the caller's judgment, not this function's.
+    // 4 cloves exactly: a `linear` count is not rounded.
     expect(garlic).toMatchObject({ quantity: 4, unit: "clove" });
   });
 

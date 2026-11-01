@@ -38,8 +38,15 @@ const RECIPE: CookRecipe = {
   notes: [],
   instructions: ["Slice the peppers.", "Sear the chicken.", "Warm the tortillas."],
   ingredients: [
-    { id: "a", name: "chicken breast", quantity: 1.5, unit: "lb", notes: "sliced" },
-    { id: "b", name: "salt", quantity: null, unit: null, notes: "to taste" },
+    {
+      id: "a",
+      name: "chicken breast",
+      quantity: 1.5,
+      unit: "lb",
+      notes: "sliced",
+      scaling: "linear",
+    },
+    { id: "b", name: "salt", quantity: null, unit: null, notes: "to taste", scaling: "seasoning" },
   ],
 };
 
@@ -297,6 +304,63 @@ describe("the cook view", () => {
 
     expect(screen.queryByRole("list", { name: "Method" })).toBeNull();
     expect(screen.getByText("chicken breast")).toBeInTheDocument();
+  });
+});
+
+describe("the curve note under the stepper", () => {
+  const NOTE = "Spices and leavening scale by less than the servings";
+  const cumin = {
+    id: "c",
+    name: "cumin",
+    quantity: 1,
+    unit: "tsp",
+    notes: null,
+    scaling: "seasoning" as const,
+  };
+
+  beforeEach(() => {
+    scale.mockReturnValue(new Promise(() => {}));
+  });
+
+  it("is hidden at the stored servings", () => {
+    renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
+
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it.each(["seasoning", "leavening"] as const)(
+    "shows once scaled up when a %s ingredient has a quantity",
+    async (scaling) => {
+      const user = renderCook({ ingredients: [...RECIPE.ingredients, { ...cumin, scaling }] });
+
+      await user.click(screen.getByRole("button", { name: "More servings" }));
+
+      expect(screen.getByText(NOTE)).toBeInTheDocument();
+    },
+  );
+
+  it("is hidden when scaled down, where every kind is linear", async () => {
+    const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
+
+    await user.click(screen.getByRole("button", { name: "Fewer servings" }));
+
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it("is hidden when the only seasoning is to taste", async () => {
+    const user = renderCook();
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it("is hidden when nothing scaled up is a seasoning or leavening", async () => {
+    const user = renderCook({ ingredients: [{ ...cumin, scaling: "whole" }] });
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
 });
 

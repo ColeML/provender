@@ -29,10 +29,19 @@ Trust `baseServings` only when `yieldText` says servings. `"1 loaf"` parses to 1
 stored at 1 serving multiplies by the target when scaled.
 
 Parse each raw line, so `"2 cloves garlic, minced"` becomes
-`{ingredientName: "garlic", quantity: 2, unit: "clove", category: "produce", notes: "minced"}`.
+`{ingredientName: "garlic", quantity: 2, unit: "clove", category: "produce", notes: "minced", scaling: "whole"}`.
 
 - `category` is `produce`, `meat`, `dairy`, `bakery`, `frozen`, `pantry` or `other` — the shopping
   list groups by it.
+- `scaling` sets how the amount grows when the recipe is scaled up. Every ingredient needs one, or
+  the API refuses the save:
+  - `seasoning` — spices, salt, pepper, dried herbs, extracts such as vanilla.
+  - `leavening` — yeast, baking powder, baking soda.
+  - `whole` — items counted whole: eggs, cans, garlic cloves.
+  - `linear` — everything else, including fresh herbs, sauces, oil and butter.
+
+  An ingredient listed twice (butter for the batter and butter for the pan) takes the same
+  `scaling` both times.
 - Qualifiers ("minced", "divided") belong in `notes`, so the name stays mergeable. "To taste" is
   `quantity: null`.
 - The shopping list keys a row on name plus unit, so reuse the unit a saved recipe already uses
@@ -62,8 +71,10 @@ that, so `people` x 1.2 rounded up. Treat a dish that could be either as a main 
 A single-batch dish overrides both: a sheet-pan pizza and a whole roast feed what they feed.
 
 Where the target differs from the source's yield, multiply as you parse, marked step amounts
-included — spices and leavening are
-not linear, eggs and cans round to whole numbers, and times rise when the batch cooks in shifts.
+included. Scaling up, put each ingredient on its kind's curve: `seasoning` by the factor to the
+0.6 (1.5x at double), `leavening` by the factor to the 0.8 (1.7x at double), and `whole` rounded
+to a whole number. Scaling down is linear for every kind. Times rise when the batch cooks in
+shifts.
 (`:scale` needs a saved recipe, so it cannot help a draft.) The shopping list reads stored
 quantities as-is and never re-scales.
 
@@ -83,9 +94,10 @@ cat > .provender/drafts/<slug>.json <<'JSON'
   "costEstimate": 18.5,
   "tags": ["quick", "grill"],
   "ingredients": [
-    { "ingredientName": "skirt steak", "quantity": 2, "unit": "lb", "category": "meat", "notes": null }
+    { "ingredientName": "skirt steak", "quantity": 2, "unit": "lb", "category": "meat", "notes": null, "scaling": "linear" },
+    { "ingredientName": "kosher salt", "quantity": 1, "unit": "tsp", "category": "pantry", "notes": null, "scaling": "seasoning" }
   ],
-  "instructions": ["Marinate {2 lb} skirt steak for at least 1 hour.", "Grill 4 minutes per side."]
+  "instructions": ["Season {2 lb} skirt steak with the salt and marinate for at least 1 hour.", "Grill 4 minutes per side."]
 }
 JSON
 ```

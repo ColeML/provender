@@ -41,7 +41,9 @@ beforeEach(async () => {
   await request("POST", "/v1/recipes?recipeId=fajitas", {
     title: "Chicken Fajitas",
     baseServings: 8,
-    ingredients: [{ ingredientName: "salt", quantity: 1, unit: "tsp", category: "pantry" }],
+    ingredients: [
+      { ingredientName: "salt", quantity: 1, unit: "tsp", category: "pantry", scaling: "linear" },
+    ],
   });
 });
 

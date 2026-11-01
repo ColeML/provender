@@ -1,0 +1,32 @@
+{
+  "title": "Brown Butter Banana Muffins",
+  "sourceUrl": "https://www.example-bakes.com/brown-butter-banana-muffins",
+  "imageUrl": "https://www.example-bakes.com/img/banana-muffins.jpg",
+  "baseServings": 12,
+  "yieldText": "12 muffins",
+  "prepMin": 15,
+  "cookMin": 20,
+  "totalMin": 35,
+  "ingredients": [
+    "1/2 cup unsalted butter, browned, plus 1 tablespoon butter for greasing the pan",
+    "3 ripe bananas, mashed",
+    "2 large eggs, room temperature",
+    "3/4 cup packed light brown sugar",
+    "1/2 cup whole milk",
+    "1 1/2 teaspoons pure vanilla extract",
+    "2 cups all-purpose flour (250g)",
+    "1 teaspoon baking powder",
+    "1/2 teaspoon baking soda",
+    "1 1/2 teaspoons ground cinnamon",
+    "1/2 teaspoon kosher salt",
+    "1/2 cup chopped walnuts, optional"
+  ],
+  "instructions": [
+    "Preheat the oven to 375°F. Grease a 12-cup muffin tin with 1 tablespoon butter.",
+    "Brown 1/2 cup butter in a small saucepan over medium heat, about 5 minutes. Let it cool for 10 minutes.",
+    "Whisk the mashed bananas, 2 eggs, 3/4 cup brown sugar, 1/2 cup milk, 1 1/2 teaspoons vanilla and the browned butter.",
+    "In a second bowl whisk 2 cups flour, 1 teaspoon baking powder, 1/2 teaspoon baking soda, 1 1/2 teaspoons cinnamon and 1/2 teaspoon salt.",
+    "Fold the dry ingredients into the wet until just combined, then fold in the walnuts.",
+    "Divide the batter among the cups, about 1/3 cup each, and bake 18 to 20 minutes."
+  ]
+}

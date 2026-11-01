@@ -1,0 +1,25 @@
+{
+  "skill": "add-recipe",
+  "method": "Run each arm 5 or more times on a local dev server (PROVENDER_BASE_URL set on every ./scripts/prov call). Hand each rep the scenario file as step 1's scrape output, and stop it after step 4 with the draft written to a scratch path, so nothing is saved. Score the draft JSON. A rep that misses a canary is discarded, not scored.",
+  "prompt": "save this recipe: https://www.example-bakes.com/brown-butter-banana-muffins",
+  "canaries": [
+    "Every ingredient has an ingredientName and a category."
+  ],
+  "regressions": [
+    {
+      "id": "scaling-on-every-ingredient",
+      "added": "2026-10-31",
+      "source": "Ingredients gain a required scaling kind (#220). Step 2 lists the four kinds.",
+      "type": "regression",
+      "scenario": "evals/scenarios/banana-muffins-scrape.json",
+      "control": "The skill before #220.",
+      "reps": 5,
+      "asserts": [
+        "Every ingredient in the draft sets scaling.",
+        "Salt and cinnamon are seasoning, baking powder and baking soda are leavening, and eggs are whole."
+      ],
+      "baseline": "5/5 control reps passed both asserts. Each read GET /openapi.json, whose IngredientInput marks scaling required and describes the four kinds, so this scenario cannot tell the arms apart.",
+      "result": "Edited skill: 5/5 passed both asserts, 3 of them without reading /openapi.json. The skill text ships because the design asks add-recipe to set scaling, and this repo keeps workflow steps in SKILL.md only."
+    }
+  ]
+}

@@ -29,8 +29,21 @@ const fajitas = {
   tags: ["mexican"],
   instructions: ["Preheat.", "Slice."],
   ingredients: [
-    { ingredientName: "chili powder", quantity: 2, unit: "Tbsp", category: "pantry" },
-    { ingredientName: "salt", quantity: null, unit: null, category: "pantry", notes: "to taste" },
+    {
+      ingredientName: "chili powder",
+      quantity: 2,
+      unit: "Tbsp",
+      category: "pantry",
+      scaling: "linear",
+    },
+    {
+      ingredientName: "salt",
+      quantity: null,
+      unit: null,
+      category: "pantry",
+      notes: "to taste",
+      scaling: "linear",
+    },
   ],
 };
 
@@ -91,6 +104,43 @@ describe("POST /v1/recipes", () => {
     };
 
     expect(body.error.details[0].fieldViolations[0].field).toBe("baseServings");
+  });
+
+  it("refuses an ingredient without a scaling kind, naming the field", async () => {
+    const { scaling: _, ...unkinded } = fajitas.ingredients[0];
+    const response = await post("/v1/recipes?recipeId=fajitas", {
+      ...fajitas,
+      ingredients: [unkinded],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        status: "INVALID_ARGUMENT",
+        details: [{ fieldViolations: [{ field: "ingredients.0.scaling" }] }],
+      },
+    });
+  });
+
+  it("refuses two ingredients that share a name but not a kind", async () => {
+    const response = await post("/v1/recipes?recipeId=fajitas", {
+      ...fajitas,
+      ingredients: [
+        ...fajitas.ingredients,
+        {
+          ingredientName: "Salt",
+          quantity: 1,
+          unit: "tsp",
+          category: "pantry",
+          scaling: "seasoning",
+        },
+      ],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT", message: expect.stringContaining("Salt") },
+    });
   });
 
   it("refuses a step whose braces hold no amount, naming the step", async () => {
@@ -191,6 +241,7 @@ describe("POST /v1/recipes/{recipe}/ingredients", () => {
       quantity: 1,
       unit: "EA",
       category: "produce",
+      scaling: "whole",
     });
 
     expect(response.status).toBe(200);
@@ -207,10 +258,45 @@ describe("POST /v1/recipes/{recipe}/ingredients", () => {
     expect(body.ingredients.map((i) => i.ingredientName)).toEqual(["chili powder", "salt", "lime"]);
   });
 
+  it("returns the kind, and refuses one missing or at odds with a stored namesake", async () => {
+    await post("/v1/recipes?recipeId=fajitas", fajitas);
+
+    const added = await post("/v1/recipes/fajitas/ingredients", {
+      ingredientName: "cumin",
+      quantity: 1,
+      unit: "tsp",
+      category: "pantry",
+      scaling: "seasoning",
+    });
+
+    await expect(added.json()).resolves.toMatchObject({ scaling: "seasoning" });
+
+    const unkinded = await post("/v1/recipes/fajitas/ingredients", {
+      ingredientName: "lime",
+      category: "produce",
+    });
+
+    expect(unkinded.status).toBe(400);
+
+    const clashing = await post("/v1/recipes/fajitas/ingredients", {
+      ingredientName: "salt",
+      quantity: 1,
+      unit: "tsp",
+      category: "pantry",
+      scaling: "seasoning",
+    });
+
+    expect(clashing.status).toBe(400);
+    await expect(clashing.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+
   it("returns NOT_FOUND for an unknown recipe", async () => {
     const response = await post("/v1/recipes/nope/ingredients", {
       ingredientName: "lime",
       category: "produce",
+      scaling: "whole",
     });
 
     expect(response.status).toBe(404);
@@ -296,6 +382,45 @@ describe("PATCH /v1/recipes/{recipe}", () => {
     await expect(response.json()).resolves.toMatchObject({ title: "Beef Fajitas", notes: [] });
   });
 
+  it("refuses a replacement ingredient list missing a scaling kind, keeping the stored one", async () => {
+    const { scaling: _, ...unkinded } = fajitas.ingredients[0];
+    const response = await patch("updateMask=ingredients", { ingredients: [unkinded] });
+
+    expect(response.status).toBe(400);
+
+    const stored = (await (
+      await api.request("/v1/recipes/fajitas/ingredients", { headers: authed })
+    ).json()) as { ingredients: unknown[] };
+
+    expect(stored.ingredients).toHaveLength(2);
+  });
+
+  it("refuses a replacement ingredient list that splits a name across kinds", async () => {
+    const response = await patch("updateMask=ingredients", {
+      ingredients: [
+        {
+          ingredientName: "salt",
+          quantity: 1,
+          unit: "tsp",
+          category: "pantry",
+          scaling: "seasoning",
+        },
+        {
+          ingredientName: "salt",
+          quantity: 1,
+          unit: "tbsp",
+          category: "pantry",
+          scaling: "linear",
+        },
+      ],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+
   it("rejects a mask naming an unknown field instead of silently doing nothing", async () => {
     const response = await patch("updateMask=titel", { title: "typo" });
 
@@ -351,8 +476,20 @@ describe("POST /v1/recipes/{recipe}:scale", () => {
       title: "Stir fry",
       baseServings: 6,
       ingredients: [
-        { ingredientName: "soy sauce", quantity: 1 / 3, unit: "cup", category: "pantry" },
-        { ingredientName: "chicken", quantity: 1.5, unit: "lb", category: "meat" },
+        {
+          ingredientName: "soy sauce",
+          quantity: 1 / 3,
+          unit: "cup",
+          category: "pantry",
+          scaling: "linear",
+        },
+        {
+          ingredientName: "chicken",
+          quantity: 1.5,
+          unit: "lb",
+          category: "meat",
+          scaling: "linear",
+        },
       ],
     });
   });
@@ -379,6 +516,41 @@ describe("POST /v1/recipes/{recipe}:scale", () => {
     ).json()) as { ingredients: { quantity: number; unit: string }[] };
 
     expect(stored.ingredients[0].unit).toBe("cup");
+  });
+
+  it("puts each ingredient on its kind's curve when scaling up, and says which kind", async () => {
+    await post("/v1/recipes?recipeId=bread", {
+      title: "Bread",
+      baseServings: 8,
+      ingredients: [
+        {
+          ingredientName: "salt",
+          quantity: 2,
+          unit: "tsp",
+          category: "pantry",
+          scaling: "seasoning",
+        },
+        {
+          ingredientName: "yeast",
+          quantity: 2,
+          unit: "tsp",
+          category: "pantry",
+          scaling: "leavening",
+        },
+        { ingredientName: "egg", quantity: 1, unit: null, category: "dairy", scaling: "whole" },
+      ],
+    });
+
+    const response = await post("/v1/recipes/bread:scale", { targetServings: 12 });
+
+    // 1.5^0.6 is 1.28 and 1.5^0.8 is 1.38: 2.55 tsp snaps to 2 1/2, and 2.77 to 2 3/4.
+    await expect(response.json()).resolves.toMatchObject({
+      ingredients: [
+        { ingredientName: "salt", quantity: 2.5, unit: "tsp", scaling: "seasoning" },
+        { ingredientName: "yeast", quantity: 2.75, unit: "tsp", scaling: "leavening" },
+        { ingredientName: "egg", quantity: 2, unit: null, scaling: "whole" },
+      ],
+    });
   });
 
   it("returns NOT_FOUND for a recipe that does not exist", async () => {

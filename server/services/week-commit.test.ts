@@ -51,7 +51,15 @@ function oneDay(overrides: Partial<Parameters<typeof commitWeek>[2]> = {}) {
         title: "Sheet-Pan Gnocchi",
         baseServings: 8,
         totalMin: 30,
-        ingredients: [{ name: "gnocchi", quantity: 32, unit: "oz", category: "pantry" as const }],
+        ingredients: [
+          {
+            name: "gnocchi",
+            quantity: 32,
+            unit: "oz",
+            category: "pantry" as const,
+            scaling: "linear" as const,
+          },
+        ],
       },
     ],
     days: [{ date: MONDAY, servings: 8, main: "gnocchi", notes: "58F and wet" }],

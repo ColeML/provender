@@ -28,7 +28,7 @@ import {
   type Plan,
   type PlanDayWithRecipes,
 } from "@server/services/plans";
-import { RecipeExistsError } from "@server/services/recipes";
+import { RecipeExistsError, ScalingConflictError } from "@server/services/recipes";
 import {
   commitWeek,
   DaysAlreadyPlannedError,
@@ -79,7 +79,8 @@ function planError(c: Parameters<typeof apiError>[0], error: unknown) {
     error instanceof DuplicateCommitDayError ||
     error instanceof DuplicateCommitRecipeError ||
     error instanceof UnknownRecipeError ||
-    error instanceof UnreferencedRecipeError
+    error instanceof UnreferencedRecipeError ||
+    error instanceof ScalingConflictError
   ) {
     return apiError(c, "INVALID_ARGUMENT", error.message);
   }

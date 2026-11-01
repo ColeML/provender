@@ -105,7 +105,15 @@ const A = "loewer";
 const B = "other";
 
 const recipe = { title: "Fajitas", baseServings: 8, costEstimate: 12.5 };
-const ingredients = [{ name: "salt", quantity: 1, unit: "tsp", category: "pantry" as const }];
+const ingredients = [
+  {
+    name: "salt",
+    quantity: 1,
+    unit: "tsp",
+    category: "pantry" as const,
+    scaling: "linear" as const,
+  },
+];
 
 beforeEach(async () => {
   ({ db, close } = await createTestDb());
@@ -212,7 +220,7 @@ describe("recipes", () => {
       "fajitas",
       ["ingredients"],
       {},
-      [{ name: "lime", quantity: 2, unit: "ea", category: "produce" }],
+      [{ name: "lime", quantity: 2, unit: "ea", category: "produce", scaling: "linear" }],
       db,
     );
 
@@ -272,7 +280,7 @@ describe("ingredients", () => {
     const created = await addIngredient(
       B,
       "fajitas",
-      { name: "salt", quantity: 1, unit: "tsp", category: "pantry" },
+      { name: "salt", quantity: 1, unit: "tsp", category: "pantry", scaling: "linear" },
       db,
     );
 
