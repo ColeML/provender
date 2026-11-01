@@ -277,6 +277,9 @@ describe("POST /v1/recipes/{recipe}/ingredients", () => {
     });
 
     expect(unkinded.status).toBe(400);
+    await expect(unkinded.json()).resolves.toMatchObject({
+      error: { details: [{ fieldViolations: [{ field: "scaling" }] }] },
+    });
 
     const clashing = await post("/v1/recipes/fajitas/ingredients", {
       ingredientName: "salt",

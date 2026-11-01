@@ -318,8 +318,15 @@ describe("the curve note under the stepper", () => {
     scaling: "seasoning" as const,
   };
 
+  async function scaleBy(user: ReturnType<typeof renderCook>, button: string) {
+    await user.click(screen.getByRole("button", { name: button }));
+    await waitFor(() => {
+      expect(screen.queryByText(/scaling…/)).toBeNull();
+    });
+  }
+
   beforeEach(() => {
-    scale.mockReturnValue(new Promise(() => {}));
+    scale.mockResolvedValue({ ingredients: [], instructions: [] });
   });
 
   it("is hidden at the stored servings", () => {
@@ -333,16 +340,37 @@ describe("the curve note under the stepper", () => {
     async (scaling) => {
       const user = renderCook({ ingredients: [...RECIPE.ingredients, { ...cumin, scaling }] });
 
-      await user.click(screen.getByRole("button", { name: "More servings" }));
+      await scaleBy(user, "More servings");
 
       expect(screen.getByText(NOTE)).toBeInTheDocument();
     },
   );
 
+  it("is hidden until the scaled amounts arrive", async () => {
+    scale.mockImplementation(() => new Promise(() => {}));
+
+    const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it("is hidden when scaling fails and the stored amounts stay", async () => {
+    scale.mockRejectedValue(new Error("nope"));
+
+    const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
+
+    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await screen.findByRole("alert");
+
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
   it("is hidden when scaled down, where every kind is linear", async () => {
     const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
 
-    await user.click(screen.getByRole("button", { name: "Fewer servings" }));
+    await scaleBy(user, "Fewer servings");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
@@ -350,7 +378,7 @@ describe("the curve note under the stepper", () => {
   it("is hidden when the only seasoning is to taste", async () => {
     const user = renderCook();
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await scaleBy(user, "More servings");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
@@ -358,7 +386,7 @@ describe("the curve note under the stepper", () => {
   it("is hidden when nothing scaled up is a seasoning or leavening", async () => {
     const user = renderCook({ ingredients: [{ ...cumin, scaling: "whole" }] });
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await scaleBy(user, "More servings");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });

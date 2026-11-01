@@ -58,8 +58,13 @@ export class InvalidPageTokenError extends Error {
 
 /** Raised when same-named ingredients of one recipe differ in scaling (→ INVALID_ARGUMENT). */
 export class ScalingConflictError extends Error {
-  constructor(readonly ingredientName: string) {
-    super(`Every ${ingredientName} in a recipe must have the same scaling`);
+  constructor(
+    readonly ingredientName: string,
+    kinds: readonly [ScalingKind, ScalingKind],
+  ) {
+    super(
+      `Every ${ingredientName} in a recipe must have the same scaling, not both ${kinds[0]} and ${kinds[1]}`,
+    );
   }
 }
 
@@ -103,7 +108,9 @@ function ingredientId(recipeId: string, name: string, taken: Set<string>) {
   return candidate;
 }
 
-function assertConsistentScaling(ingredients: readonly { name: string; scaling: ScalingKind }[]) {
+export function assertConsistentScaling(
+  ingredients: readonly { name: string; scaling: ScalingKind }[],
+) {
   const kinds = new Map<string, ScalingKind>();
 
   for (const { name, scaling } of ingredients) {
@@ -111,7 +118,7 @@ function assertConsistentScaling(ingredients: readonly { name: string; scaling: 
     const seen = kinds.get(key);
 
     if (seen !== undefined && seen !== scaling) {
-      throw new ScalingConflictError(name);
+      throw new ScalingConflictError(name.trim(), [seen, scaling]);
     }
 
     kinds.set(key, scaling);

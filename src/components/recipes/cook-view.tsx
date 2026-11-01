@@ -74,6 +74,7 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
 
   const curved =
     servings > recipe.baseServings &&
+    scaled.isSuccess &&
     recipe.ingredients.some(
       (ingredient) =>
         ingredient.quantity !== null &&

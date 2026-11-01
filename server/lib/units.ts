@@ -218,7 +218,7 @@ function curved(quantity: number, factor: number, scaling: ScalingKind) {
 
   const raw = quantity * factor ** SCALING_EXPONENT[scaling];
 
-  return scaling === "whole" ? Math.max(Math.round(raw), 1) : raw;
+  return scaling === "whole" && quantity > 0 ? Math.max(Math.round(raw), 1) : raw;
 }
 
 /**

@@ -168,6 +168,10 @@ describe("scaleQuantity", () => {
     expect(scaleQuantity(0.25, null, 1.5, "whole")).toEqual({ quantity: 1, unit: null });
   });
 
+  it("leaves a whole item stored at 0 at 0", () => {
+    expect(scaleQuantity(0, null, 2, "whole")).toEqual({ quantity: 0, unit: null });
+  });
+
   it("scales every kind linearly when scaling down", () => {
     for (const kind of ["seasoning", "leavening", "whole"] as const) {
       expect(scaleQuantity(3, null, 0.5, kind)).toEqual(scaleQuantity(3, null, 0.5, "linear"));
