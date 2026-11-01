@@ -112,23 +112,70 @@ describe("scaleFactor", () => {
 
 describe("scaleQuantity", () => {
   it("snaps a spelled-out volume as it snaps the short unit", () => {
-    expect(scaleQuantity(1 / 3, "cups", 4 / 3)).toEqual(scaleQuantity(1 / 3, "cup", 4 / 3));
-    expect(scaleQuantity(1 / 3, "cups", 4 / 3)).toEqual({ quantity: 7.125, unit: "tbsp" });
-    expect(scaleQuantity(2, "Tablespoons", 4 / 3)).toEqual({ quantity: 2.6667, unit: "tbsp" });
+    expect(scaleQuantity(1 / 3, "cups", 4 / 3, "linear")).toEqual(
+      scaleQuantity(1 / 3, "cup", 4 / 3, "linear"),
+    );
+    expect(scaleQuantity(1 / 3, "cups", 4 / 3, "linear")).toEqual({
+      quantity: 7.125,
+      unit: "tbsp",
+    });
+    expect(scaleQuantity(2, "Tablespoons", 4 / 3, "linear")).toEqual({
+      quantity: 2.6667,
+      unit: "tbsp",
+    });
   });
 
   it("scales a third stored as a decimal as it scales the exact third", () => {
-    expect(scaleQuantity(0.333, "cup", 4 / 3)).toEqual(scaleQuantity(1 / 3, "cup", 4 / 3));
-    expect(scaleQuantity(0.33, "cup", 4 / 3)).toEqual(scaleQuantity(1 / 3, "cup", 4 / 3));
-    expect(scaleQuantity(0.67, "cup", 2 / 3)).toEqual(scaleQuantity(2 / 3, "cup", 2 / 3));
+    expect(scaleQuantity(0.333, "cup", 4 / 3, "linear")).toEqual(
+      scaleQuantity(1 / 3, "cup", 4 / 3, "linear"),
+    );
+    expect(scaleQuantity(0.33, "cup", 4 / 3, "linear")).toEqual(
+      scaleQuantity(1 / 3, "cup", 4 / 3, "linear"),
+    );
+    expect(scaleQuantity(0.67, "cup", 2 / 3, "linear")).toEqual(
+      scaleQuantity(2 / 3, "cup", 2 / 3, "linear"),
+    );
   });
 
   it("snaps a unit written with a trailing period", () => {
-    expect(scaleQuantity(2, "tbsp.", 4 / 3)).toEqual(scaleQuantity(2, "tbsp", 4 / 3));
+    expect(scaleQuantity(2, "tbsp.", 4 / 3, "linear")).toEqual(
+      scaleQuantity(2, "tbsp", 4 / 3, "linear"),
+    );
   });
 
   it("scales a mass or a count linearly, keeping its unit", () => {
-    expect(scaleQuantity(1.5, "lb", 4 / 3)).toEqual({ quantity: 2, unit: "lb" });
-    expect(scaleQuantity(3, null, 4 / 3)).toEqual({ quantity: 4, unit: null });
+    expect(scaleQuantity(1.5, "lb", 4 / 3, "linear")).toEqual({ quantity: 2, unit: "lb" });
+    expect(scaleQuantity(3, null, 4 / 3, "linear")).toEqual({ quantity: 4, unit: null });
+  });
+
+  it("scales a seasoning by the factor to the 0.6 when scaling up", () => {
+    expect(scaleQuantity(1, null, 2, "seasoning")).toEqual({ quantity: 1.516, unit: null });
+    expect(scaleQuantity(1, "tsp", 2, "seasoning")).toEqual({ quantity: 1.5, unit: "tsp" });
+  });
+
+  it("scales leavening by the factor to the 0.8 when scaling up", () => {
+    expect(scaleQuantity(1, null, 2, "leavening")).toEqual({ quantity: 1.741, unit: null });
+    expect(scaleQuantity(1, "tsp", 2, "leavening")).toEqual({ quantity: 1.75, unit: "tsp" });
+  });
+
+  it("rounds a whole item to the nearest whole number when scaling up, halves rounding up", () => {
+    expect(scaleQuantity(2, null, 1.3, "whole")).toEqual({ quantity: 3, unit: null });
+    expect(scaleQuantity(3, "can", 1.5, "whole")).toEqual({ quantity: 5, unit: "can" });
+    expect(scaleQuantity(1, "clove", 1.2, "whole")).toEqual({ quantity: 1, unit: "clove" });
+  });
+
+  it("never rounds a whole item below 1", () => {
+    expect(scaleQuantity(0.25, null, 1.5, "whole")).toEqual({ quantity: 1, unit: null });
+  });
+
+  it("leaves a whole item stored at 0 at 0", () => {
+    expect(scaleQuantity(0, null, 2, "whole")).toEqual({ quantity: 0, unit: null });
+  });
+
+  it("scales every kind linearly when scaling down", () => {
+    for (const kind of ["seasoning", "leavening", "whole"] as const) {
+      expect(scaleQuantity(3, null, 0.5, kind)).toEqual(scaleQuantity(3, null, 0.5, "linear"));
+      expect(scaleQuantity(1, "tsp", 0.5, kind)).toEqual(scaleQuantity(1, "tsp", 0.5, "linear"));
+    }
   });
 });

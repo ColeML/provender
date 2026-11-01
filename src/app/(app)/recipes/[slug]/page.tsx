@@ -63,6 +63,7 @@ export default async function Recipe({ params }: { params: Promise<{ slug: strin
           quantity: ingredient.quantity === null ? null : Number(ingredient.quantity),
           unit: ingredient.unit,
           notes: ingredient.notes,
+          scaling: ingredient.scaling,
         })),
       }}
     />

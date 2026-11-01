@@ -14,7 +14,13 @@ import {
   type PlanDayWithRecipes,
   type PreparedDay,
 } from "./plans";
-import { insertRecipe, recipesByIds, type IngredientInput, type RecipeInput } from "./recipes";
+import {
+  assertConsistentScaling,
+  insertRecipe,
+  recipesByIds,
+  type IngredientInput,
+  type RecipeInput,
+} from "./recipes";
 
 /**
  * Write an approved week in one transaction.
@@ -267,6 +273,10 @@ export async function commitWeek(
   // Shape checks first. They need no database, and a rejected request should not have taken a
   // write lock — the same reason `setPlanDay` prepares its rows before opening its transaction.
   assertNoDuplicateRecipes(recipes);
+
+  for (const recipe of recipes) {
+    assertConsistentScaling(recipe.ingredients ?? []);
+  }
 
   const prepared = input.days.map((day) =>
     prepareDay(householdId, planId, day.date, day.mealSlot ?? "dinner", day),

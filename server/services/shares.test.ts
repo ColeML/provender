@@ -25,8 +25,20 @@ beforeEach(async () => {
       instructions: ["Preheat the oven.", "Slice the peppers."],
     },
     [
-      { name: "chili powder", quantity: 2, unit: "Tbsp", category: "pantry" as const },
-      { name: "bell pepper", quantity: 3, unit: "ea", category: "produce" as const },
+      {
+        name: "chili powder",
+        quantity: 2,
+        unit: "Tbsp",
+        category: "pantry" as const,
+        scaling: "linear" as const,
+      },
+      {
+        name: "bell pepper",
+        quantity: 3,
+        unit: "ea",
+        category: "produce" as const,
+        scaling: "linear" as const,
+      },
     ],
     db,
   );

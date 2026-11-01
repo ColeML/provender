@@ -3,6 +3,7 @@ import type { ApiEnv } from "@server/api/middleware/bearer";
 import {
   CategorySchema,
   IngredientInputSchema,
+  ScalingSchema,
   IngredientSchema,
   ListRecipesResponseSchema,
   RecipeInputSchema,
@@ -23,6 +24,7 @@ import {
   scaleRecipe,
   RecipeExistsError,
   RecipeNotFoundError,
+  ScalingConflictError,
   type Ingredient,
   type Recipe,
 } from "@server/services/recipes";
@@ -69,6 +71,7 @@ function toIngredientResource(ingredient: Ingredient) {
     unit: ingredient.unit,
     category: ingredient.category,
     notes: ingredient.notes,
+    scaling: ingredient.scaling,
   };
 }
 
@@ -208,6 +211,10 @@ recipesRoutes.openapi(
         return apiError(c, "ALREADY_EXISTS", error.message);
       }
 
+      if (error instanceof ScalingConflictError) {
+        return apiError(c, "INVALID_ARGUMENT", error.message);
+      }
+
       throw error;
     }
   },
@@ -289,6 +296,10 @@ recipesRoutes.openapi(
     } catch (error) {
       if (error instanceof RecipeNotFoundError) {
         return apiError(c, "NOT_FOUND", error.message);
+      }
+
+      if (error instanceof ScalingConflictError) {
+        return apiError(c, "INVALID_ARGUMENT", error.message);
       }
 
       throw error;
@@ -396,6 +407,10 @@ recipesRoutes.openapi(
         return apiError(c, "NOT_FOUND", error.message);
       }
 
+      if (error instanceof ScalingConflictError) {
+        return apiError(c, "INVALID_ARGUMENT", error.message);
+      }
+
       throw error;
     }
   },
@@ -472,10 +487,9 @@ recipesRoutes.openapi(
     path: "/recipes/{recipe}:scale",
     summary: "Scale a recipe's ingredients without changing it",
     description:
-      "The mechanical half of scaling. Volume quantities snap to something a kitchen can " +
-      "measure, which may change the unit \u2014 4/9 cup becomes 7 1/8 tbsp. The judgment stays with " +
-      "the caller: spices and leavening do not scale linearly, eggs and cans round to whole " +
-      "numbers, and cook time and pan size need adjusting.",
+      "Each ingredient follows the curve its `scaling` names, then volume quantities snap to " +
+      "something a kitchen can measure, which may change the unit \u2014 4/9 cup becomes 7 1/8 " +
+      "tbsp. Cook time and pan size stay with the caller.",
     request: {
       params: RecipeIdParam,
       body: {
@@ -503,6 +517,7 @@ recipesRoutes.openapi(
                   unit: z.string().nullable(),
                   category: CategorySchema,
                   notes: z.string().nullable(),
+                  scaling: ScalingSchema,
                 }),
               ),
             }),
@@ -532,6 +547,7 @@ recipesRoutes.openapi(
             unit: ingredient.unit,
             category: ingredient.category,
             notes: ingredient.notes,
+            scaling: ingredient.scaling,
           })),
         },
         200,

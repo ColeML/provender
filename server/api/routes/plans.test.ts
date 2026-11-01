@@ -146,7 +146,15 @@ describe("POST /v1/plans/{plan}:commit", () => {
         recipeId: "gnocchi",
         title: "Sheet-Pan Gnocchi",
         baseServings: 8,
-        ingredients: [{ ingredientName: "gnocchi", quantity: 32, unit: "oz", category: "pantry" }],
+        ingredients: [
+          {
+            ingredientName: "gnocchi",
+            quantity: 32,
+            unit: "oz",
+            category: "pantry",
+            scaling: "linear",
+          },
+        ],
       },
     ],
     days: [{ date: MONDAY, servings: 8, main: "gnocchi", notes: "58F and wet" }],
@@ -166,6 +174,62 @@ describe("POST /v1/plans/{plan}:commit", () => {
       createdRecipeIds: ["gnocchi"],
       historyEntryIds: [`${MONDAY}-gnocchi`],
     });
+  });
+
+  it.each([
+    [
+      "without a scaling kind",
+      [{ ingredientName: "salt", quantity: 1, unit: "tsp", category: "pantry" }],
+    ],
+    [
+      "that splits a name across kinds",
+      [
+        {
+          ingredientName: "salt",
+          quantity: 1,
+          unit: "tsp",
+          category: "pantry",
+          scaling: "seasoning",
+        },
+        {
+          ingredientName: "salt",
+          quantity: 1,
+          unit: "tbsp",
+          category: "pantry",
+          scaling: "linear",
+        },
+      ],
+    ],
+  ])("refuses a recipe with an ingredient %s, writing nothing", async (_, ingredients) => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      ...body,
+      recipes: [{ ...body.recipes[0], ingredients }],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: { status: "INVALID_ARGUMENT" } });
+    expect((await send("GET", "/v1/recipes/gnocchi")).status).toBe(404);
+  });
+
+  it("refuses a kind clash before checking the days already planned", async () => {
+    await send("POST", `/v1/plans/${WEEK}:commit`, body);
+
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      ...body,
+      recipes: [
+        {
+          ...body.recipes[0],
+          recipeId: "gnocchi-2",
+          ingredients: [
+            { ingredientName: "salt", category: "pantry", scaling: "seasoning" },
+            { ingredientName: "salt", category: "pantry", scaling: "linear" },
+          ],
+        },
+      ],
+      days: [{ date: MONDAY, servings: 8, main: "gnocchi-2" }],
+    });
+
+    expect(response.status).toBe(400);
   });
 
   it("maps a taken recipe id to ALREADY_EXISTS", async () => {

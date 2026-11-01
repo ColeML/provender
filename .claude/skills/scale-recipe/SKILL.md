@@ -5,7 +5,8 @@ description: Use when the user says "scale this recipe", "double this", "halve t
 
 # Scale a recipe
 
-The API does the arithmetic. You correct what does not scale linearly.
+The API does the arithmetic, including each ingredient's scaling curve. You correct what it cannot
+know.
 
 ## 1. Scale
 
@@ -19,19 +20,22 @@ Read the base list too — step 2 is you overriding this arithmetic, so you need
 started from. Scaling writes nothing. Volumes snap to measurable amounts and may change unit —
 `4/9 cup` comes back as `7⅛ tbsp`.
 
-For a recipe not in the library, scale it by hand at the factor and apply the same corrections.
+For a recipe not in the library, scale it by hand with the same curves and corrections. Scaling
+up, `seasoning` grows by the factor to the 0.6 (1.5x at double), `leavening` by the factor to the
+0.8 (1.7x at double), and `whole` rounds to a whole number. Scaling down is linear for every kind.
 
 Read the recipe's `notes`. One like "we eat double" bears on the target, so mention it if the
 target ignores it. One naming an amount ("go light on the cayenne") still applies after scaling.
 
-## 2. Correct the linear output
+## 2. Correct what the curve misses
 
-Multiplying everything by the factor is wrong for:
+Each line of `:scale` names its `scaling`, and the API has already applied that curve to spices,
+salt, leavening and whole items. Do not correct them again. A line whose `scaling` is wrong for
+the ingredient, such as salt saved as `linear`, is the exception: scale it by hand on the right
+curve and say so.
 
-- **Spices, salt, dried herbs, extracts** — scale to roughly 60–75% of linear when doubling or
-  more. Doubling cayenne doubles the heat, not the seasoning.
-- **Leavening** (baking powder, soda, yeast) — under 1.5× linear, or the crumb collapses.
-- **Discrete items** (eggs, cans, cloves) — round to whole. 2.6 eggs is 3.
+Still yours to correct:
+
 - **"To taste"** — leave it alone.
 - **Cooking fat for a pan** — scales with the pan's area, so it is linear per batch. Three
   skillet-loads need three times the butter; one wider pan needs far less than three times.

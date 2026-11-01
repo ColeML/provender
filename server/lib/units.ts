@@ -198,16 +198,40 @@ function exactThirds(quantity: number) {
   return quantity;
 }
 
+export const SCALING_KINDS = ["linear", "seasoning", "leavening", "whole"] as const;
+
+export type ScalingKind = (typeof SCALING_KINDS)[number];
+
+/** Kitchen rules of thumb, not measured values: doubling a recipe gets 1.5x the cayenne. */
+const SCALING_EXPONENT: Record<ScalingKind, number> = {
+  linear: 1,
+  seasoning: 0.6,
+  leavening: 0.8,
+  whole: 1,
+};
+
+// Below a factor of 1 every kind is linear, so a half batch is never over-seasoned.
+function curved(quantity: number, factor: number, scaling: ScalingKind) {
+  if (factor <= 1) {
+    return quantity * factor;
+  }
+
+  const raw = quantity * factor ** SCALING_EXPONENT[scaling];
+
+  return scaling === "whole" && quantity > 0 ? Math.max(Math.round(raw), 1) : raw;
+}
+
 /**
- * One amount at a scale factor: cup, tbsp and tsp snap to a measurable fraction, which may change
- * the unit, and anything else scales linearly.
+ * One amount at a scale factor, on its kind's curve: cup, tbsp and tsp then snap to a measurable
+ * fraction, which may change the unit, and anything else is kept as computed.
  */
 export function scaleQuantity(
   quantity: number,
   unit: string | null,
   factor: number,
+  scaling: ScalingKind,
 ): { quantity: number; unit: string | null } {
-  const raw = exactThirds(quantity) * factor;
+  const raw = curved(exactThirds(quantity), factor, scaling);
   const key = unit === null ? null : normalize(unit).replace(/\.$/, "");
   const ladderUnit = key === null ? null : (LADDER_SPELLINGS[key] ?? key);
 

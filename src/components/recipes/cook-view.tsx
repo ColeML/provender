@@ -1,6 +1,7 @@
 "use client";
 
 import { parseStep } from "@server/lib/step-quantities";
+import type { ScalingKind } from "@server/lib/units";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
@@ -20,6 +21,7 @@ export interface CookIngredient {
   quantity: number | null;
   unit: string | null;
   notes: string | null;
+  scaling: ScalingKind;
 }
 
 export interface CookRecipe {
@@ -69,6 +71,15 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
   // matters more here than anywhere else in the app: these are numbers someone measures by.
   const stale = servings !== recipe.baseServings && !scaled.isSuccess;
   const stepsStale = stale && steps.some((parts) => parts.some((part) => typeof part !== "string"));
+
+  const curved =
+    servings > recipe.baseServings &&
+    scaled.isSuccess &&
+    recipe.ingredients.some(
+      (ingredient) =>
+        ingredient.quantity !== null &&
+        (ingredient.scaling === "seasoning" || ingredient.scaling === "leavening"),
+    );
 
   const time = recipe.totalMin === null ? null : `${recipe.totalMin} min`;
 
@@ -138,6 +149,12 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
             </button>
           )}
         </div>
+
+        {curved ? (
+          <p className="text-muted-foreground mt-2 text-sm">
+            Spices and leavening scale by less than the servings
+          </p>
+        ) : null}
 
         {scaled.isError ? (
           <p role="alert" className="text-destructive mt-2 text-sm">

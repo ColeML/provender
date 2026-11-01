@@ -58,7 +58,7 @@ Day to day you talk to your agent from the repo directory. The four workflows:
 |---|---|---|
 | "plan my week / next week, $120, 5 dinners, quick Monday" | **plan-week** | Reads settings + weather + recent history → proposes mains & sides → **stops for your approval** → scrapes recipes, fits budget → writes the week |
 | "build my shopping list" | **build-shopping-list** | Combines the week's ingredients, merges duplicates, drops pantry staples → writes an aisle-by-aisle checklist |
-| "scale the baked ziti to 12" / "double this" | **scale-recipe** | Scales quantities with judgment (spices, eggs, cook time) |
+| "scale the baked ziti to 12" / "double this" | **scale-recipe** | Scales quantities on each ingredient's curve, with judgment for cook time and pans |
 | "save this recipe <url>" | **add-recipe** | Scrapes, parses, costs, and stores it |
 
 **In Claude Code:** these are slash commands — `/plan-week`, `/build-shopping-list`,

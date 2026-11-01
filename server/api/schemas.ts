@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 
 import { malformedQuantity } from "@server/lib/step-quantities";
+import { SCALING_KINDS } from "@server/lib/units";
 import type { IngredientInput } from "@server/services/recipes";
 
 /** The store aisles the shopping list groups by. Mirrors the `ingredient_category` enum. */
@@ -14,6 +15,15 @@ export const CategorySchema = z.enum([
   "other",
 ]);
 
+export const ScalingSchema = z.enum(SCALING_KINDS).openapi({
+  description:
+    "How the amount grows when the recipe is scaled up: `linear` by the factor, `seasoning` " +
+    "(spices, salt, dried herbs, extracts) by the factor to the 0.6, `leavening` (yeast, baking " +
+    "powder, baking soda) by the factor to the 0.8, and `whole` (eggs, cans, cloves) by the " +
+    "factor rounded to a whole number of at least 1. Scaling down is linear for every kind.",
+  example: "seasoning",
+});
+
 export const IngredientSchema = z
   .object({
     name: z.string().openapi({ example: "recipes/chicken-fajitas/ingredients/fajitas_paprika" }),
@@ -23,6 +33,7 @@ export const IngredientSchema = z
     unit: z.string().nullable().openapi({ example: "tbsp" }),
     category: CategorySchema,
     notes: z.string().nullable().openapi({ example: "to taste" }),
+    scaling: ScalingSchema,
   })
   .openapi("Ingredient");
 
@@ -33,6 +44,8 @@ export const IngredientInputSchema = z
     unit: z.string().nullish(),
     category: CategorySchema,
     notes: z.string().nullish(),
+    // Required, so a full-list PATCH that leaves it out cannot reset every kind to `linear`.
+    scaling: ScalingSchema,
   })
   .openapi("IngredientInput");
 
@@ -44,6 +57,7 @@ export function toIngredientInput(input: z.infer<typeof IngredientInputSchema>):
     unit: input.unit,
     category: input.category,
     notes: input.notes,
+    scaling: input.scaling,
   };
 }
 

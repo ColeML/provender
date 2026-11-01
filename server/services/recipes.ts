@@ -2,7 +2,7 @@ import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { parseStep, type StepPart } from "@server/lib/step-quantities";
-import { scaleFactor, scaleQuantity } from "@server/lib/units";
+import { scaleFactor, scaleQuantity, type ScalingKind } from "@server/lib/units";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
 /**
@@ -26,6 +26,7 @@ export interface IngredientInput {
   unit?: string | null;
   category: (typeof schema.ingredientCategory.enumValues)[number];
   notes?: string | null;
+  scaling: ScalingKind;
 }
 
 export interface RecipeInput {
@@ -52,6 +53,18 @@ export class RecipeExistsError extends Error {
 export class InvalidPageTokenError extends Error {
   constructor() {
     super("The pageToken is not valid");
+  }
+}
+
+/** Raised when same-named ingredients of one recipe differ in scaling (→ INVALID_ARGUMENT). */
+export class ScalingConflictError extends Error {
+  constructor(
+    readonly ingredientName: string,
+    kinds: readonly [ScalingKind, ScalingKind],
+  ) {
+    super(
+      `Every ${ingredientName} in a recipe must have the same scaling, not both ${kinds[0]} and ${kinds[1]}`,
+    );
   }
 }
 
@@ -95,6 +108,23 @@ function ingredientId(recipeId: string, name: string, taken: Set<string>) {
   return candidate;
 }
 
+export function assertConsistentScaling(
+  ingredients: readonly { name: string; scaling: ScalingKind }[],
+) {
+  const kinds = new Map<string, ScalingKind>();
+
+  for (const { name, scaling } of ingredients) {
+    const key = name.trim().toLowerCase();
+    const seen = kinds.get(key);
+
+    if (seen !== undefined && seen !== scaling) {
+      throw new ScalingConflictError(name.trim(), [seen, scaling]);
+    }
+
+    kinds.set(key, scaling);
+  }
+}
+
 function ingredientRows(
   householdId: string,
   recipeId: string,
@@ -112,6 +142,7 @@ function ingredientRows(
     unit: normalizeUnit(input.unit),
     category: input.category,
     notes: input.notes?.trim() || null,
+    scaling: input.scaling,
     position: startPosition + index,
   }));
 }
@@ -304,6 +335,8 @@ export async function insertRecipe(
   ingredients: IngredientInput[] = [],
   db: Queryable = defaultDb,
 ) {
+  assertConsistentScaling(ingredients);
+
   // Insert-then-check rather than check-then-insert: a SELECT followed by an INSERT lets two
   // concurrent callers both find nothing and both insert, so the loser fails on the primary key
   // with an error this function does not recognise and the caller sees 500 instead of 409.
@@ -374,6 +407,10 @@ export async function updateRecipe(
   db: Database = defaultDb,
 ) {
   const fields = new Set(updateMask);
+
+  if (fields.has("ingredients")) {
+    assertConsistentScaling(ingredients ?? []);
+  }
 
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -507,6 +544,8 @@ export async function addIngredient(
       throw new RecipeNotFoundError(recipeId);
     }
 
+    assertConsistentScaling([...existing, input]);
+
     const taken = new Set(existing.map((row) => row.id));
     const [row] = ingredientRows(householdId, recipeId, [input], taken, existing.length);
 
@@ -542,6 +581,7 @@ export interface ScaledIngredient {
   unit: string | null;
   category: Ingredient["category"];
   notes: string | null;
+  scaling: ScalingKind;
 }
 
 export interface ScaledRecipe {
@@ -557,13 +597,12 @@ export interface ScaledRecipe {
 /**
  * A recipe's ingredients and marked step amounts at a different serving count, writing nothing.
  *
- * The mechanical half of scaling only. The judgment — spices and leavening that do not scale
- * linearly, rounding eggs and cans to whole numbers, adjusting cook time and pan size — stays with
- * the caller, as `PLAN.md` intends and as v1's `scale-recipe` skill does.
+ * Each ingredient follows its scaling kind's curve, chosen when the recipe was saved. Cook time and
+ * pan size stay with the caller. Marked step amounts scale linearly.
  *
  * Volume quantities are snapped to something a kitchen can measure, which may change the unit
- * (`4/9 cup` becomes `7⅛ tbsp`). Everything else scales linearly, and an ingredient with no
- * quantity — "salt, to taste" — passes through untouched.
+ * (`4/9 cup` becomes `7⅛ tbsp`). An ingredient with no quantity — "salt, to taste" — passes
+ * through untouched.
  */
 export async function scaleRecipe(
   householdId: string,
@@ -588,10 +627,16 @@ export async function scaleRecipe(
           unit: ingredient.unit,
           category: ingredient.category,
           notes: ingredient.notes,
+          scaling: ingredient.scaling,
         };
       }
 
-      const scaled = scaleQuantity(Number(ingredient.quantity), ingredient.unit, factor);
+      const scaled = scaleQuantity(
+        Number(ingredient.quantity),
+        ingredient.unit,
+        factor,
+        ingredient.scaling,
+      );
 
       return {
         name: ingredient.name,
@@ -599,11 +644,12 @@ export async function scaleRecipe(
         unit: scaled.unit,
         category: ingredient.category,
         notes: ingredient.notes,
+        scaling: ingredient.scaling,
       };
     }),
     instructions: recipe.instructions.map((step) =>
       parseStep(step).map((part) =>
-        typeof part === "string" ? part : scaleQuantity(part.quantity, part.unit, factor),
+        typeof part === "string" ? part : scaleQuantity(part.quantity, part.unit, factor, "linear"),
       ),
     ),
   };

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."ingredient_scaling" AS ENUM('linear', 'seasoning', 'leavening', 'whole');--> statement-breakpoint
+ALTER TABLE "ingredients" ADD COLUMN "scaling" "ingredient_scaling" DEFAULT 'linear' NOT NULL;

@@ -1,5 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 
+import { SCALING_KINDS } from "../../lib/units";
+
 import { households } from "./households";
 import {
   check,
@@ -30,6 +32,9 @@ export const ingredientCategory = pgEnum("ingredient_category", [
   "pantry",
   "other",
 ]);
+
+/** How an ingredient's amount grows when a recipe is scaled up. See `scaleQuantity`. */
+export const ingredientScaling = pgEnum("ingredient_scaling", SCALING_KINDS);
 
 export const recipes = pgTable(
   "recipes",
@@ -79,6 +84,7 @@ export const ingredients = pgTable(
     unit: text("unit"),
     category: ingredientCategory("category").notNull(),
     notes: text("notes"),
+    scaling: ingredientScaling("scaling").notNull().default("linear"),
     /** Preserves the order the recipe lists them in; ids sort alphabetically, which is not that. */
     position: integer("position").notNull(),
   },

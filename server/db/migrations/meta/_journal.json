@@ -120,6 +120,13 @@
       "when": 1792979317591,
       "tag": "0016_add_recipe_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793498738499,
+      "tag": "0017_add_ingredient_scaling",
+      "breakpoints": true
     }
   ]
 }

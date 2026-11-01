@@ -9,8 +9,8 @@ so any agent can follow them.
 
 A weekly meal planner where **the AI agent is the brain** and an HTTP API is the deterministic
 engine. The agent supplies judgment (menu selection, cost estimates, ingredient parsing and
-merging, non-linear scaling); the API does the exact, repeatable work (scrape, unit math, weather,
-storage). The phone-facing UI is the app itself — `/shop` is live.
+merging, picking each ingredient's scaling kind); the API does the exact, repeatable work (scrape,
+unit math, scaling curves, weather, storage). The phone-facing UI is the app itself — `/shop` is live.
 
 ## Where the code lives
 
@@ -75,8 +75,8 @@ It is generated from the zod schemas that validate every request, so it cannot d
 A table in this file would.
 
 The split holds both ways: fuzzy judgment — menu selection, cost estimates, ingredient
-parsing and merging, non-linear scaling — stays in the conversation, and anything that must be
-exact and repeatable is an endpoint.
+parsing and merging, picking each ingredient's scaling kind — stays in the conversation, and
+anything that must be exact and repeatable is an endpoint.
 
 ## Workflows (the "skills")
 
@@ -101,6 +101,10 @@ agents read them as instructions):
 - **A step amount in braces (`Whisk {1/3 cup} mayonnaise`) scales with the servings stepper** on
   the recipe page; the rest of the step stays as written. Change it whenever you change the
   matching ingredient's amount, since nothing links the two.
+- **Every ingredient write carries `scaling`**: `linear`, `seasoning`, `leavening` or `whole`. The
+  agent picks it when saving a recipe, and the servings stepper and `:scale` apply its curve on
+  every scale. All four ingredient writes refuse an ingredient without one, so a full-list `PATCH`
+  cannot reset the kinds to `linear`. Ingredients of one recipe that share a name share a kind.
 - **Repeat-avoidance applies to mains only.** Sides may repeat freely, and only mains go to
   `mealHistory`.
 - **History records what was planned, not what was eaten.** A dish there may never have been
