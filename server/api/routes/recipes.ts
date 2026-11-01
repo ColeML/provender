@@ -25,6 +25,7 @@ import {
   RecipeExistsError,
   RecipeNotFoundError,
   ScalingConflictError,
+  StepLinkError,
   type Ingredient,
   type Recipe,
 } from "@server/services/recipes";
@@ -211,7 +212,7 @@ recipesRoutes.openapi(
         return apiError(c, "ALREADY_EXISTS", error.message);
       }
 
-      if (error instanceof ScalingConflictError) {
+      if (error instanceof ScalingConflictError || error instanceof StepLinkError) {
         return apiError(c, "INVALID_ARGUMENT", error.message);
       }
 
@@ -298,7 +299,7 @@ recipesRoutes.openapi(
         return apiError(c, "NOT_FOUND", error.message);
       }
 
-      if (error instanceof ScalingConflictError) {
+      if (error instanceof ScalingConflictError || error instanceof StepLinkError) {
         return apiError(c, "INVALID_ARGUMENT", error.message);
       }
 

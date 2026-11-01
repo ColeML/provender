@@ -22,6 +22,7 @@ import {
   RecipeNotFoundError,
   ScalingConflictError,
   scaleRecipe,
+  StepLinkError,
   updateRecipe,
 } from "./recipes";
 
@@ -351,6 +352,120 @@ describe("scaling kinds", () => {
       addIngredient(HOUSEHOLD, "muffins", { ...batter[3], name: "Eggs", scaling: "linear" }, db),
     ).rejects.toBeInstanceOf(ScalingConflictError);
     expect(await listIngredients(HOUSEHOLD, "muffins", db)).toHaveLength(5);
+  });
+});
+
+describe("step links", () => {
+  const muffins = {
+    title: "Muffins",
+    baseServings: 12,
+    instructions: [
+      "Whisk {1 tsp | Cinnamon} into {2 cups|flour}.",
+      "Fold in {1 tsp} cinnamon sugar.",
+    ],
+  };
+  const batter = [
+    {
+      name: "flour",
+      quantity: 2,
+      unit: "cup",
+      category: "pantry" as const,
+      scaling: "linear" as const,
+    },
+    {
+      name: "cinnamon",
+      quantity: 1,
+      unit: "tsp",
+      category: "pantry" as const,
+      scaling: "seasoning" as const,
+    },
+  ];
+
+  it("scales a linked step amount on its ingredient's curve, and an unlinked one linearly", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    const scaled = await scaleRecipe(HOUSEHOLD, "muffins", 24, db);
+
+    expect(scaled.instructions).toEqual([
+      ["Whisk ", { quantity: 1.5, unit: "tsp" }, " into ", { quantity: 4, unit: "cup" }, "."],
+      ["Fold in ", { quantity: 2, unit: "tsp" }, " cinnamon sugar."],
+    ]);
+  });
+
+  it("refuses a link that names no ingredient of the recipe, writing nothing", async () => {
+    await expect(
+      createRecipe(
+        HOUSEHOLD,
+        "muffins",
+        { ...muffins, instructions: ["Add {1 tsp|nutmeg}."] },
+        batter,
+        db,
+      ),
+    ).rejects.toThrow(new StepLinkError("{1 tsp|nutmeg}"));
+    await expect(getRecipe(HOUSEHOLD, "muffins", db)).rejects.toBeInstanceOf(RecipeNotFoundError);
+  });
+
+  it("refuses new steps whose link names no stored ingredient", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    await expect(
+      updateRecipe(
+        HOUSEHOLD,
+        "muffins",
+        ["instructions"],
+        { instructions: ["{1 cup|sugar}"] },
+        undefined,
+        db,
+      ),
+    ).rejects.toBeInstanceOf(StepLinkError);
+    expect((await getRecipe(HOUSEHOLD, "muffins", db)).instructions).toEqual(muffins.instructions);
+  });
+
+  it("refuses a replacement list that drops an ingredient a stored step links to", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    await expect(
+      updateRecipe(HOUSEHOLD, "muffins", ["ingredients"], {}, [batter[0]], db),
+    ).rejects.toBeInstanceOf(StepLinkError);
+    expect(await listIngredients(HOUSEHOLD, "muffins", db)).toHaveLength(2);
+  });
+
+  it("accepts steps and ingredients replaced together", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+
+    await updateRecipe(
+      HOUSEHOLD,
+      "muffins",
+      ["instructions", "ingredients"],
+      { instructions: ["Sift {2 cups|Flour}."] },
+      [batter[0]],
+      db,
+    );
+
+    expect((await getRecipe(HOUSEHOLD, "muffins", db)).instructions).toEqual([
+      "Sift {2 cups|Flour}.",
+    ]);
+  });
+
+  it("scales a link whose ingredient was since deleted on its own linearly", async () => {
+    await createRecipe(HOUSEHOLD, "muffins", muffins, batter, db);
+    await deleteIngredient(HOUSEHOLD, "muffins", "muffins_cinnamon", db);
+
+    const scaled = await scaleRecipe(HOUSEHOLD, "muffins", 24, db);
+
+    expect(scaled.instructions[0][1]).toEqual({ quantity: 2, unit: "tsp" });
+  });
+
+  it("keeps saving a recipe whose braces have no links", async () => {
+    await createRecipe(
+      HOUSEHOLD,
+      "muffins",
+      { ...muffins, instructions: ["Add {1 tsp}."] },
+      [],
+      db,
+    );
+
+    expect((await getRecipe(HOUSEHOLD, "muffins", db)).instructions).toEqual(["Add {1 tsp}."]);
   });
 });
 

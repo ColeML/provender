@@ -143,6 +143,19 @@ describe("POST /v1/recipes", () => {
     });
   });
 
+  it("refuses a step link that names no ingredient of the recipe, naming the brace", async () => {
+    const response = await post("/v1/recipes?recipeId=fajitas", {
+      ...fajitas,
+      instructions: ["Rub {2 tbsp|Chili Powder} and {1 tsp|cumin} over the chicken."],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT", message: expect.stringContaining("{1 tsp|cumin}") },
+    });
+    expect((await api.request("/v1/recipes/fajitas", { headers: authed })).status).toBe(404);
+  });
+
   it("refuses a step whose braces hold no amount, naming the step", async () => {
     const response = await post("/v1/recipes?recipeId=fajitas", {
       ...fajitas,
@@ -416,6 +429,17 @@ describe("PATCH /v1/recipes/{recipe}", () => {
           scaling: "linear",
         },
       ],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("refuses steps whose link names no stored ingredient", async () => {
+    const response = await patch("updateMask=instructions", {
+      instructions: ["Add {1 tsp|cumin}."],
     });
 
     expect(response.status).toBe(400);

@@ -211,6 +211,17 @@ describe("POST /v1/plans/{plan}:commit", () => {
     expect((await send("GET", "/v1/recipes/gnocchi")).status).toBe(404);
   });
 
+  it("refuses a recipe whose step links to no ingredient of it, writing nothing", async () => {
+    const response = await send("POST", `/v1/plans/${WEEK}:commit`, {
+      ...body,
+      recipes: [{ ...body.recipes[0], instructions: ["Add {1 tsp|nutmeg}."] }],
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: { status: "INVALID_ARGUMENT" } });
+    expect((await send("GET", "/v1/recipes/gnocchi")).status).toBe(404);
+  });
+
   it("refuses a kind clash before checking the days already planned", async () => {
     await send("POST", `/v1/plans/${WEEK}:commit`, body);
 

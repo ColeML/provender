@@ -31,6 +31,20 @@ describe("parseStep", () => {
   it("leaves a brace that is not an amount as text", () => {
     expect(parseStep("Season {to taste}.")).toEqual(["Season {to taste}."]);
   });
+
+  it("returns the ingredient a brace links to, apart from the amount", () => {
+    expect(parseStep("Stir in {1 1/2 tsp | Ground Cumin}.")).toEqual([
+      "Stir in ",
+      { quantity: 1.5, unit: "tsp", ingredient: "Ground Cumin" },
+      ".",
+    ]);
+  });
+
+  it("returns no ingredient for a brace with no link", () => {
+    const [, amount] = parseStep("Whisk {1/3 cup} mayonnaise.");
+
+    expect(amount).not.toHaveProperty("ingredient");
+  });
 });
 
 describe("malformedQuantity", () => {
@@ -46,6 +60,15 @@ describe("malformedQuantity", () => {
   it("names a zero amount or a zero denominator", () => {
     expect(malformedQuantity("Add {0 cup} water.")).toBe("{0 cup}");
     expect(malformedQuantity("Add {1/0 cup} water.")).toBe("{1/0 cup}");
+  });
+
+  it("accepts a linked amount", () => {
+    expect(malformedQuantity("Add {3 tbsp|olive oil}.")).toBeNull();
+  });
+
+  it("names a brace whose link is empty or whose amount is not one", () => {
+    expect(malformedQuantity("Add {3 tbsp| } oil.")).toBe("{3 tbsp| }");
+    expect(malformedQuantity("Season {to taste|salt}.")).toBe("{to taste|salt}");
   });
 
   it("names an unbalanced brace", () => {

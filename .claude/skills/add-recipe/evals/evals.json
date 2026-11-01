@@ -20,6 +20,21 @@
       ],
       "baseline": "5/5 control reps passed both asserts. Each read GET /openapi.json, whose IngredientInput marks scaling required and describes the four kinds, so this scenario cannot tell the arms apart.",
       "result": "Edited skill: 5/5 passed both asserts, 3 of them without reading /openapi.json. The skill text ships because the design asks add-recipe to set scaling, and this repo keeps workflow steps in SKILL.md only."
+    },
+    {
+      "id": "link-in-every-brace",
+      "added": "2026-11-01",
+      "source": "A brace names its ingredient, {1 tsp|cumin}, so the step scales on that ingredient's curve (#221). Step 2 asks for a link in every brace.",
+      "type": "regression",
+      "scenario": "evals/scenarios/banana-muffins-scrape.json",
+      "control": "The skill before #221, run in a worktree whose AGENTS.md already states the link rule.",
+      "reps": 5,
+      "asserts": [
+        "Every brace in the draft's instructions ends with | and a name.",
+        "Each link matches an ingredientName in the same draft, ignoring case."
+      ],
+      "baseline": "0/5 control reps passed: every rep marked 11-13 braces, none with a link.",
+      "result": "Edited skill: 5/5 passed both asserts, 11-12 braces per rep. Every rep linked both butter amounts to the one butter ingredient."
     }
   ]
 }
