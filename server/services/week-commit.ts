@@ -16,6 +16,7 @@ import {
 } from "./plans";
 import {
   assertConsistentScaling,
+  assertStepLinks,
   insertRecipe,
   recipesByIds,
   type IngredientInput,
@@ -276,6 +277,7 @@ export async function commitWeek(
 
   for (const recipe of recipes) {
     assertConsistentScaling(recipe.ingredients ?? []);
+    assertStepLinks(recipe.instructions ?? [], recipe.ingredients ?? []);
   }
 
   const prepared = input.days.map((day) =>

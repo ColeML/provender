@@ -25,6 +25,7 @@ import {
   RecipeExistsError,
   RecipeNotFoundError,
   ScalingConflictError,
+  StepLinkError,
   type Ingredient,
   type Recipe,
 } from "@server/services/recipes";
@@ -211,7 +212,7 @@ recipesRoutes.openapi(
         return apiError(c, "ALREADY_EXISTS", error.message);
       }
 
-      if (error instanceof ScalingConflictError) {
+      if (error instanceof ScalingConflictError || error instanceof StepLinkError) {
         return apiError(c, "INVALID_ARGUMENT", error.message);
       }
 
@@ -298,7 +299,7 @@ recipesRoutes.openapi(
         return apiError(c, "NOT_FOUND", error.message);
       }
 
-      if (error instanceof ScalingConflictError) {
+      if (error instanceof ScalingConflictError || error instanceof StepLinkError) {
         return apiError(c, "INVALID_ARGUMENT", error.message);
       }
 
@@ -465,13 +466,22 @@ recipesRoutes.openapi(
     responses: {
       200: { description: "Deleted", content: { "application/json": { schema: z.object({}) } } },
       404: { description: "No such ingredient" },
+      400: { description: "A step links to this ingredient and no other of its name remains" },
     },
   }),
   async (c) => {
     const { recipe, ingredient } = c.req.valid("param");
 
-    if (!(await deleteIngredient(c.get("householdId"), recipe, ingredient))) {
-      return apiError(c, "NOT_FOUND", `No ingredient named ${ingredient} on ${recipe}`);
+    try {
+      if (!(await deleteIngredient(c.get("householdId"), recipe, ingredient))) {
+        return apiError(c, "NOT_FOUND", `No ingredient named ${ingredient} on ${recipe}`);
+      }
+    } catch (error) {
+      if (error instanceof StepLinkError) {
+        return apiError(c, "FAILED_PRECONDITION", error.message);
+      }
+
+      throw error;
     }
 
     return c.json({}, 200);

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
-import { parseStep, type StepPart } from "@server/lib/step-quantities";
+import { ingredientKey, parseStep, unknownLink, type StepPart } from "@server/lib/step-quantities";
 import { scaleFactor, scaleQuantity, type ScalingKind } from "@server/lib/units";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 
@@ -68,6 +68,16 @@ export class ScalingConflictError extends Error {
   }
 }
 
+/** Raised when a step's brace links to no ingredient of its recipe (→ INVALID_ARGUMENT). */
+export class StepLinkError extends Error {
+  constructor(readonly brace: string) {
+    super(
+      `${brace} names no ingredient of this recipe. The name after the | must match an ` +
+        "ingredient's name, ignoring case.",
+    );
+  }
+}
+
 /** Raised when a recipe id does not resolve (→ NOT_FOUND). */
 export class RecipeNotFoundError extends Error {
   constructor(readonly recipeId: string) {
@@ -114,7 +124,7 @@ export function assertConsistentScaling(
   const kinds = new Map<string, ScalingKind>();
 
   for (const { name, scaling } of ingredients) {
-    const key = name.trim().toLowerCase();
+    const key = ingredientKey(name);
     const seen = kinds.get(key);
 
     if (seen !== undefined && seen !== scaling) {
@@ -122,6 +132,21 @@ export function assertConsistentScaling(
     }
 
     kinds.set(key, scaling);
+  }
+}
+
+export function assertStepLinks(
+  instructions: readonly string[],
+  ingredients: readonly { name: string }[],
+) {
+  const keys = new Set(ingredients.map(({ name }) => ingredientKey(name)));
+
+  for (const step of instructions) {
+    const brace = unknownLink(step, keys);
+
+    if (brace !== null) {
+      throw new StepLinkError(brace);
+    }
   }
 }
 
@@ -336,6 +361,7 @@ export async function insertRecipe(
   db: Queryable = defaultDb,
 ) {
   assertConsistentScaling(ingredients);
+  assertStepLinks(input.instructions ?? [], ingredients);
 
   // Insert-then-check rather than check-then-insert: a SELECT followed by an INSERT lets two
   // concurrent callers both find nothing and both insert, so the loser fails on the primary key
@@ -420,6 +446,24 @@ export async function updateRecipe(
 
     if (!existing) {
       throw new RecipeNotFoundError(recipeId);
+    }
+
+    // Either side of a link can change, so check the pair the recipe will hold after this write.
+    if (fields.has("instructions") || fields.has("ingredients")) {
+      assertStepLinks(
+        fields.has("instructions") ? (input.instructions ?? []) : existing.instructions,
+        fields.has("ingredients")
+          ? (ingredients ?? [])
+          : await tx
+              .select({ name: schema.ingredients.name })
+              .from(schema.ingredients)
+              .where(
+                and(
+                  eq(schema.ingredients.householdId, householdId),
+                  eq(schema.ingredients.recipeId, recipeId),
+                ),
+              ),
+      );
     }
 
     // The database's clock, matching the column defaults. Mixing in the Node process's clock
@@ -561,18 +605,33 @@ export async function deleteIngredient(
   ingredientId: string,
   db: Database = defaultDb,
 ) {
-  const deleted = await db
-    .delete(schema.ingredients)
-    .where(
-      and(
-        eq(schema.ingredients.householdId, householdId),
-        eq(schema.ingredients.recipeId, recipeId),
-        eq(schema.ingredients.id, ingredientId),
-      ),
-    )
-    .returning({ id: schema.ingredients.id });
+  return db.transaction(async (tx) => {
+    const ofRecipe = and(
+      eq(schema.ingredients.householdId, householdId),
+      eq(schema.ingredients.recipeId, recipeId),
+    );
 
-  return deleted.length > 0;
+    const deleted = await tx
+      .delete(schema.ingredients)
+      .where(and(ofRecipe, eq(schema.ingredients.id, ingredientId)))
+      .returning({ id: schema.ingredients.id });
+
+    if (deleted.length === 0) {
+      return false;
+    }
+
+    const [recipe] = await tx
+      .select({ instructions: schema.recipes.instructions })
+      .from(schema.recipes)
+      .where(and(eq(schema.recipes.householdId, householdId), eq(schema.recipes.id, recipeId)));
+
+    assertStepLinks(
+      recipe.instructions,
+      await tx.select({ name: schema.ingredients.name }).from(schema.ingredients).where(ofRecipe),
+    );
+
+    return true;
+  });
 }
 
 export interface ScaledIngredient {
@@ -598,7 +657,8 @@ export interface ScaledRecipe {
  * A recipe's ingredients and marked step amounts at a different serving count, writing nothing.
  *
  * Each ingredient follows its scaling kind's curve, chosen when the recipe was saved. Cook time and
- * pan size stay with the caller. Marked step amounts scale linearly.
+ * pan size stay with the caller. A marked step amount follows the curve of the ingredient it links
+ * to, and scales linearly when it links to none.
  *
  * Volume quantities are snapped to something a kitchen can measure, which may change the unit
  * (`4/9 cup` becomes `7⅛ tbsp`). An ingredient with no quantity — "salt, to taste" — passes
@@ -613,6 +673,7 @@ export async function scaleRecipe(
   const recipe = await getRecipe(householdId, recipeId, db);
   const ingredients = await listIngredients(householdId, recipeId, db);
   const factor = scaleFactor(recipe.baseServings, targetServings);
+  const kinds = new Map(ingredients.map(({ name, scaling }) => [ingredientKey(name), scaling]));
 
   return {
     recipeId,
@@ -649,7 +710,16 @@ export async function scaleRecipe(
     }),
     instructions: recipe.instructions.map((step) =>
       parseStep(step).map((part) =>
-        typeof part === "string" ? part : scaleQuantity(part.quantity, part.unit, factor, "linear"),
+        typeof part === "string"
+          ? part
+          : scaleQuantity(
+              part.quantity,
+              part.unit,
+              factor,
+              (part.ingredient === undefined
+                ? undefined
+                : kinds.get(ingredientKey(part.ingredient))) ?? "linear",
+            ),
       ),
     ),
   };

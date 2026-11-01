@@ -101,9 +101,10 @@ export const RecipeInputSchema = z
           .refine((step) => malformedQuantity(step) === null, {
             error: (issue) =>
               `${malformedQuantity(String(issue.input))} is not an amount. Braces mark an amount ` +
-              "that scales with the servings, such as {1/3 cup}, {1 1/2 tsp} or {8}.",
+              "that scales with the servings, such as {1/3 cup}, {1 1/2 tsp} or {8}, and may " +
+              "name the ingredient it measures after a |, as in {1 tsp|cumin}.",
           })
-          .openapi({ example: "Whisk {1/3 cup} mayonnaise with the honey." }),
+          .openapi({ example: "Whisk {1/3 cup|mayonnaise} mayonnaise with the honey." }),
       )
       .optional(),
     ingredients: z.array(IngredientInputSchema).optional(),

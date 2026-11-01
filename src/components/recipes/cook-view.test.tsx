@@ -161,6 +161,14 @@ describe("the cook view", () => {
     );
   });
 
+  it("shows a linked step amount without its link", () => {
+    renderCook({ instructions: ["Rub {1 1/2 tbsp|chili powder} over the chicken."] });
+
+    expect(screen.getByRole("list", { name: "Method" })).toHaveTextContent(
+      "1Rub 1½ tbsp over the chicken.",
+    );
+  });
+
   it("scales a marked step amount along with the ingredients", async () => {
     scale.mockResolvedValue({
       ingredients: [{ name: "chicken breast", quantity: 3, unit: "lb", notes: null }],

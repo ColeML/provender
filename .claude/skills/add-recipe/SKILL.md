@@ -48,13 +48,17 @@ Parse each raw line, so `"2 cloves garlic, minced"` becomes
   for that ingredient, or the two lines never merge.
 - Add `tags`: cuisine, "quick", equipment, "kid-friendly".
 
-Mark each amount in a step that measures out an ingredient by putting it in braces:
-`Whisk {1/3 cup} mayonnaise with the honey`, `Fill all {8} tortillas`. The recipe page scales a
-marked amount with the servings and shows the rest of the step as written. Leave unmarked anything
-that stays put when the batch grows: temperatures, times, pan and cut sizes, and a per-piece
-portion such as `1/3 cup batter per waffle`. A brace holds a whole number, a decimal, `1/3` or
-`1 1/2`, then an optional unit, and the API refuses anything else. Drop a second measure in
-parentheses, such as `(19g)`, since it would not scale.
+Mark each amount in a step that measures out an ingredient by putting it in braces, and end every
+brace with `|` and the `ingredientName` it measures, spelled as in this draft:
+`Whisk {1/3 cup|mayonnaise} mayonnaise with the honey`, `Fill all {8|flour tortillas} tortillas`.
+The recipe page scales a marked amount on that ingredient's curve and shows the rest of the step
+as written. Link the ingredient being measured even when the step calls it something else: "the
+browned butter" from an ingredient named `unsalted butter` takes `|unsalted butter`. Leave
+unmarked anything that stays put when the batch grows: temperatures, times, pan and cut sizes, and
+a per-piece portion such as `1/3 cup batter per waffle`. A brace holds a whole number, a decimal,
+`1/3` or `1 1/2`, an optional unit, then the link. The API refuses anything else, and a link that
+matches no ingredient of the recipe, ignoring case. Drop a second measure in parentheses, such as
+`(19g)`, since it would not scale.
 - `costEstimate` covers the whole recipe. Price from `./scripts/prov GET /prices` first, then
   `./scripts/prov GET '/kroger/prices?term=<item>'`, then estimate the rest; count
   `config.pantry_staples` as free and say which lines you estimated. Kroger is opt-in and answers
@@ -97,7 +101,7 @@ cat > .provender/drafts/<slug>.json <<'JSON'
     { "ingredientName": "skirt steak", "quantity": 2, "unit": "lb", "category": "meat", "notes": null, "scaling": "linear" },
     { "ingredientName": "kosher salt", "quantity": 1, "unit": "tsp", "category": "pantry", "notes": null, "scaling": "seasoning" }
   ],
-  "instructions": ["Season {2 lb} skirt steak with the salt and marinate for at least 1 hour.", "Grill 4 minutes per side."]
+  "instructions": ["Season {2 lb|skirt steak} skirt steak with the salt and marinate for at least 1 hour.", "Grill 4 minutes per side."]
 }
 JSON
 ```

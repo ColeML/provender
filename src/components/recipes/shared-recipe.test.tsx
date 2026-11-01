@@ -52,6 +52,18 @@ describe("SharedRecipe", () => {
     );
   });
 
+  it("shows a linked step amount without its link", () => {
+    render(
+      <SharedRecipe
+        recipe={{ ...fajitas, instructions: ["Toss with {2 Tbsp|chili powder} chili powder."] }}
+      />,
+    );
+
+    expect(screen.getByRole("list", { name: "Method" })).toHaveTextContent(
+      "1Toss with 2 tbsp chili powder.",
+    );
+  });
+
   // The issue's requirement: nothing household-specific reaches a stranger. The learned cost is
   // the one field on a recipe row that is about this household's shopping rather than the dish.
   it("shows no cost estimate", () => {

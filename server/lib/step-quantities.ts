@@ -4,9 +4,12 @@
  * The agent marks them in braces when it adds a recipe — `Whisk {1/3 cup} mayonnaise` — because
  * which numbers scale is judgment: a step's oven temperature, time, pan size and per-piece portion
  * stay put, and a pattern over free text cannot tell them from an ingredient amount.
+ *
+ * A brace may name its ingredient after a `|`, as in `{1 tsp|cumin}`, so the amount scales on that
+ * ingredient's curve rather than linearly.
  */
 
-export type StepPart = string | { quantity: number; unit: string | null };
+export type StepPart = string | { quantity: number; unit: string | null; ingredient?: string };
 
 const MARKED = /\{([^{}]*)\}/g;
 
@@ -14,7 +17,14 @@ const MARKED = /\{([^{}]*)\}/g;
 const AMOUNT = /^(?:(\d+) )?(?:(\d+)\/(\d+)|(\d+(?:\.\d+)?))(?:\s+(\S.*))?$/;
 
 function parseAmount(inner: string) {
-  const match = AMOUNT.exec(inner.trim());
+  const [amount, ...link] = inner.split("|");
+  const ingredient = link.join("|").trim();
+
+  if (link.length > 0 && ingredient === "") {
+    return null;
+  }
+
+  const match = AMOUNT.exec(amount.trim());
 
   if (!match) {
     return null;
@@ -36,11 +46,11 @@ function parseAmount(inner: string) {
     return null;
   }
 
-  if (unit === undefined) {
-    return { quantity, unit: null };
-  }
-
-  return { quantity, unit: unit.trim().toLowerCase() };
+  return {
+    quantity,
+    unit: unit === undefined ? null : unit.trim().toLowerCase(),
+    ...(link.length > 0 && { ingredient }),
+  };
 }
 
 /** A step as its text and marked amounts. A brace that holds no amount stays in the text. */
@@ -88,4 +98,22 @@ export function malformedQuantity(step: string): string | null {
   const stray = /\{[^{}]*|\}/.exec(step.replace(MARKED, ""));
 
   return stray === null ? null : stray[0];
+}
+
+/** How a step link and an ingredient name are compared: trimmed, ignoring case. */
+export function ingredientKey(name: string) {
+  return name.trim().toLowerCase();
+}
+
+/** The first brace whose link names none of `ingredientKeys`, or null when there is none. */
+export function unknownLink(step: string, ingredientKeys: ReadonlySet<string>): string | null {
+  for (const match of step.matchAll(MARKED)) {
+    const ingredient = parseAmount(match[1])?.ingredient;
+
+    if (ingredient !== undefined && !ingredientKeys.has(ingredientKey(ingredient))) {
+      return match[0];
+    }
+  }
+
+  return null;
 }
