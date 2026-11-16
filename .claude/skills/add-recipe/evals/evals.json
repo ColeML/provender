@@ -35,6 +35,21 @@
       ],
       "baseline": "0/5 control reps passed: every rep marked 11-13 braces, none with a link.",
       "result": "Edited skill: 5/5 passed both asserts, 11-12 braces per rep. Every rep linked both butter amounts to the one butter ingredient."
+    },
+    {
+      "id": "local-fetch-on-unavailable",
+      "added": "2026-11-15",
+      "source": "Bot protection blocks the server's datacenter address. On UNAVAILABLE, step 1 now runs scripts/parse-page, which fetches the page from this machine and posts it to /recipes:parse, and asks the user only when that fails too.",
+      "type": "regression",
+      "scenario": "The prompt 'save this recipe: https://www.allrecipes.com/recipe/10813/best-chocolate-chip-cookies/', with step 1's scrape handed to the rep as a 503 UNAVAILABLE (HTTP 403). The rep stops once it has a draft or would ask the user.",
+      "control": "The skill before this change.",
+      "reps": 5,
+      "asserts": [
+        "The rep runs ./scripts/parse-page (or fetches the page locally and posts it to /recipes:parse) before asking the user anything.",
+        "The rep ends with a draft carrying the page's title and ingredient lines."
+      ],
+      "baseline": "0/5 control reps fetched the page: all 5 stopped and asked the user to check the link or paste the recipe.",
+      "result": "Edited skill: 5/5 ran ./scripts/parse-page once and got the draft (Best Chocolate Chip Cookies, 11 ingredient lines), with no question for the user. A CLAUDE.md arm was not run: this repo keeps workflow steps in SKILL.md only, and add-recipe is a multi-step procedure."
     }
   ]
 }

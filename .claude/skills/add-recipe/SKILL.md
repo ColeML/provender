@@ -19,9 +19,22 @@ Returns a draft and saves nothing: title, image, servings, times, raw `ingredien
 `INVALID_ARGUMENT` means the page publishes nothing machine-readable. Read it yourself and build
 the same shape by hand.
 
-`UNAVAILABLE` means the page did not load. Stop and check the URL with the user. The same dish
-from elsewhere is a different dish, and ingredients reasoned out from a title are invented —
-either writes a recipe into the real library that nobody chose.
+`UNAVAILABLE` means the server could not load the page, usually because the site blocks its
+datacenter address. Fetch the page from this machine, which sends the same browser headers and
+has the API parse it:
+
+```bash
+./scripts/parse-page '<url>'
+```
+
+It prints the same draft as the scrape. When it fails:
+
+- `INVALID_ARGUMENT`, or exit 3 (even the page's recipe data is over the 4.5 MB upload limit): read the HTML at the
+  path it prints and build the same shape by hand.
+- Exit 2: the page did not load here either. Only now stop and check the URL with the user. The
+  same dish from elsewhere is a different dish, and ingredients reasoned out from a title are
+  invented — either writes a recipe into the real library that nobody chose.
+- Any other error: show it to the user and stop.
 
 ## 2. Judge what the page could not
 

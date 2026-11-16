@@ -2,6 +2,8 @@ import "server-only";
 
 import { parse } from "node-html-parser";
 
+import { fetchPage } from "./fetch-page";
+
 /**
  * Reading a recipe off a web page.
  *
@@ -11,12 +13,9 @@ import { parse } from "node-html-parser";
  * and creates the recipe itself, which is how v1's add-recipe flow already worked.
  */
 
-/** Real browsers get answers that obvious bots do not; most sites refuse anything else outright. */
-const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
-  "Chrome/120.0.0.0 Safari/537.36";
-
 const TIMEOUT_MS = 25_000;
+
+const MAX_REDIRECTS = 5;
 
 export interface ScrapedIngredient {
   /** The raw line, e.g. `"2 cloves garlic, minced"`. Parsing it into fields is the caller's job. */
@@ -356,36 +355,9 @@ function assertPublicUrl(url: string) {
   }
 }
 
-export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
-  assertPublicUrl(url);
-
-  let response: Response;
-
-  try {
-    response = await fetch(url, {
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.9",
-      },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      redirect: "follow",
-    });
-  } catch (error) {
-    throw new PageUnavailableError(url, error);
-  }
-
-  // Redirects are followed, so where we ended up matters as much as where we started. Checked
-  // outside the try, or the refusal would be caught and reported as a fetch failure.
-  assertPublicUrl(response.url || url);
-
-  if (!response.ok) {
-    // Includes the bot blocks some sites answer with. The spike found one such site out of
-    // twenty, where the fallback is the caller reading the page itself.
-    throw new PageUnavailableError(url, `HTTP ${response.status}`);
-  }
-
-  const recipe = extractRecipe(await response.text());
+/** Throws `NoRecipeFoundError` rather than return an empty draft. */
+function draftFromPage(url: string, html: string): ScrapedRecipe {
+  const recipe = extractRecipe(html);
 
   if (!recipe) {
     throw new NoRecipeFoundError(url);
@@ -400,4 +372,49 @@ export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
   }
 
   return scraped;
+}
+
+/**
+ * A draft from a page the caller fetched itself.
+ *
+ * The fallback for a site that refuses the server's fetch: bot protection blocks datacenter
+ * addresses, so the agent fetches the page from the household's own connection and sends the HTML
+ * here.
+ */
+export function parseRecipePage(url: string, html: string): ScrapedRecipe {
+  assertPublicUrl(url);
+
+  return draftFromPage(url, html);
+}
+
+export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  let current = url;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    // Every hop, not just the first: a public page can redirect to the cloud metadata endpoint.
+    assertPublicUrl(current);
+
+    let page;
+
+    try {
+      page = await fetchPage(current, signal);
+    } catch (error) {
+      throw new PageUnavailableError(url, error);
+    }
+
+    if (page.status >= 300 && page.status < 400 && page.location) {
+      current = new URL(page.location, current).href;
+      continue;
+    }
+
+    if (page.status < 200 || page.status >= 300) {
+      // Includes the bot blocks some sites answer with, where `parseRecipePage` is the fallback.
+      throw new PageUnavailableError(url, `HTTP ${page.status}`);
+    }
+
+    return draftFromPage(url, page.html);
+  }
+
+  throw new PageUnavailableError(url, `more than ${MAX_REDIRECTS} redirects`);
 }
