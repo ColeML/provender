@@ -17,9 +17,9 @@ export interface FetchedPage {
  * One request, sent with the headers Chrome sends when you type an address.
  *
  * Not `fetch`: it overwrites `sec-fetch-mode` with `cors`, and a `cors` request for a `document`
- * is a pairing no browser sends. `scripts/parse-page` sends the same file; when Chrome stable
- * moves on, raise the version in all three places and recompute the `Not…Brand` entry, whose
- * spelling, version and position Chrome derives from the major version.
+ * is a pairing no browser sends. `scripts/parse-page` sends the same file. When Chrome stable
+ * moves on, raise the version in `user-agent` and in both `sec-ch-ua` brands, then recompute the
+ * `Not…Brand` entry and the brand order, which Chrome derives from the major version.
  */
 export async function fetchPage(url: string, signal: AbortSignal): Promise<FetchedPage> {
   const response = await request(url, {

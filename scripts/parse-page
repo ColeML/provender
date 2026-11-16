@@ -8,8 +8,11 @@
 # then posts the HTML to `/recipes:parse` through `prov`, so it prints the same draft and exits
 # non-zero on the same errors.
 #
-# Exits 2 when the page will not load from here either, and 3 when it is too large to post. When
-# the page loaded but was not parsed, the HTML is left at the path printed on stderr.
+# Exits 2 when the page will not load from here either, and 3 when even its JSON-LD is too large
+# to post. When the page loaded but was not parsed, the HTML is left at the path printed on stderr.
+#
+# curl sends its own accept-encoding rather than Chrome's: the macOS build cannot decode br or
+# zstd.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,6 +38,14 @@ if ! curl --silent --show-error --fail --location --compressed --max-time 25 \
 fi
 
 jq --null-input --arg url "$url" --rawfile html "$html" '{url: $url, html: $html}' >"$body"
+
+if [ "$(wc -c <"$body")" -gt "$max_body_bytes" ]; then
+  # The API reads only the JSON-LD blocks, which are a few kilobytes even on a huge page.
+  perl -0777 -ne 'print "$&\n" while /<script\b[^>]*application\/ld\+json[^>]*>.*?<\/script>/gis' \
+    "$html" >"$work/json-ld.html"
+  jq --null-input --arg url "$url" --rawfile html "$work/json-ld.html" \
+    '{url: $url, html: $html}' >"$body"
+fi
 
 if [ "$(wc -c <"$body")" -gt "$max_body_bytes" ]; then
   echo "parse-page: $url is too large to post; the page is saved at $html" >&2
