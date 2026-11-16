@@ -14,6 +14,8 @@ import {
   KrogerRejectedRequestError,
   KrogerUnavailableError,
 } from "@server/services/kroger";
+import { isCalendarDate } from "@server/lib/iso-week";
+import { createDayShare } from "@server/services/day-shares";
 import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
 import { weekPlan } from "@server/services/week-plan";
@@ -359,6 +361,9 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         deletePlanDay(ctx.householdId, input.planId, input.date, "dinner", {}, ctx.db),
       ),
+    shareDay: protectedProcedure
+      .input(z.object({ date: z.string().refine(isCalendarDate, "not a calendar date") }))
+      .mutation(({ ctx, input }) => createDayShare(ctx.householdId, input.date, ctx.db)),
   }),
   weekNotes: router({
     list: protectedProcedure

@@ -72,13 +72,34 @@ export function SharedRecipe({ recipe }: Props) {
         )}
       </p>
 
-      <section aria-labelledby="ingredients" className="mt-8">
-        <h2 id="ingredients" className="text-muted-foreground text-xs">
-          Ingredients
-        </h2>
+      <RecipeSections ingredients={recipe.ingredients} instructions={recipe.instructions} />
+    </main>
+  );
+}
+
+/**
+ * The ingredients as stored and the numbered steps, shared by `/r` and `/d`.
+ *
+ * Labeled by `aria-label` rather than heading ids, because `/d` shows several recipes on one page.
+ */
+export function RecipeSections({
+  ingredients,
+  instructions,
+  headingLevel = 2,
+}: {
+  ingredients: SharedIngredient[];
+  instructions: string[];
+  headingLevel?: 2 | 3 | 4;
+}) {
+  const Heading = `h${headingLevel}` as const;
+
+  return (
+    <>
+      <section aria-label="Ingredients" className="mt-8">
+        <Heading className="text-muted-foreground text-xs">Ingredients</Heading>
 
         <ul aria-label="Ingredients" className="divide-border mt-1 divide-y">
-          {recipe.ingredients.map((ingredient) => (
+          {ingredients.map((ingredient) => (
             <li key={ingredient.id} className="flex justify-between gap-4 py-2 text-lg">
               <span>
                 {ingredient.name}
@@ -95,15 +116,13 @@ export function SharedRecipe({ recipe }: Props) {
         </ul>
       </section>
 
-      {recipe.instructions.length === 0 ? null : (
-        <section aria-labelledby="method" className="mt-8">
-          <h2 id="method" className="text-muted-foreground text-xs">
-            Method
-          </h2>
+      {instructions.length === 0 ? null : (
+        <section aria-label="Method" className="mt-8">
+          <Heading className="text-muted-foreground text-xs">Method</Heading>
 
-          <ol aria-labelledby="method" className="mt-2 space-y-5">
+          <ol aria-label="Method" className="mt-2 space-y-5">
             {/* Keyed on position, as in `cook-view`: steps repeat and the list is never reordered. */}
-            {recipe.instructions.map((instruction, index) => (
+            {instructions.map((instruction, index) => (
               <li key={index} className="flex gap-3">
                 <span
                   aria-hidden
@@ -118,6 +137,6 @@ export function SharedRecipe({ recipe }: Props) {
           </ol>
         </section>
       )}
-    </main>
+    </>
   );
 }

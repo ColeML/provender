@@ -1,11 +1,14 @@
 import { householdForSession } from "@server/auth/household";
 import { isCalendarDate, isoWeekFor } from "@server/lib/iso-week";
+import { getDayShare } from "@server/services/day-shares";
 import { InvalidPlanIdError, PlanNotFoundError } from "@server/services/plans";
 import { getForecast } from "@server/services/weather";
 import { daySlots } from "@server/services/week-plan";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { DayView, type DayWeather } from "@/components/plan/day-view";
+import { ShareDay } from "@/components/plan/share-day";
 import { loginUrl } from "@/lib/login-url";
 
 import { auth } from "../../../../../auth";
@@ -86,7 +89,7 @@ export default async function Day({ params }: { params: Promise<{ date: string }
 
   const planId = isoWeekFor(date);
 
-  const [slots, weather] = await Promise.all([
+  const [slots, weather, share, requestHeaders] = await Promise.all([
     // A week nobody has planned is not an error here — the day simply reads as unplanned.
     daySlots(householdId, date).catch((error: unknown) => {
       if (error instanceof PlanNotFoundError || error instanceof InvalidPlanIdError) {
@@ -96,7 +99,31 @@ export default async function Day({ params }: { params: Promise<{ date: string }
       throw error;
     }),
     weatherOrNothing(householdId, date),
+    getDayShare(householdId, date),
+    headers(),
   ]);
 
-  return <DayView planId={planId} date={date} slots={slots} weather={weather} />;
+  // Built here for the same reason as on the recipe page: the client component is server-rendered
+  // first, where `window` does not exist.
+  const origin = `${requestHeaders.get("x-forwarded-proto") ?? "http"}://${requestHeaders.get("host") ?? ""}`;
+
+  return (
+    <DayView
+      planId={planId}
+      date={date}
+      slots={slots}
+      weather={weather}
+      actions={
+        <ShareDay
+          date={date}
+          origin={origin}
+          share={
+            share === null
+              ? null
+              : { token: share.token, expireTime: share.expireTime.toISOString() }
+          }
+        />
+      }
+    />
+  );
 }

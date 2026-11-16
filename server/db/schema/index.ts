@@ -4,6 +4,7 @@
  * from this file does not exist as far as migrations are concerned.
  */
 export * from "./config";
+export * from "./day-shares";
 export * from "./households";
 export * from "./history";
 export * from "./login-attempts";

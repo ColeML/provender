@@ -16,6 +16,18 @@ vi.mock("@server/services/week-plan", () => ({
 vi.mock("@server/services/weather", () => ({
   getForecast: (householdId: string, options: ForecastOptions) => forecast(householdId, options),
 }));
+const dayShare = vi.fn<(householdId: string, date: string) => Promise<unknown>>();
+
+vi.mock("@server/services/day-shares", () => ({
+  getDayShare: (householdId: string, date: string) => dayShare(householdId, date),
+}));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "provender.test" }) }));
+// The real control needs a tRPC provider; this stand-in shows what the page handed it.
+vi.mock("@/components/plan/share-day", () => ({
+  ShareDay: ({ share, origin }: { share: { token: string } | null; origin: string }) => (
+    <p>share:{share === null ? "none" : `${origin}/d/${share.token}`}</p>
+  ),
+}));
 vi.mock("@server/auth/household", () => ({ householdForSession: () => "loewer" }));
 vi.mock("../../../../../auth", () => ({ auth: async () => ({ user: { name: "loewer" } }) }));
 
@@ -48,6 +60,8 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-09-10T12:00:00Z"));
   plan.mockReset();
   forecast.mockReset();
+  dayShare.mockReset();
+  dayShare.mockResolvedValue(null);
   forecast.mockResolvedValue({
     location: "Edmond, Oklahoma, US",
     days: [{ date: "2026-09-10", high: 88, low: 61, precipChance: 20, conditions: "Mainly clear" }],
@@ -156,5 +170,25 @@ describe("the day page", () => {
     expect(await generateMetadata({ params: Promise.resolve({ date: "2026-09-10" }) })).toEqual({
       title: "Thursday, Sep 10 — Provender",
     });
+  });
+});
+
+describe("sharing", () => {
+  it("hands the share control this household's live link for the date", async () => {
+    dayShare.mockResolvedValue({
+      token: "9xK2q7",
+      expireTime: new Date("2026-09-12T12:00:00Z"),
+    });
+
+    await renderDay("2026-09-10");
+
+    expect(dayShare).toHaveBeenCalledWith("loewer", "2026-09-10");
+    expect(screen.getByText("share:http://provender.test/d/9xK2q7")).toBeInTheDocument();
+  });
+
+  it("hands it no link when the date has none", async () => {
+    await renderDay("2026-09-10");
+
+    expect(screen.getByText("share:none")).toBeInTheDocument();
   });
 });
