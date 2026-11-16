@@ -1,6 +1,7 @@
 import "server-only";
 
 import { schema } from "@server/db";
+import { isCalendarDate } from "@server/lib/iso-week";
 import {
   deleteConfigValue,
   getConfig,
@@ -8,6 +9,7 @@ import {
   setConfigValue,
   setConfigValues,
 } from "@server/services/config";
+import { createDayShare } from "@server/services/day-shares";
 import {
   findLocations,
   KrogerNotConfiguredError,
@@ -359,6 +361,9 @@ export const appRouter = router({
       .mutation(({ ctx, input }) =>
         deletePlanDay(ctx.householdId, input.planId, input.date, "dinner", {}, ctx.db),
       ),
+    shareDay: protectedProcedure
+      .input(z.object({ date: z.string().refine(isCalendarDate, "not a calendar date") }))
+      .mutation(({ ctx, input }) => createDayShare(ctx.householdId, input.date, ctx.db)),
   }),
   weekNotes: router({
     list: protectedProcedure

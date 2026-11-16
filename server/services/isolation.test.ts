@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
 import { deleteConfigValue, getConfig, setConfigValue } from "@server/services/config";
+import { createDayShare, getDayShare, getSharedDay } from "@server/services/day-shares";
 import {
   createPlan,
   deletePlan,
@@ -93,10 +94,10 @@ import { schema } from "@server/db";
  * on a client address and there is no household scope to leak. Every other service has at least one
  * case here; the roster is per service, not one case per exported function.
  *
- * `getSharedRecipe` is the one function that takes no `householdId`, because `/r/{token}` answers
- * without a session. It is not outside the claim — it is the sharpest case of it, since no later
- * check can catch a wrong answer. The `shares` cases below pin the household to the token's own
- * row.
+ * `getSharedRecipe` and `getSharedDay` are the only functions that take no `householdId`, because
+ * `/r/{token}` and `/d/{token}` answer without a session. They are not outside the claim — they are
+ * the sharpest case of it, since no later check can catch a wrong answer. The `shares` and
+ * `day shares` cases below pin the household to the token's own row.
  */
 let db: Database;
 let close: () => Promise<void>;
@@ -889,5 +890,58 @@ describe("week notes", () => {
       WeekNoteNotFoundError,
     );
     await expect(listWeekNotes(A, "2026-W42", db)).resolves.toHaveLength(1);
+  });
+});
+
+describe("day shares", () => {
+  const SHARED_DATE = "2026-08-31";
+
+  it("hides another household's link for the same date", async () => {
+    await createDayShare(A, SHARED_DATE, db);
+
+    await expect(getDayShare(B, SHARED_DATE, db)).resolves.toBeNull();
+  });
+
+  it("gives a second household its own link for a date the first already shared", async () => {
+    const mine = await createDayShare(A, SHARED_DATE, db);
+    const theirs = await createDayShare(B, SHARED_DATE, db);
+
+    expect(theirs.token).not.toEqual(mine.token);
+  });
+
+  // The case the unscoped lookup exists for. Both households plan the same date with a recipe both
+  // call `fajitas`, so a token that resolved by date or recipe id rather than by the household on
+  // its own row would return the other household's meal, and `/d/{token}` has no session for a
+  // later check to catch it.
+  it("resolves each token to its own household's day", async () => {
+    await createRecipe(B, "fajitas", { ...recipe, title: "Their Fajitas" }, [], db);
+    await createPlan(A, "2026-W36", 120, db);
+    await createPlan(B, "2026-W36", 200, db);
+    await setPlanDay(
+      A,
+      "2026-W36",
+      SHARED_DATE,
+      "dinner",
+      { servings: 8, main: "fajitas", notes: "Ours" },
+      db,
+    );
+    await setPlanDay(
+      B,
+      "2026-W36",
+      SHARED_DATE,
+      "dinner",
+      { servings: 4, main: "fajitas", notes: "Theirs" },
+      db,
+    );
+
+    const mine = await getSharedDay((await createDayShare(A, SHARED_DATE, db)).token, db);
+    const theirs = await getSharedDay((await createDayShare(B, SHARED_DATE, db)).token, db);
+
+    expect(mine?.slots).toMatchObject([{ notes: "Ours", main: { title: "Fajitas" } }]);
+    expect(mine?.recipes.fajitas).toMatchObject({ householdId: A, title: "Fajitas" });
+    expect(mine?.recipes.fajitas.ingredients).toMatchObject([{ householdId: A, name: "salt" }]);
+    expect(theirs?.slots).toMatchObject([{ notes: "Theirs", main: { title: "Their Fajitas" } }]);
+    expect(theirs?.recipes.fajitas).toMatchObject({ householdId: B, title: "Their Fajitas" });
+    expect(theirs?.recipes.fajitas.ingredients).toEqual([]);
   });
 });

@@ -62,6 +62,7 @@ export function ShareControl({ origin, token, pending, onShare, onRevoke }: Cont
         ) : (
           <LinkPanel
             url={`${origin}/r/${token}`}
+            note="Anyone with this link can read the recipe."
             pending={pending}
             onRevoke={() => onRevoke(token)}
           />
@@ -72,14 +73,16 @@ export function ShareControl({ origin, token, pending, onShare, onRevoke }: Cont
 }
 
 /** The popover's body once a link exists. It unmounts when the popover closes, which resets "Copied". */
-function LinkPanel({
+export function LinkPanel({
   url,
-  pending,
+  note,
+  pending = false,
   onRevoke,
 }: {
   url: string;
-  pending: boolean;
-  onRevoke: () => void;
+  note: string;
+  pending?: boolean;
+  onRevoke?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -131,18 +134,20 @@ function LinkPanel({
           Copy link
         </button>
 
-        <button
-          type="button"
-          disabled={pending}
-          onClick={onRevoke}
-          className="text-muted-foreground focus-visible:ring-ring ml-auto min-h-11 rounded-lg px-2 text-sm underline focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40"
-        >
-          Revoke link
-        </button>
+        {onRevoke === undefined ? null : (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onRevoke}
+            className="text-muted-foreground focus-visible:ring-ring ml-auto min-h-11 rounded-lg px-2 text-sm underline focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40"
+          >
+            Revoke link
+          </button>
+        )}
       </div>
 
       <p aria-live="polite" className="text-muted-foreground text-xs">
-        {copied ? "Copied" : "Anyone with this link can read the recipe."}
+        {copied ? "Copied" : note}
       </p>
     </>
   );

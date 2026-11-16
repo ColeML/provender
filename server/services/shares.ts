@@ -10,8 +10,8 @@ import { and, eq } from "drizzle-orm";
  * Public share links.
  *
  * Every function here takes `householdId` first, as the rest of the services do — except
- * `getSharedRecipe`, which is the one read in the app that deliberately has no household to scope
- * to. See the note on it.
+ * `getSharedRecipe`, which, like `getSharedDay`, deliberately has no household to scope to. See the
+ * note on it.
  */
 
 export type RecipeShare = typeof schema.recipeShares.$inferSelect;
@@ -98,8 +98,8 @@ export async function deleteShare(
 /**
  * The recipe behind a share token.
  *
- * The one exported service function without a `householdId`, and the only one that may not have
- * it: `/r/{token}` answers before anyone has a session, so there is no caller to resolve a
+ * With `getSharedDay`, one of the two service functions with no `householdId`; both are token
+ * lookups. `/r/{token}` answers before anyone has a session, so there is no caller to resolve a
  * household from. The token is the whole key — this must never accept a recipe id, or the page
  * becomes a way to read any household's library by guessing slugs, which are words like `ziti`.
  * The household on the row is read *out* of the token, never matched against one supplied.

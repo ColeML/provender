@@ -1,6 +1,7 @@
 import type { RecipeSummary } from "@server/services/recipes";
 import type { WeekPlanDay } from "@server/services/week-plan";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export interface DayWeather {
   high: number | null;
@@ -15,6 +16,8 @@ interface Props {
   /** Every meal planned on this date, in the order they are eaten. Empty when nothing is. */
   slots: WeekPlanDay[];
   weather: DayWeather | null;
+  /** Controls beside the heading that the shared day page must not have, such as sharing. */
+  actions?: ReactNode;
 }
 
 const SLOT_LABELS: Record<string, string> = {
@@ -69,11 +72,11 @@ function summarizeWeather({ high, low, precipChance, conditions }: DayWeather) {
     .join(" · ");
 }
 
-export function DayView({ planId, date, slots, weather }: Props) {
+export function DayView({ planId, date, slots, weather, actions }: Props) {
   if (slots.length === 0) {
     return (
       <main className="mx-auto max-w-2xl p-4 pb-16">
-        <DayHeading planId={planId} date={date} />
+        <DayHeading planId={planId} date={date} actions={actions} />
 
         {weather === null ? null : (
           <dl className="mt-8">
@@ -94,7 +97,7 @@ export function DayView({ planId, date, slots, weather }: Props) {
 
   return (
     <main className="mx-auto max-w-2xl p-4 pb-16">
-      <DayHeading planId={planId} date={date} />
+      <DayHeading planId={planId} date={date} actions={actions} />
 
       <dl className="mt-8">
         <Fact label="Forecast">{weather === null ? "—" : summarizeWeather(weather)}</Fact>
@@ -191,14 +194,26 @@ function Meal({ slot }: { slot: WeekPlanDay }) {
   );
 }
 
-function DayHeading({ planId, date }: { planId: string; date: string }) {
+function DayHeading({
+  planId,
+  date,
+  actions,
+}: {
+  planId: string;
+  date: string;
+  actions: ReactNode;
+}) {
   return (
     <>
       <Link href={`/plan?week=${planId}`} className="text-muted-foreground text-sm underline">
         {planId}
       </Link>
 
-      <h1 className="font-display mt-2 text-3xl font-semibold">{WEEKDAY.format(utc(date))}</h1>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <h1 className="font-display text-3xl font-semibold">{WEEKDAY.format(utc(date))}</h1>
+
+        {actions}
+      </div>
 
       <p className="text-muted-foreground mt-1 text-sm">{FULL_DATE.format(utc(date))}</p>
     </>
