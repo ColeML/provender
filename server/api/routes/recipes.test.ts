@@ -18,7 +18,11 @@ vi.mock("@server/db", async () => {
   };
 });
 
+vi.mock("@server/services/fetch-page", () => ({ fetchPage: vi.fn() }));
+
 const { api } = await import("@server/api/app");
+const { fetchPage } = await import("@server/services/fetch-page");
+const fetchPageMock = vi.mocked(fetchPage);
 
 const authed = { Authorization: "Bearer test-token" };
 
@@ -620,6 +624,68 @@ describe("POST /v1/units:convert", () => {
   });
 });
 
+describe("POST /v1/recipes:parse", () => {
+  const html = `<html><head><script type="application/ld+json">${JSON.stringify({
+    "@type": "Recipe",
+    name: "Parsed Fajitas",
+    recipeYield: "4 servings",
+    recipeIngredient: ["2 lb chicken", "3 peppers"],
+    recipeInstructions: [{ "@type": "HowToStep", text: "Cook." }],
+  })}</script></head></html>`;
+
+  it("returns a draft from the page the caller sent, without fetching or saving", async () => {
+    fetchPageMock.mockReset();
+
+    const response = await post("/v1/recipes:parse", { url: "https://example.test/fajitas", html });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      title: "Parsed Fajitas",
+      sourceUrl: "https://example.test/fajitas",
+      imageUrl: null,
+      baseServings: 4,
+      yieldText: "4 servings",
+      prepMin: null,
+      cookMin: null,
+      totalMin: null,
+      ingredients: [{ text: "2 lb chicken" }, { text: "3 peppers" }],
+      instructions: ["Cook."],
+    });
+    expect(fetchPageMock).not.toHaveBeenCalled();
+
+    const list = (await (await api.request("/v1/recipes", { headers: authed })).json()) as {
+      recipes: unknown[];
+    };
+
+    expect(list.recipes).toEqual([]);
+  });
+
+  it("returns INVALID_ARGUMENT for a page with no recipe", async () => {
+    const response = await post("/v1/recipes:parse", {
+      url: "https://example.test/blog",
+      html: "<html><body>blog</body></html>",
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("returns INVALID_ARGUMENT for a URL that is not a public web address", async () => {
+    const response = await post("/v1/recipes:parse", { url: "http://localhost:3000/x", html });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { status: "INVALID_ARGUMENT" },
+    });
+  });
+
+  it("rejects a request without the page", async () => {
+    expect((await post("/v1/recipes:parse", { url: "https://example.test/x" })).status).toBe(400);
+  });
+});
+
 describe("POST /v1/recipes:scrape", () => {
   it("returns a draft without saving it", async () => {
     const jsonLd = {
@@ -631,16 +697,13 @@ describe("POST /v1/recipes:scrape", () => {
       recipeInstructions: [{ "@type": "HowToStep", text: "Cook." }],
     };
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () =>
-          `<html><head><script type="application/ld+json">${JSON.stringify(
-            jsonLd,
-          )}</script></head></html>`,
-      }),
-    );
+    fetchPageMock.mockResolvedValueOnce({
+      status: 200,
+      location: null,
+      html: `<html><head><script type="application/ld+json">${JSON.stringify(
+        jsonLd,
+      )}</script></head></html>`,
+    });
 
     const response = await post("/v1/recipes:scrape", { url: "https://example.test/fajitas" });
 
@@ -659,15 +722,14 @@ describe("POST /v1/recipes:scrape", () => {
     };
 
     expect(list.recipes).toEqual([]);
-
-    vi.unstubAllGlobals();
   });
 
   it("returns INVALID_ARGUMENT for a page with no recipe", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, text: async () => "<html><body>blog</body></html>" }),
-    );
+    fetchPageMock.mockResolvedValueOnce({
+      status: 200,
+      location: null,
+      html: "<html><body>blog</body></html>",
+    });
 
     const response = await post("/v1/recipes:scrape", { url: "https://example.test/blog" });
 
@@ -675,19 +737,15 @@ describe("POST /v1/recipes:scrape", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { status: "INVALID_ARGUMENT" },
     });
-
-    vi.unstubAllGlobals();
   });
 
   it("returns UNAVAILABLE when the page refuses to load", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    fetchPageMock.mockResolvedValueOnce({ status: 403, location: null, html: "" });
 
     const response = await post("/v1/recipes:scrape", { url: "https://example.test/blocked" });
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ error: { status: "UNAVAILABLE" } });
-
-    vi.unstubAllGlobals();
   });
 
   it("rejects something that is not a URL", async () => {

@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { fetchPage } from "./fetch-page";
 import {
   durationToMinutes,
   extractRecipe,
   NoRecipeFoundError,
   PageUnavailableError,
   parseInstructions,
+  parseRecipePage,
   parseYield,
   scrapeRecipe,
   toScrapedRecipe,
@@ -35,7 +37,21 @@ const RECIPE = {
   ],
 };
 
-afterEach(() => vi.unstubAllGlobals());
+vi.mock("./fetch-page", () => ({ fetchPage: vi.fn() }));
+
+const fetchPageMock = vi.mocked(fetchPage);
+
+function answer(...pages: { status?: number; location?: string; html?: string }[]) {
+  for (const page of pages) {
+    fetchPageMock.mockResolvedValueOnce({
+      status: page.status ?? 200,
+      location: page.location ?? null,
+      html: page.html ?? "",
+    });
+  }
+}
+
+afterEach(() => fetchPageMock.mockReset());
 
 describe("durationToMinutes", () => {
   it.each([
@@ -235,25 +251,17 @@ describe("toScrapedRecipe", () => {
 });
 
 describe("scrapeRecipe", () => {
-  function stubFetch(response: Partial<Response> & { text?: () => Promise<string> }) {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, ...response }));
-  }
-
-  it("returns a draft, and sends a browser user-agent", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => page(RECIPE) });
-
-    vi.stubGlobal("fetch", fetchMock);
+  it("returns a draft", async () => {
+    answer({ html: page(RECIPE) });
 
     await expect(scrapeRecipe("https://example.test/fajitas")).resolves.toMatchObject({
       title: "Chicken Fajitas",
       baseServings: 8,
     });
-
-    expect(fetchMock.mock.calls[0][1].headers["user-agent"]).toContain("Mozilla/5.0");
   });
 
   it("reports a page with no recipe as the caller's mistake", async () => {
-    stubFetch({ text: async () => "<html><body>a blog post</body></html>" });
+    answer({ html: "<html><body>a blog post</body></html>" });
 
     await expect(scrapeRecipe("https://example.test/blog")).rejects.toBeInstanceOf(
       NoRecipeFoundError,
@@ -261,13 +269,13 @@ describe("scrapeRecipe", () => {
   });
 
   it("refuses a Recipe node with no ingredients rather than returning an empty draft", async () => {
-    stubFetch({ text: async () => page({ "@type": "Recipe", name: "Mystery" }) });
+    answer({ html: page({ "@type": "Recipe", name: "Mystery" }) });
 
     await expect(scrapeRecipe("https://example.test/x")).rejects.toBeInstanceOf(NoRecipeFoundError);
   });
 
   it("reports a bot block as unavailable, not as a bad URL", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+    answer({ status: 403 });
 
     await expect(scrapeRecipe("https://example.test/x")).rejects.toBeInstanceOf(
       PageUnavailableError,
@@ -284,35 +292,73 @@ describe("scrapeRecipe", () => {
     "file:///etc/passwd",
     "not a url",
   ])("refuses to fetch %s", async (url) => {
-    const fetchMock = vi.fn();
-
-    vi.stubGlobal("fetch", fetchMock);
-
     await expect(scrapeRecipe(url)).rejects.toBeInstanceOf(UnsupportedUrlError);
     // Refused before the request, not after.
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchPageMock).not.toHaveBeenCalled();
   });
 
-  it("refuses a redirect that lands somewhere internal", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        url: "http://169.254.169.254/latest/meta-data/",
-        text: async () => page(RECIPE),
-      }),
-    );
+  it("follows a redirect to another public page", async () => {
+    answer({ status: 301, location: "/fajitas-v2" }, { html: page(RECIPE) });
+
+    await expect(scrapeRecipe("https://example.test/fajitas")).resolves.toMatchObject({
+      title: "Chicken Fajitas",
+      sourceUrl: "https://example.test/fajitas",
+    });
+    expect(fetchPageMock.mock.calls[1][0]).toBe("https://example.test/fajitas-v2");
+  });
+
+  it("refuses a redirect that points somewhere internal, without following it", async () => {
+    answer({ status: 302, location: "http://169.254.169.254/latest/meta-data/" });
 
     await expect(scrapeRecipe("https://example.test/redirects")).rejects.toBeInstanceOf(
       UnsupportedUrlError,
     );
+    expect(fetchPageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up on a redirect loop", async () => {
+    fetchPageMock.mockResolvedValue({ status: 302, location: "/again", html: "" });
+
+    await expect(scrapeRecipe("https://example.test/again")).rejects.toBeInstanceOf(
+      PageUnavailableError,
+    );
   });
 
   it("reports a network failure as unavailable", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ETIMEDOUT")));
+    fetchPageMock.mockRejectedValueOnce(new Error("ETIMEDOUT"));
 
     await expect(scrapeRecipe("https://example.test/x")).rejects.toBeInstanceOf(
       PageUnavailableError,
+    );
+  });
+});
+
+describe("parseRecipePage", () => {
+  it("reads a draft out of HTML the caller fetched", () => {
+    expect(parseRecipePage("https://example.test/fajitas", page(RECIPE))).toMatchObject({
+      title: "Chicken Fajitas",
+      sourceUrl: "https://example.test/fajitas",
+      baseServings: 8,
+      ingredients: [{ text: "2 lb chicken breast" }, { text: "3 bell peppers" }],
+      instructions: ["Slice the peppers.", "Cook the chicken."],
+    });
+  });
+
+  it("reports a page with no recipe as the caller's mistake", () => {
+    expect(() =>
+      parseRecipePage("https://example.test/blog", "<html><body>a blog post</body></html>"),
+    ).toThrow(NoRecipeFoundError);
+  });
+
+  it("refuses a Recipe node with no ingredients", () => {
+    expect(() =>
+      parseRecipePage("https://example.test/x", page({ "@type": "Recipe", name: "Mystery" })),
+    ).toThrow(NoRecipeFoundError);
+  });
+
+  it("refuses a source URL that is not a public web address", () => {
+    expect(() => parseRecipePage("http://localhost:3000/x", page(RECIPE))).toThrow(
+      UnsupportedUrlError,
     );
   });
 });

@@ -32,6 +32,7 @@ import {
 import {
   NoRecipeFoundError,
   PageUnavailableError,
+  parseRecipePage,
   scrapeRecipe,
   UnsupportedUrlError,
 } from "@server/services/scrape";
@@ -572,6 +573,19 @@ recipesRoutes.openapi(
   },
 );
 
+const ScrapedRecipeSchema = z.object({
+  title: z.string(),
+  sourceUrl: z.string(),
+  imageUrl: z.string().nullable(),
+  baseServings: z.number().int().nullable(),
+  yieldText: z.string().nullable(),
+  prepMin: z.number().int().nullable(),
+  cookMin: z.number().int().nullable(),
+  totalMin: z.number().int().nullable(),
+  ingredients: z.array(z.object({ text: z.string() })),
+  instructions: z.array(z.string()),
+});
+
 recipesRoutes.openapi(
   createRoute({
     method: "post",
@@ -597,18 +611,7 @@ recipesRoutes.openapi(
         description: "The draft recipe",
         content: {
           "application/json": {
-            schema: z.object({
-              title: z.string(),
-              sourceUrl: z.string(),
-              imageUrl: z.string().nullable(),
-              baseServings: z.number().int().nullable(),
-              yieldText: z.string().nullable(),
-              prepMin: z.number().int().nullable(),
-              cookMin: z.number().int().nullable(),
-              totalMin: z.number().int().nullable(),
-              ingredients: z.array(z.object({ text: z.string() })),
-              instructions: z.array(z.string()),
-            }),
+            schema: ScrapedRecipeSchema,
           },
         },
       },
@@ -628,9 +631,52 @@ recipesRoutes.openapi(
       }
 
       if (error instanceof PageUnavailableError) {
-        // Includes the bot blocks a few sites answer with, where reading the page yourself is
-        // the fallback the spike settled on.
+        // Includes the bot blocks a few sites answer with, where `/recipes:parse` is the fallback.
         return apiError(c, "UNAVAILABLE", error.message);
+      }
+
+      throw error;
+    }
+  },
+);
+
+recipesRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/recipes:parse",
+    summary: "Read a recipe out of a page the caller fetched, without saving it",
+    description:
+      "The fallback when `/recipes:scrape` answers UNAVAILABLE: bot protection blocks the " +
+      "server's address, so the caller fetches the page from its own connection and sends the " +
+      "HTML here. `url` is the page's address, returned as `sourceUrl`; nothing is fetched. The " +
+      "response and errors match `/recipes:scrape`.\n\n" +
+      "The deployment caps a request body at 4.5 MB, and a larger page is refused before it " +
+      "arrives. `scripts/parse-page` checks the size first.",
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: z.object({ url: z.string().url(), html: z.string().min(1) }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: "The draft recipe",
+        content: { "application/json": { schema: ScrapedRecipeSchema } },
+      },
+      400: { description: "The page carries no recipe, or the URL is not a public web address" },
+    },
+  }),
+  async (c) => {
+    const { url, html } = c.req.valid("json");
+
+    try {
+      return c.json(parseRecipePage(url, html), 200);
+    } catch (error) {
+      if (error instanceof NoRecipeFoundError || error instanceof UnsupportedUrlError) {
+        return apiError(c, "INVALID_ARGUMENT", error.message);
       }
 
       throw error;

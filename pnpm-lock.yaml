@@ -80,6 +80,9 @@ importers:
       tw-animate-css:
         specifier: 1.4.0
         version: 1.4.0
+      undici:
+        specifier: 8.10.2
+        version: 8.10.2
       zod:
         specifier: 4.5.4
         version: 4.5.4

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Fetch a recipe page from this machine and have the API parse it.
+#
+#   parse-page https://example.com/some-recipe
+#
+# The fallback for a site that refuses `/recipes:scrape`: bot protection blocks the server's
+# datacenter address, not a home connection. Sends the same Chrome headers as the server fetch,
+# then posts the HTML to `/recipes:parse` through `prov`, so it prints the same draft and exits
+# non-zero on the same errors.
+#
+# Exits 2 when the page will not load from here either, and 3 when it is too large to post. When
+# the page loaded but was not parsed, the HTML is left at the path printed on stderr.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+url="${1:?usage: parse-page URL}"
+
+# Vercel refuses a request body over 4.5 MB before the route sees it.
+max_body_bytes=4400000
+
+work="$(mktemp -d)"
+html="$work/page.html"
+body="$work/body.json"
+
+headers=()
+while IFS= read -r line; do
+  headers+=(--header "$line")
+done < <(jq -r 'to_entries[] | "\(.key): \(.value)"' "$root/server/services/chrome-headers.json")
+
+if ! curl --silent --show-error --fail --location --compressed --max-time 25 \
+  "${headers[@]}" --output "$html" "$url"; then
+  echo "parse-page: could not fetch $url from this machine either" >&2
+  rm -rf "$work"
+  exit 2
+fi
+
+jq --null-input --arg url "$url" --rawfile html "$html" '{url: $url, html: $html}' >"$body"
+
+if [ "$(wc -c <"$body")" -gt "$max_body_bytes" ]; then
+  echo "parse-page: $url is too large to post; the page is saved at $html" >&2
+  exit 3
+fi
+
+if ! "$root/scripts/prov" POST /recipes:parse "@$body"; then
+  echo "parse-page: the page is saved at $html" >&2
+  exit 1
+fi
+
+rm -rf "$work"
