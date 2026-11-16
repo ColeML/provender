@@ -1,5 +1,5 @@
 {
-  "id": "503a5ac6-be6b-4ac2-969f-0981d24f47d7",
+  "id": "c577b6f2-8561-4e12-b685-4fd9d83f690c",
   "prevId": "307bbb47-f1f1-4d83-8030-c4ecec41cd03",
   "version": "7",
   "dialect": "postgresql",
@@ -98,7 +98,7 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": "now() + interval '3 days'"
+          "default": "now() + interval '72 hours'"
         }
       },
       "indexes": {

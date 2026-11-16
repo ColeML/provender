@@ -3,7 +3,7 @@ CREATE TABLE "day_shares" (
 	"household_id" text NOT NULL,
 	"date" date NOT NULL,
 	"create_time" timestamp with time zone DEFAULT now() NOT NULL,
-	"expire_time" timestamp with time zone DEFAULT now() + interval '3 days' NOT NULL
+	"expire_time" timestamp with time zone DEFAULT now() + interval '72 hours' NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "day_shares" ADD CONSTRAINT "day_shares_household_id_households_id_fk" FOREIGN KEY ("household_id") REFERENCES "public"."households"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

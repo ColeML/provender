@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@server/services/day-shares", () => ({ getSharedDay: (token: string) => shared(token) }));
 
-const { default: Shared } = await import("./page");
+const { default: Shared, metadata } = await import("./page");
 
 const page = (token: string) => Shared({ params: Promise.resolve({ share_token: token }) });
 
@@ -28,6 +28,18 @@ describe("the shared day page", () => {
     expect(shared).toHaveBeenCalledWith("gone");
   });
 
+  it("asks search engines not to index or follow it", () => {
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+
+  it("says nothing is planned when the day was cleared after sharing", async () => {
+    shared.mockResolvedValue({ date: "2026-09-07", slots: [], recipes: {} });
+
+    render(await page("t"));
+
+    expect(screen.getByText("Nothing planned")).toBeInTheDocument();
+  });
+
   it("shows each dish under its role, with the day's notes", async () => {
     shared.mockResolvedValue({
       date: "2026-09-07",
@@ -36,7 +48,7 @@ describe("the shared day page", () => {
           mealSlot: "dinner",
           notes: "Bedtime at 8.",
           main: { recipeId: "fajitas" },
-          side: null,
+          side: { recipeId: "cookies" },
           extras: [{ recipeId: "cookies" }],
         },
       ],
@@ -63,6 +75,7 @@ describe("the shared day page", () => {
 
     expect(screen.getByText("Bedtime at 8.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: /Main\s*Chicken Fajitas/ })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 3, name: /Side\s*Cookies/ })).toBeVisible();
     expect(screen.getByRole("heading", { level: 3, name: /Extra\s*Cookies/ })).toBeVisible();
     expect(container).toHaveTextContent("3 ea");
     expect(container).not.toHaveTextContent("14.5");

@@ -143,6 +143,24 @@ describe("getSharedDay", () => {
     expect(Object.keys(shared?.recipes ?? {}).sort()).toEqual(["fajitas", "oatmeal", "rice"]);
   });
 
+  it("loads extras, and a recipe used by two meals once", async () => {
+    await setPlanDay(
+      HOUSEHOLD,
+      WEEK,
+      MONDAY,
+      "dinner",
+      { servings: 8, main: "fajitas", extras: ["rice"] },
+      db,
+    );
+    await setPlanDay(HOUSEHOLD, WEEK, MONDAY, "lunch", { servings: 4, main: "rice" }, db);
+    const { token } = await createDayShare(HOUSEHOLD, MONDAY, db);
+
+    const shared = await getSharedDay(token, db);
+
+    expect(shared?.slots[1].extras.map((extra) => extra.recipeId)).toEqual(["rice"]);
+    expect(Object.keys(shared?.recipes ?? {}).sort()).toEqual(["fajitas", "rice"]);
+  });
+
   it("reads the day live, so an edit made after sharing shows up", async () => {
     const { token } = await createDayShare(HOUSEHOLD, MONDAY, db);
     await setPlanDay(HOUSEHOLD, WEEK, MONDAY, "dinner", { servings: 8, main: "rice" }, db);

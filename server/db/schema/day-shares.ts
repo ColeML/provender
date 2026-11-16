@@ -22,7 +22,7 @@ export const dayShares = pgTable(
     createTime: timestamp("create_time", { withTimezone: true }).notNull().defaultNow(),
     expireTime: timestamp("expire_time", { withTimezone: true })
       .notNull()
-      .default(sql`now() + interval '3 days'`),
+      .default(sql`now() + interval '72 hours'`),
   },
   (table) => [uniqueIndex("day_shares_date_idx").on(table.householdId, table.date)],
 );

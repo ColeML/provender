@@ -59,6 +59,7 @@ export async function createDayShare(householdId: string, date: string, db: Data
   });
 }
 
+/** The live link for a date, or null. */
 export async function getDayShare(householdId: string, date: string, db: Database = defaultDb) {
   const [share] = await db
     .select()
@@ -93,6 +94,7 @@ export async function getSharedDay(
 
   const { householdId, date } = share;
 
+  // A link can outlive its week's plan, or be made before the week is planned at all.
   const slots = await daySlots(householdId, date, db).catch((error: unknown) => {
     if (error instanceof PlanNotFoundError || error instanceof InvalidPlanIdError) {
       return [];

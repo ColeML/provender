@@ -8,16 +8,16 @@ import { SharedDay, type SharedDish } from "@/components/plan/shared-day";
 /** Live data, and read at request time — see the note on the home page. */
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
+
 /**
  * A shared day, readable without a session.
  *
  * The token in the path is the whole key, and this page must never accept a date instead, or any
  * household's days could be read by guessing. `getSharedDay` is where that rule is enforced.
  */
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-};
-
 export default async function Shared({ params }: { params: Promise<{ share_token: string }> }) {
   const { share_token } = await params;
   const shared = await getSharedDay(share_token);

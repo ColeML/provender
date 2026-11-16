@@ -34,6 +34,9 @@ describe("ShareDayControl", () => {
     await open(user);
     await user.click(await screen.findByRole("button", { name: "Create link" }));
     rerender(<ShareDayControl origin={ORIGIN} share={null} pending onShare={onShare} />);
+
+    expect(screen.getByRole("button", { name: "Create link" })).toBeDisabled();
+
     await user.click(screen.getByRole("button", { name: "Create link" }));
 
     expect(onShare).toHaveBeenCalledOnce();

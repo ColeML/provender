@@ -98,8 +98,8 @@ export async function deleteShare(
 /**
  * The recipe behind a share token.
  *
- * One of the two service functions without a `householdId`, with `getSharedDay`, and both are
- * token lookups: `/r/{token}` answers before anyone has a session, so there is no caller to resolve a
+ * With `getSharedDay`, one of the two service functions with no `householdId`; both are token
+ * lookups. `/r/{token}` answers before anyone has a session, so there is no caller to resolve a
  * household from. The token is the whole key — this must never accept a recipe id, or the page
  * becomes a way to read any household's library by guessing slugs, which are words like `ziti`.
  * The household on the row is read *out* of the token, never matched against one supplied.
