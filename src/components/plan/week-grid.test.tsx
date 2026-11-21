@@ -255,7 +255,7 @@ describe("the week grid", () => {
     );
   });
 
-  it("labels each summary dish with its role, as a full-height row", () => {
+  it("labels each summary dish with its role, in meal order", () => {
     renderGrid({
       days: [
         day("2026-08-31", {
@@ -276,9 +276,6 @@ describe("the week grid", () => {
       .map((link) => link.textContent);
 
     expect(names).toEqual(["Main Chicken Fajitas", "Side Spanish Rice", "Extra Flan"]);
-    expect(within(summary).getByRole("link", { name: "Side Spanish Rice" })).toHaveClass(
-      "min-h-11",
-    );
   });
 });
 

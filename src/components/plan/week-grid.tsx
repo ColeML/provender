@@ -164,12 +164,12 @@ export function WeekGrid({ week, recipes, forecast, defaultServings, atDefault }
               </Link>
             </p>
 
-            {day.main === null && day.side === null && day.extras.length === 0 ? (
+            {summaryDishes(day).length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 {day.planned ? day.status : "Nothing planned"}
               </p>
             ) : (
-              <ul className="divide-border divide-y">
+              <ul className="mt-1">
                 {summaryDishes(day).map((dish, position) => (
                   // Keyed by position: a day may list the same recipe as its side and an extra.
                   <li key={`${position}-${dish.recipe.recipeId}`}>
@@ -229,8 +229,8 @@ export function WeekGrid({ week, recipes, forecast, defaultServings, atDefault }
 
               {day.extras.length === 0 ? null : (
                 <ul className="text-muted-foreground space-y-0.5 text-xs">
-                  {day.extras.map((extra) => (
-                    <li key={extra.recipeId}>{extra.title}</li>
+                  {day.extras.map((extra, position) => (
+                    <li key={`${position}-${extra.recipeId}`}>{extra.title}</li>
                   ))}
                 </ul>
               )}
