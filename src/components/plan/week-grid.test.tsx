@@ -249,10 +249,33 @@ describe("the week grid", () => {
 
     const summary = screen.getByRole("list", { name: "Week summary" });
 
-    expect(within(summary).getByRole("link", { name: "Chicken Fajitas" })).toHaveAttribute(
+    expect(within(summary).getByRole("link", { name: "Main Chicken Fajitas" })).toHaveAttribute(
       "href",
       "/recipes/fajitas",
     );
+  });
+
+  it("labels each summary dish with its role, in meal order", () => {
+    renderGrid({
+      days: [
+        day("2026-08-31", {
+          planned: true,
+          servings: 8,
+          main: recipe("fajitas", "Chicken Fajitas"),
+          side: recipe("rice", "Spanish Rice"),
+          extras: [recipe("flan", "Flan")],
+        }),
+        ...DATES.slice(1).map((date) => day(date)),
+      ],
+    });
+
+    const summary = screen.getByRole("list", { name: "Week summary" });
+    const names = within(summary)
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.startsWith("/recipes/"))
+      .map((link) => link.textContent);
+
+    expect(names).toEqual(["Main Chicken Fajitas", "Side Spanish Rice", "Extra Flan"]);
   });
 });
 

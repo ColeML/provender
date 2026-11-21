@@ -47,6 +47,15 @@ function utc(date: string) {
   return new Date(`${date}T00:00:00Z`);
 }
 
+/** A day's dishes in reading order, each labeled with its place in the meal. */
+function summaryDishes(day: WeekPlanDay) {
+  return [
+    ...(day.main === null ? [] : [{ role: "Main", recipe: day.main }]),
+    ...(day.side === null ? [] : [{ role: "Side", recipe: day.side }]),
+    ...day.extras.map((recipe) => ({ role: "Extra", recipe })),
+  ];
+}
+
 /** A pending choice, keyed `<date>:<role>`, so one day's edit does not touch another's. */
 type Pending = Record<string, string | null>;
 
@@ -155,19 +164,24 @@ export function WeekGrid({ week, recipes, forecast, defaultServings, atDefault }
               </Link>
             </p>
 
-            {day.main === null && day.side === null && day.extras.length === 0 ? (
+            {summaryDishes(day).length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 {day.planned ? day.status : "Nothing planned"}
               </p>
             ) : (
-              <ul className="mt-1 space-y-0.5">
-                {[day.main, day.side, ...day.extras]
-                  .filter((recipe) => recipe !== null)
-                  .map((recipe) => (
-                    <li key={recipe.recipeId} className="text-sm">
-                      <Link href={`/recipes/${recipe.recipeId}`}>{recipe.title}</Link>
-                    </li>
-                  ))}
+              <ul className="mt-1">
+                {summaryDishes(day).map((dish, position) => (
+                  // Keyed by position: a day may list the same recipe as its side and an extra.
+                  <li key={`${position}-${dish.recipe.recipeId}`}>
+                    <Link
+                      href={`/recipes/${dish.recipe.recipeId}`}
+                      className="flex min-h-11 flex-col justify-center py-2"
+                    >
+                      <span className="text-muted-foreground text-xs">{dish.role}</span>{" "}
+                      <span className="text-base">{dish.recipe.title}</span>
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
           </li>
@@ -215,8 +229,8 @@ export function WeekGrid({ week, recipes, forecast, defaultServings, atDefault }
 
               {day.extras.length === 0 ? null : (
                 <ul className="text-muted-foreground space-y-0.5 text-xs">
-                  {day.extras.map((extra) => (
-                    <li key={extra.recipeId}>{extra.title}</li>
+                  {day.extras.map((extra, position) => (
+                    <li key={`${position}-${extra.recipeId}`}>{extra.title}</li>
                   ))}
                 </ul>
               )}
