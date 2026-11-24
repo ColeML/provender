@@ -300,6 +300,23 @@ describe("the cook view", () => {
     });
   });
 
+  it("says serving, singular, for half a serving", async () => {
+    scale.mockResolvedValue({ ingredients: [], instructions: [] });
+
+    const user = renderCook({ baseServings: 1 });
+
+    await user.click(screen.getByRole("button", { name: "½×" }));
+
+    expect(screen.getByText("Makes ½ serving")).toBeInTheDocument();
+  });
+
+  it("disables the multiples that would pass the 500-serving cap", () => {
+    renderCook({ baseServings: 200 });
+
+    expect(screen.getByRole("button", { name: "2×" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "3×" })).toBeDisabled();
+  });
+
   it("goes back to the stored amounts at 1×, without another request", async () => {
     scale.mockResolvedValue({
       ingredients: [{ name: "chicken breast", quantity: 3, unit: "lb", notes: null }],
@@ -352,7 +369,7 @@ describe("the cook view", () => {
   });
 });
 
-describe("the curve note under the stepper", () => {
+describe("the curve note under the scale buttons", () => {
   const NOTE = "Spices and leavening scale by less than the servings";
   const cumin = {
     id: "c",

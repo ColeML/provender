@@ -22,7 +22,8 @@ tests). The questions raised while shaping were settled as recommended, below.
 ## Decisions
 
 - **The control is the multiplier, not the count.** State is `multiplier`, starting at 1, and
-  `servings = baseServings × multiplier`. 1× is the stored recipe and makes no request, which is
+  `servings = baseServings × multiplier`. A multiple that would pass the 500-serving cap is
+  disabled, so a large-batch recipe never asks for a count the API refuses. 1× is the stored recipe and makes no request, which is
   what "Reset to N" did, so the reset link goes.
 - **The choices are ½×, 1×, 1½×, 2×, 3×.** Five 44px buttons fill a 375px row at `flex-1`. ¼× and
   4× were left out: a quarter batch is rarely worth cooking, and anything past 3× should be planned
@@ -61,4 +62,4 @@ tests). The questions raised while shaping were settled as recommended, below.
   from "More/Fewer servings" to "2×" and "½×".
 - No Playwright test, for the reason the ratings change gave. Walked by hand on a dev server at
   375px in light and dark: ½× and 3× on a 5-serving recipe, steps scaling with ingredients, no
-  console errors, no horizontal scroll (done for the prototype).
+  console errors, no horizontal scroll (done on this build).

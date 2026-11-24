@@ -98,14 +98,14 @@ agents read them as instructions):
   roast) keep their natural yield. A recipe note asking for more or less ("make 1.5x") is applied
   to the recipe, the amounts marked in its steps included, and then removed, never left for the
   shopping step to miss.
-- **A step amount in braces (`Whisk {1/3 cup|mayonnaise} mayonnaise`) scales with the servings
-  stepper** on the recipe page; the rest of the step stays as written. The name after the `|`
+- **A step amount in braces (`Whisk {1/3 cup|mayonnaise} mayonnaise`) scales with the scale
+  buttons** on the recipe page; the rest of the step stays as written. The name after the `|`
   links the amount to an ingredient of the same recipe, ignoring case, so it scales on that
   ingredient's curve. A write that would leave a link naming no ingredient is refused, deleting
   the linked ingredient included, and a brace with no link scales linearly. The link sets only the curve: change the step's amount whenever you change the
   ingredient's, and keep the link when you rewrite it.
 - **Every ingredient write carries `scaling`**: `linear`, `seasoning`, `leavening` or `whole`. The
-  agent picks it when saving a recipe, and the servings stepper and `:scale` apply its curve on
+  agent picks it when saving a recipe, and the recipe page's scale buttons and `:scale` apply its curve on
   every scale. All four ingredient writes refuse an ingredient without one, so a full-list `PATCH`
   cannot reset the kinds to `linear`. Ingredients of one recipe that share a name share a kind.
 - **Repeat-avoidance applies to mains only.** Sides may repeat freely, and only mains go to

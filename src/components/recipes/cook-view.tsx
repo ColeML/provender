@@ -21,6 +21,9 @@ import { StepText } from "./step-text";
  */
 const MULTIPLIERS = [0.5, 1, 1.5, 2, 3] as const;
 
+/** The scale input's cap. A large-batch recipe disables the multiples past it, not errors on them. */
+const MAX_SERVINGS = 500;
+
 export interface CookIngredient {
   id: string;
   name: string;
@@ -130,9 +133,10 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
               key={option}
               type="button"
               aria-pressed={multiplier === option}
+              disabled={recipe.baseServings * option > MAX_SERVINGS}
               onClick={() => setMultiplier(option)}
               className={cn(
-                "focus-visible:ring-ring h-11 min-w-0 flex-1 rounded-lg border font-mono text-lg focus-visible:ring-3 focus-visible:outline-none",
+                "focus-visible:ring-ring h-11 min-w-0 flex-1 rounded-lg border font-mono text-lg focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40",
                 multiplier === option
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-muted-foreground",
@@ -144,7 +148,7 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
         </fieldset>
 
         <p className="mt-2 text-sm">
-          Makes {formatQuantity(servings, null)} {servings === 1 ? "serving" : "servings"}
+          Makes {formatQuantity(servings, null)} {servings <= 1 ? "serving" : "servings"}
         </p>
 
         {curved ? (
