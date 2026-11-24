@@ -4,8 +4,8 @@ The cook view at `/recipes/[slug]` scales by **½× · 1× · 1½× · 2× · 3�
 that moves one serving per tap. A recipe site offers it this way, and it matches how a cook
 thinks at the stove: "half a batch", "double it", not "eleven servings".
 
-**Status: shaping.** A prototype is on `ccr-fe229bd6-xabyyz` (`cook-view.tsx`, the tRPC `scale`
-input, and tests). The open questions below decide whether it ships as is.
+**Status: shaped.** Built on `ccr-fe229bd6-xabyyz` (`cook-view.tsx`, the tRPC `scale` input, and
+tests). The questions raised while shaping were settled as recommended, below.
 
 ## Current state
 
@@ -42,22 +42,16 @@ input, and tests). The open questions below decide whether it ships as is.
   when scaled up, the stale "still for N, scaling…" warning and error alert are unchanged, and
   crossed-off rows survive a change of multiplier.
 
-## Open questions
+## Settled while shaping
 
-1. **Replace the stepper, or keep it alongside?** The prototype replaces it, so "make it for 6"
-   from a 4-serving recipe is no longer possible on the page (1½× is the closest). Keeping a small
-   −/+ next to "Makes N servings" restores that, and then the multiplier row only highlights when
-   the count is exactly a multiple. Recommendation: replace, and add the stepper back only if it is
-   missed — the agent's `scale-recipe` already handles exact head counts.
-2. **What does ½× do to a `whole` ingredient?** Scaling down is linear for every kind, so 1 onion
-   becomes ½ and 1 egg becomes ½ egg. That is readable for an onion and awkward for an egg. Options:
-   leave it (honest, and the cook decides), or round `whole` up to the nearest whole when scaling
-   down too. The second changes `curved()` in `server/lib/units.ts`, so it also changes the
-   skill's `:scale` and needs the SKILL.md curve description updated. Recommendation: leave it.
-3. **Should the choice persist?** The prototype resets to 1× on every visit, as the stepper did.
-   Remembering it per recipe in `localStorage` would suit "we always make this doubled", but that
-   is better stored on the recipe itself, which the invariants already require.
-   Recommendation: no persistence.
+- **The multipliers replace the stepper.** "Make it for 6" from a 4-serving recipe is no longer
+  possible on the page; 1½× is the closest. An exact head count is the `scale-recipe` skill's job.
+  If the stepper is missed, a small −/+ beside "Makes N servings" is the way back.
+- **½× leaves `whole` ingredients linear.** 1 egg shows as ½ egg and the cook decides. `curved()`
+  in `server/lib/units.ts` is unchanged, so the skill's `:scale` and its SKILL.md curve description
+  are too.
+- **The choice does not persist.** Every visit opens at 1×, as the stepper did. A household that
+  always doubles a dish should store it at that count, which is what the invariants ask for.
 
 ## Testing
 
