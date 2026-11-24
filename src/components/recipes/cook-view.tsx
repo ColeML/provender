@@ -127,10 +127,13 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           Servings
         </h2>
 
-        <div className="mt-1 flex items-center gap-3">
+        {/* The count is the big number, because it is what the amounts below are for. The scale
+            tag is how far the stepper has moved, which is what a tap changes. Sans, not mono:
+            the mono face draws ½ as a tiny stacked fraction at this size. */}
+        <div className="mt-1 flex items-center gap-2">
           <button
             type="button"
-            aria-label="Smaller batch"
+            aria-label="Scale down"
             disabled={multiplier <= STEP}
             onClick={() => setMultiplier((current) => Math.max(current - STEP, STEP))}
             className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
@@ -138,13 +141,16 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
             −
           </button>
 
-          <span aria-live="polite" className="w-16 text-center font-mono text-xl">
-            {formatQuantity(multiplier, null)}×
-          </span>
+          <output aria-live="polite" className="w-20 text-center text-2xl font-semibold">
+            {formatQuantity(servings, null)}
+            <span className="sr-only">
+              {servings <= 1 ? " serving" : " servings"}, {formatQuantity(multiplier, null)}× scale
+            </span>
+          </output>
 
           <button
             type="button"
-            aria-label="Bigger batch"
+            aria-label="Scale up"
             disabled={recipe.baseServings * (multiplier + STEP) > MAX_SERVINGS}
             onClick={() => setMultiplier((current) => current + STEP)}
             className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
@@ -156,15 +162,17 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
             <button
               type="button"
               onClick={() => setMultiplier(1)}
-              className="text-muted-foreground text-sm underline"
+              className="text-muted-foreground ml-1 text-sm underline"
             >
               Reset to 1×
             </button>
           )}
         </div>
 
-        <p className="mt-2 text-sm">
-          Makes {formatQuantity(servings, null)} {servings <= 1 ? "serving" : "servings"}
+        <p aria-hidden className="mt-2">
+          <span className="bg-muted rounded-full px-2.5 py-0.5 text-sm">
+            {formatQuantity(multiplier, null)}× scale
+          </span>
         </p>
 
         {curved ? (
