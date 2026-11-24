@@ -15,6 +15,12 @@ import { RecipeNotes } from "./recipe-notes";
 import { RecipeRating } from "./recipe-rating";
 import { StepText } from "./step-text";
 
+/**
+ * The scale choices, as multiples of the stored recipe, the way a recipe site offers them. Halves
+ * only, so a halved odd count is a readable 2½ servings and the API's `multipleOf(0.5)` holds.
+ */
+const MULTIPLIERS = [0.5, 1, 1.5, 2, 3] as const;
+
 export interface CookIngredient {
   id: string;
   name: string;
@@ -42,7 +48,8 @@ export interface CookRecipe {
  */
 export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: ReactNode }) {
   const trpc = useTRPC();
-  const [servings, setServings] = useState(recipe.baseServings);
+  const [multiplier, setMultiplier] = useState<number>(1);
+  const servings = recipe.baseServings * multiplier;
   // Row positions, not ids: a rescale rebuilds every id, and the list order never changes.
   const [gathered, setGathered] = useState<ReadonlySet<number>>(new Set());
 
@@ -117,38 +124,28 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           Servings
         </h2>
 
-        <div className="mt-1 flex items-center gap-3">
-          <button
-            type="button"
-            aria-label="Fewer servings"
-            disabled={servings <= 1}
-            onClick={() => setServings((current) => Math.max(current - 1, 1))}
-            className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
-          >
-            −
-          </button>
-
-          <span className="w-16 text-center font-mono text-xl">{servings}</span>
-
-          <button
-            type="button"
-            aria-label="More servings"
-            onClick={() => setServings((current) => Math.min(current + 1, 500))}
-            className="border-border size-11 rounded-lg border text-xl"
-          >
-            +
-          </button>
-
-          {servings === recipe.baseServings ? null : (
+        <fieldset aria-label="Scale recipe" className="mt-1 flex min-w-0 gap-2">
+          {MULTIPLIERS.map((option) => (
             <button
+              key={option}
               type="button"
-              onClick={() => setServings(recipe.baseServings)}
-              className="text-muted-foreground text-sm underline"
+              aria-pressed={multiplier === option}
+              onClick={() => setMultiplier(option)}
+              className={cn(
+                "focus-visible:ring-ring h-11 min-w-0 flex-1 rounded-lg border font-mono text-lg focus-visible:ring-3 focus-visible:outline-none",
+                multiplier === option
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-muted-foreground",
+              )}
             >
-              Reset to {recipe.baseServings}
+              {formatQuantity(option, null)}×
             </button>
-          )}
-        </div>
+          ))}
+        </fieldset>
+
+        <p className="mt-2 text-sm">
+          Makes {formatQuantity(servings, null)} {servings === 1 ? "serving" : "servings"}
+        </p>
 
         {curved ? (
           <p className="text-muted-foreground mt-2 text-sm">
