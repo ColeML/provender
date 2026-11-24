@@ -161,10 +161,11 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           {multiplier === 1 ? null : (
             <button
               type="button"
+              aria-label="Reset scale"
               onClick={() => setMultiplier(1)}
               className="text-muted-foreground ml-1 text-sm underline"
             >
-              Reset to 1×
+              Reset
             </button>
           )}
         </div>

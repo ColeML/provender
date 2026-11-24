@@ -273,7 +273,7 @@ describe("the cook view", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("8 servings, 1× scale");
     expect(screen.getByText("1× scale")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reset to 1×" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset scale" })).toBeNull();
   });
 
   it("steps by half the recipe in both directions", async () => {
@@ -347,7 +347,7 @@ describe("the cook view", () => {
 
     await user.click(screen.getByRole("button", { name: "Scale up" }));
     await screen.findByText("3 lb");
-    await user.click(screen.getByRole("button", { name: "Reset to 1×" }));
+    await user.click(screen.getByRole("button", { name: "Reset scale" }));
 
     expect(screen.getByText("1½ lb")).toBeInTheDocument();
     expect(scale).toHaveBeenCalledTimes(1);

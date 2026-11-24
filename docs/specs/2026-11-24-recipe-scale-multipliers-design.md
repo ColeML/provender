@@ -30,7 +30,7 @@ The household picked this layout from five mockups.
 - **The serving count is the big number; the scale is a tag.** Between the 44px − and +
   ("Scale down", "Scale up") sits the count in sans `text-2xl font-semibold`, and under the row a
   `bg-muted` pill reads "½× scale". The amounts below belong to the count, so it leads; the tag
-  says what a tap changes. "Reset to 1×" appears once the scale is not 1×. 1× is the stored recipe
+  says what a tap changes. A "Reset" link (named "Reset scale" for screen readers) appears once the scale is not 1×. 1× is the stored recipe
   and makes no request.
 - **Sans for the count, not mono.** DESIGN.md puts quantities in mono, but the mono face draws ½
   as a tiny stacked fraction at this size. The ingredient amounts stay mono.
@@ -61,8 +61,7 @@ The household picked this layout from five mockups.
 
 - `CookView`: opens at the stored count, "1× scale" and no reset link; + and − step by halves
   (1½× is 12, 2× is 16, ½× is 4); ½× of a 5-serving recipe asks for 2.5 and reads "2½ servings";
-  − stops at ½× and reads "½ serving" on a 1-serving recipe; + stops at 500 servings; "Reset to
-  1×" shows the stored amounts without another request. The existing stale, error, curve-note and
+  − stops at ½× and reads "½ serving" on a 1-serving recipe; + stops at 500 servings; "Reset" shows the stored amounts without another request. The existing stale, error, curve-note and
   cross-off tests move to "Scale up" and "Scale down".
 - No Playwright test, for the reason the ratings change gave. Walked by hand on a dev server at
   375px in light and dark: ½× and 2× on a 5-serving recipe, steps scaling with ingredients, the
