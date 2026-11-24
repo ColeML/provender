@@ -16,12 +16,12 @@ import { RecipeRating } from "./recipe-rating";
 import { StepText } from "./step-text";
 
 /**
- * The scale choices, as multiples of the stored recipe, the way a recipe site offers them. Halves
- * only, so a halved odd count is a readable 2½ servings and the API's `multipleOf(0.5)` holds.
+ * The stepper moves the recipe by halves, ½× upward. Halves only, so a halved odd count is a
+ * readable 2½ servings and the API's `multipleOf(0.5)` holds.
  */
-const MULTIPLIERS = [0.5, 1, 1.5, 2, 3] as const;
+const STEP = 0.5;
 
-/** The scale input's cap. A large-batch recipe disables the multiples past it, not errors on them. */
+/** The scale input's cap. The stepper stops below it rather than asking for a refused count. */
 const MAX_SERVINGS = 500;
 
 export interface CookIngredient {
@@ -127,25 +127,41 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           Servings
         </h2>
 
-        <fieldset aria-label="Scale recipe" className="mt-1 flex min-w-0 gap-2">
-          {MULTIPLIERS.map((option) => (
+        <div className="mt-1 flex items-center gap-3">
+          <button
+            type="button"
+            aria-label="Smaller batch"
+            disabled={multiplier <= STEP}
+            onClick={() => setMultiplier((current) => Math.max(current - STEP, STEP))}
+            className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
+          >
+            −
+          </button>
+
+          <span aria-live="polite" className="w-16 text-center font-mono text-xl">
+            {formatQuantity(multiplier, null)}×
+          </span>
+
+          <button
+            type="button"
+            aria-label="Bigger batch"
+            disabled={recipe.baseServings * (multiplier + STEP) > MAX_SERVINGS}
+            onClick={() => setMultiplier((current) => current + STEP)}
+            className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
+          >
+            +
+          </button>
+
+          {multiplier === 1 ? null : (
             <button
-              key={option}
               type="button"
-              aria-pressed={multiplier === option}
-              disabled={recipe.baseServings * option > MAX_SERVINGS}
-              onClick={() => setMultiplier(option)}
-              className={cn(
-                "focus-visible:ring-ring h-11 min-w-0 flex-1 rounded-lg border font-mono text-lg focus-visible:ring-3 focus-visible:outline-none disabled:opacity-40",
-                multiplier === option
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-muted-foreground",
-              )}
+              onClick={() => setMultiplier(1)}
+              className="text-muted-foreground text-sm underline"
             >
-              {formatQuantity(option, null)}×
+              Reset to 1×
             </button>
-          ))}
-        </fieldset>
+          )}
+        </div>
 
         <p className="mt-2 text-sm">
           Makes {formatQuantity(servings, null)} {servings <= 1 ? "serving" : "servings"}

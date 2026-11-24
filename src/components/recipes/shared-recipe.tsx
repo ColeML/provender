@@ -37,8 +37,8 @@ interface Props {
 /**
  * The read-only recipe behind `/r/{token}`.
  *
- * A server component with no interactivity — `CookView` cannot be reused here because its scale
- * buttons call tRPC to rescale, which answers UNAUTHORIZED to a visitor with no session. Nothing
+ * A server component with no interactivity — `CookView` cannot be reused here because its serving
+ * stepper calls tRPC to rescale, which answers UNAUTHORIZED to a visitor with no session. Nothing
  * on this page links back into the app: the only route a stranger can reach is this one.
  */
 export function SharedRecipe({ recipe }: Props) {
