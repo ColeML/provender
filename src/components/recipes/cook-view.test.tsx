@@ -338,6 +338,13 @@ describe("the cook view", () => {
     expect(screen.getByRole("button", { name: "Scale up" })).toBeDisabled();
   });
 
+  it("will not scale a recipe stored past the cap down to a count still past it", () => {
+    renderCook({ baseServings: 1200 });
+
+    expect(screen.getByRole("button", { name: "Scale down" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Scale up" })).toBeDisabled();
+  });
+
   it("goes back to the stored amounts on reset, without another request", async () => {
     scale.mockResolvedValue({
       ingredients: [{ name: "chicken breast", quantity: 3, unit: "lb", notes: null }],

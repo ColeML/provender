@@ -134,7 +134,9 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           <button
             type="button"
             aria-label="Scale down"
-            disabled={multiplier <= STEP}
+            disabled={
+              multiplier <= STEP || recipe.baseServings * (multiplier - STEP) > MAX_SERVINGS
+            }
             onClick={() => setMultiplier((current) => Math.max(current - STEP, STEP))}
             className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
           >
@@ -163,7 +165,7 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
               type="button"
               aria-label="Reset scale"
               onClick={() => setMultiplier(1)}
-              className="text-muted-foreground ml-1 text-sm underline"
+              className="text-muted-foreground min-h-11 px-2 text-sm underline"
             >
               Reset
             </button>
