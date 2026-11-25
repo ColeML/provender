@@ -60,6 +60,7 @@ function toRecipeResource(recipe: Recipe) {
     instructions: recipe.instructions,
     rating: recipe.rating,
     notes: recipe.notes,
+    prepAhead: recipe.prepAhead,
     createTime: recipe.createTime.toISOString(),
     updateTime: recipe.updateTime.toISOString(),
   };
@@ -91,6 +92,7 @@ const UPDATABLE_FIELDS = new Set([
   "instructions",
   "rating",
   "notes",
+  "prepAhead",
   "ingredients",
 ]);
 

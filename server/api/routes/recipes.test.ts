@@ -75,7 +75,32 @@ describe("POST /v1/recipes", () => {
       tags: ["mexican"],
       rating: null,
       notes: [],
+      prepAhead: [],
     });
+  });
+
+  it("stores the prep-ahead tasks it is given and returns them", async () => {
+    const response = await post("/v1/recipes?recipeId=fajitas", {
+      ...fajitas,
+      prepAhead: ["Marinate the chicken overnight."],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      prepAhead: ["Marinate the chicken overnight."],
+    });
+
+    const read = await api.request("/v1/recipes/fajitas", { headers: authed });
+
+    await expect(read.json()).resolves.toMatchObject({
+      prepAhead: ["Marinate the chicken overnight."],
+    });
+  });
+
+  it("rejects prep-ahead tasks that are not a list of strings", async () => {
+    const response = await post("/v1/recipes?recipeId=fajitas", { ...fajitas, prepAhead: "Soak" });
+
+    expect(response.status).toBe(400);
   });
 
   it("returns ALREADY_EXISTS rather than a duplicate row", async () => {
@@ -400,6 +425,23 @@ describe("PATCH /v1/recipes/{recipe}", () => {
     const response = await patch("updateMask=title", { title: "Beef Fajitas", notes: ["Ignored"] });
 
     await expect(response.json()).resolves.toMatchObject({ title: "Beef Fajitas", notes: [] });
+  });
+
+  it("replaces the prep-ahead tasks named in the mask, normalized, and returns them", async () => {
+    const response = await patch("updateMask=prepAhead", {
+      prepAhead: ["Soak the beans overnight.", " ", "soak the beans OVERNIGHT."],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      prepAhead: ["Soak the beans overnight."],
+    });
+  });
+
+  it("ignores prep-ahead tasks in the body when the mask does not name them", async () => {
+    const response = await patch("updateMask=title", { title: "Beef Fajitas", prepAhead: ["No"] });
+
+    await expect(response.json()).resolves.toMatchObject({ prepAhead: [] });
   });
 
   it("refuses a replacement ingredient list missing a scaling kind, keeping the stored one", async () => {

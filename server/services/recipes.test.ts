@@ -80,6 +80,29 @@ describe("createRecipe", () => {
     expect(stored.map((row) => row.position)).toEqual([0, 1, 2]);
   });
 
+  it("stores the prep-ahead tasks, trimmed, with blanks and repeats dropped", async () => {
+    await createRecipe(
+      HOUSEHOLD,
+      "fajitas",
+      {
+        ...fajitas,
+        prepAhead: [" Marinate the chicken overnight. ", "", "marinate the chicken overnight."],
+      },
+      ingredients,
+      db,
+    );
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).prepAhead).toEqual([
+      "Marinate the chicken overnight.",
+    ]);
+  });
+
+  it("stores no prep-ahead tasks when the input names none", async () => {
+    await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).prepAhead).toEqual([]);
+  });
+
   it("lowercases units, so merging does not see Tbsp and tbsp as two products", async () => {
     await createRecipe(HOUSEHOLD, "fajitas", fajitas, ingredients, db);
 
@@ -609,6 +632,41 @@ describe("updateRecipe", () => {
     await updateRecipe(HOUSEHOLD, "fajitas", ["title"], { title: "Beef Fajitas" }, undefined, db);
 
     expect((await getRecipe(HOUSEHOLD, "fajitas", db)).notes).toEqual(["Warm the tortillas"]);
+  });
+
+  it("sets prep-ahead tasks, normalized, and clears them", async () => {
+    await updateRecipe(
+      HOUSEHOLD,
+      "fajitas",
+      ["prepAhead"],
+      { prepAhead: [" Soak the beans overnight. ", " "] },
+      undefined,
+      db,
+    );
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).prepAhead).toEqual([
+      "Soak the beans overnight.",
+    ]);
+
+    await updateRecipe(HOUSEHOLD, "fajitas", ["prepAhead"], {}, undefined, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).prepAhead).toEqual([]);
+  });
+
+  it("leaves prep-ahead tasks alone when the mask does not name them", async () => {
+    await updateRecipe(
+      HOUSEHOLD,
+      "fajitas",
+      ["prepAhead"],
+      { prepAhead: ["Soak the beans overnight."] },
+      undefined,
+      db,
+    );
+    await updateRecipe(HOUSEHOLD, "fajitas", ["notes"], { notes: ["Spicy"] }, undefined, db);
+
+    expect((await getRecipe(HOUSEHOLD, "fajitas", db)).prepAhead).toEqual([
+      "Soak the beans overnight.",
+    ]);
   });
 
   it("refuses a rating outside 1–5 at the database", async () => {
