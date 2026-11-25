@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { TRPCClientError } from "@trpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PushSwitch } from "./push-switch";
@@ -54,6 +55,7 @@ let permission: NotificationPermission;
 let requestPermission: ReturnType<typeof vi.fn<() => Promise<NotificationPermission>>>;
 let pushSubscribe: ReturnType<typeof vi.fn>;
 let installing: { state: string; addEventListener: () => void } | null;
+let registeredLate: boolean;
 
 /** Installs a browser with push: a registered worker, a push manager and a Notification API. */
 function installBrowser({
@@ -90,7 +92,8 @@ function installBrowser({
     configurable: true,
     value: {
       ready: registered ? Promise.resolve(registration) : new Promise(() => {}),
-      getRegistration: async () => (registered ? registration : undefined),
+      // `registeredLate`: the layout's registration has started but not finished.
+      getRegistration: async () => (registered && !registeredLate ? registration : undefined),
     },
   });
   vi.stubGlobal("PushManager", class {});
@@ -105,6 +108,7 @@ function installBrowser({
 beforeEach(() => {
   current = null;
   installing = null;
+  registeredLate = false;
   permission = "default";
   requestPermission = vi.fn(async () => {
     permission = "granted";
@@ -187,6 +191,18 @@ describe("PushSwitch", () => {
     await vi.waitFor(() => expect(theSwitch()).toBeChecked());
   });
 
+  it("will not subscribe under the old worker when the updated one fails to install", async () => {
+    installBrowser();
+    installing = { state: "redundant", addEventListener: () => {} };
+    const user = setup();
+
+    await user.click(await enabledSwitch());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not turn on reminders.");
+    expect(pushSubscribe).not.toHaveBeenCalled();
+    expect(theSwitch()).not.toBeChecked();
+  });
+
   it("replaces a subscription made with an old VAPID key, which subscribe would refuse", async () => {
     installBrowser();
     const old = browserSubscription(
@@ -197,6 +213,7 @@ describe("PushSwitch", () => {
 
     await user.click(await enabledSwitch());
 
+    expect(calls.unsubscribe).toHaveBeenCalledWith({ endpoint: ENDPOINT }, expect.anything());
     expect(old.unsubscribe).toHaveBeenCalled();
     expect(pushSubscribe).toHaveBeenCalled();
     await vi.waitFor(() => expect(theSwitch()).toBeChecked());
@@ -265,8 +282,20 @@ describe("PushSwitch", () => {
     installBrowser({ registered: false });
     setup();
 
-    expect(await screen.findByText(/need the app's service worker/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/need the app's service worker/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(theSwitch()).toHaveAttribute("data-disabled");
+  });
+
+  it("waits for the registration the layout is still making, on a browser's first visit", async () => {
+    installBrowser();
+    registeredLate = true;
+    const user = setup();
+
+    await user.click(await enabledSwitch());
+
+    await vi.waitFor(() => expect(theSwitch()).toBeChecked());
   });
 
   it("is off and says so when the server has no VAPID key", async () => {
@@ -285,20 +314,6 @@ describe("PushSwitch", () => {
     setup();
 
     await vi.waitFor(() => expect(theSwitch()).toBeChecked());
-  });
-
-  it("saves an already subscribed device again on load, in case the server lost its row", async () => {
-    installBrowser();
-    current = browserSubscription();
-    permission = "granted";
-    setup();
-
-    await vi.waitFor(() =>
-      expect(calls.subscribe).toHaveBeenCalledWith(
-        { endpoint: ENDPOINT, keys: { p256dh: "key", auth: "auth" } },
-        expect.anything(),
-      ),
-    );
   });
 
   it("removes this device's subscription when turned off", async () => {
@@ -344,6 +359,21 @@ describe("PushSwitch", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Test sent.");
   });
 
+  it("turns off and asks to subscribe again when the server has no row for this device", async () => {
+    installBrowser();
+    current = browserSubscription();
+    permission = "granted";
+    calls.sendTest.mockRejectedValue(
+      new TRPCClientError("gone", { result: { error: { data: { code: "NOT_FOUND" } } } } as never),
+    );
+    const user = setup();
+
+    await user.click(await screen.findByRole("button", { name: "Send test" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/no longer subscribed/);
+    expect(theSwitch()).not.toBeChecked();
+  });
+
   it("turns off and asks to subscribe again when the push service says the subscription is gone", async () => {
     installBrowser();
     current = browserSubscription();
@@ -354,8 +384,25 @@ describe("PushSwitch", () => {
     await user.click(await screen.findByRole("button", { name: "Send test" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /had expired. Turn reminders on again/,
+      /no longer subscribed. Turn reminders on again/,
     );
     expect(theSwitch()).not.toBeChecked();
+  });
+
+  it("saves the same subscription again when turned back on after a refused test", async () => {
+    installBrowser();
+    const subscription = browserSubscription();
+    current = subscription;
+    permission = "granted";
+    calls.sendTest.mockResolvedValue({ sent: false, gone: true });
+    const user = setup();
+
+    await user.click(await screen.findByRole("button", { name: "Send test" }));
+    await screen.findByRole("alert");
+    await user.click(await enabledSwitch());
+
+    expect(subscription.unsubscribe).not.toHaveBeenCalled();
+    expect(pushSubscribe).toHaveBeenCalled();
+    await vi.waitFor(() => expect(theSwitch()).toBeChecked());
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { isTRPCClientError } from "@trpc/client";
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 
 import { BUTTON } from "@/components/settings/setting-rows";
@@ -69,26 +70,42 @@ function sameKey(subscription: PushSubscription, key: Uint8Array) {
 }
 
 /**
+ * The registration `RegisterServiceWorker` is about to make. It registers from the layout, whose
+ * effect runs after this page's, so a browser's very first visit lands here before it exists.
+ * `next dev` registers none, hence the time limit.
+ */
+async function registrationSoon() {
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<undefined>((resolve) => setTimeout(resolve, 3000)),
+  ]);
+}
+
+/**
  * The registration once its newest worker is the active one. A worker from before push existed
  * has no `push` handler, and a device subscribed under it would drop the first reminder.
  */
 async function activeRegistration() {
   const registration = await navigator.serviceWorker.ready;
 
-  await registration.update().catch(() => {});
+  // Not caught: an update check that fails could leave a worker from before push in charge.
+  await registration.update();
 
   const pending = registration.installing ?? registration.waiting;
 
   if (pending) {
-    await new Promise<void>((resolve) => {
-      const settled = () => pending.state === "activated" || pending.state === "redundant";
+    await new Promise<void>((resolve, reject) => {
+      const settle = () => {
+        if (pending.state === "activated") {
+          resolve();
+        } else if (pending.state === "redundant") {
+          reject(new Error("The updated service worker failed to install"));
+        }
+      };
 
-      pending.addEventListener("statechange", () => settled() && resolve());
-
+      pending.addEventListener("statechange", settle);
       // It may have finished between reading `installing` and adding the listener.
-      if (settled()) {
-        resolve();
-      }
+      settle();
     });
   }
 
@@ -122,8 +139,6 @@ export function PushSwitch() {
 
   const key = useQuery(trpc.push.vapidPublicKey.queryOptions());
   const subscribe = useMutation(trpc.push.subscribe.mutationOptions());
-  // A stable function, unlike the mutation object, so the effect below runs once.
-  const resave = useMutation(trpc.push.subscribe.mutationOptions()).mutate;
   const unsubscribe = useMutation(trpc.push.unsubscribe.mutationOptions());
   const sendTest = useMutation(trpc.push.sendTest.mutationOptions());
 
@@ -134,7 +149,8 @@ export function PushSwitch() {
     }
 
     const read = async () => {
-      const registration = await navigator.serviceWorker.getRegistration();
+      const registration =
+        (await navigator.serviceWorker.getRegistration()) ?? (await registrationSoon());
 
       if (!registration) {
         setWorker("missing");
@@ -143,22 +159,13 @@ export function PushSwitch() {
       }
 
       const subscription = await registration.pushManager.getSubscription();
-      const subscribed = Boolean(subscription) && Notification.permission === "granted";
 
       setWorker("registered");
-      setOn(subscribed);
-
-      // Saved again on every visit, so a device whose row is gone (it was moved to another
-      // household, or deleted) is not left showing on while nothing reaches it.
-      const { endpoint, keys } = subscription?.toJSON() ?? {};
-
-      if (subscribed && endpoint && keys?.p256dh && keys.auth) {
-        resave({ endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } });
-      }
+      setOn(Boolean(subscription) && Notification.permission === "granted");
     };
 
     void read();
-  }, [support, resave]);
+  }, [support]);
 
   async function turnOn() {
     // First, while the tap is still a user gesture: Safari refuses a prompt that comes after an
@@ -181,7 +188,10 @@ export function PushSwitch() {
 
     // `subscribe` refuses outright while a subscription made with another key exists, which is
     // every device after the deployment's keys change.
+    // The push service answers the old endpoint with 403 rather than 410, so its row would
+    // otherwise never be cleaned up.
     if (existing && !sameKey(existing, applicationServerKey)) {
+      await unsubscribe.mutateAsync({ endpoint: existing.endpoint });
       await existing.unsubscribe();
     }
 
@@ -260,15 +270,28 @@ export function PushSwitch() {
         return;
       }
 
-      const result = await sendTest.mutateAsync({ endpoint: subscription.endpoint });
+      const result = await sendTest
+        .mutateAsync({ endpoint: subscription.endpoint })
+        // The server has no row for this device: deleted after the push service dropped it, or
+        // moved when this browser subscribed from another household. Either way it needs to
+        // subscribe again.
+        .catch((error: unknown) => {
+          if (isTRPCClientError(error) && error.data?.code === "NOT_FOUND") {
+            return { sent: false as const };
+          }
+
+          throw error;
+        });
 
       if (result.sent) {
         setMessage({ text: "Test sent. It should arrive in a few seconds.", error: false });
       } else {
-        await subscription.unsubscribe();
+        // The browser's subscription is kept: FCM can answer 410 for a token minted seconds
+        // earlier and accept it moments later, so turning back on re-saves the same endpoint
+        // rather than throwing away one that may still work.
         setOn(false);
         setMessage({
-          text: "This device's subscription had expired. Turn reminders on again.",
+          text: "This device is no longer subscribed. Turn reminders on again.",
           error: true,
         });
       }
