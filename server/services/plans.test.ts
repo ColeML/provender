@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb } from "@server/db/testing";
 import type { Database } from "@server/db";
@@ -6,6 +6,7 @@ import { setConfigValue } from "@server/services/config";
 import { createRecipe, deleteRecipe } from "@server/services/recipes";
 
 import {
+  currentOrLatestPlan,
   createPlan,
   DateOutsidePlanError,
   DuplicateRecipeError,
@@ -327,5 +328,25 @@ describe("upsertPlan", () => {
 
   it("rejects an id that is not an ISO week", async () => {
     await expect(upsertPlan(H, "not-a-week", undefined, db)).rejects.toThrow(InvalidPlanIdError);
+  });
+});
+
+describe("currentOrLatestPlan", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("picks this week by the household's clock, not UTC's", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 9 pm Sunday in Chicago is Monday in UTC, a week later by ISO count.
+    vi.setSystemTime(new Date("2026-11-30T03:00:00Z"));
+    await createPlan(H, "2026-W48", 120, db);
+    await createPlan(H, "2026-W49", 120, db);
+
+    expect((await currentOrLatestPlan(H, db))?.id).toBe("2026-W48");
+
+    await setConfigValue(H, "timezone", "UTC", db);
+
+    expect((await currentOrLatestPlan(H, db))?.id).toBe("2026-W49");
   });
 });

@@ -2,6 +2,7 @@ import "server-only";
 
 import { db as defaultDb, schema, type Database, type Queryable } from "@server/db";
 import { isCalendarDate, isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
+import { householdToday } from "@server/services/today";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { getConfig } from "./config";
@@ -236,9 +237,16 @@ export async function findPlan(householdId: string, planId: string, db: Database
  * week is planned, and blank all of the following week too — which is exactly when someone opens
  * it in a shop. Falling back to the latest plan means the screen always has something, and the
  * caller shows which week it is so the fallback is never silent.
+ *
+ * "This week" is the household's, read in its time zone; pass `today` when the caller already has
+ * it, to save the lookup.
  */
-export async function currentOrLatestPlan(householdId: string, db: Database = defaultDb) {
-  const thisWeek = isoWeekFor(new Date().toISOString().slice(0, 10));
+export async function currentOrLatestPlan(
+  householdId: string,
+  db: Database = defaultDb,
+  today?: string,
+) {
+  const thisWeek = isoWeekFor(today ?? (await householdToday(householdId, db)));
 
   const [current] = await db
     .select()

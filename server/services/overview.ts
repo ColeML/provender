@@ -4,6 +4,7 @@ import { MEAL_ORDER } from "@server/db/schema/plans";
 import { isoWeekFor, parseIsoWeek, weekDates } from "@server/lib/iso-week";
 import { currentOrLatestPlan, type MealSlot } from "@server/services/plans";
 import { recipesByIds } from "@server/services/recipes";
+import { householdTimeZone, householdToday } from "@server/services/today";
 import { and, asc, eq } from "drizzle-orm";
 
 export interface OverviewDay {
@@ -18,6 +19,8 @@ export interface WeekOverview {
   planId: string | null;
   /** False when the plan shown is an earlier week, so the screen can say which week it is. */
   isCurrentWeek: boolean;
+  /** The household's IANA zone, so the screen can tell which date is today wherever it runs. */
+  timeZone: string;
   /** The plan week's seven dates, Monday first, so the screen can show the days nothing is planned. */
   dates: string[];
   days: OverviewDay[];
@@ -43,12 +46,17 @@ export async function weekOverview(
   householdId: string,
   db: Database = defaultDb,
 ): Promise<WeekOverview> {
-  const plan = await currentOrLatestPlan(householdId, db);
+  const [timeZone, today] = await Promise.all([
+    householdTimeZone(householdId, db),
+    householdToday(householdId, db),
+  ]);
+  const plan = await currentOrLatestPlan(householdId, db, today);
 
   if (!plan) {
     return {
       planId: null,
       isCurrentWeek: false,
+      timeZone,
       dates: [],
       days: [],
       recipeIds: [],
@@ -109,7 +117,8 @@ export async function weekOverview(
 
   return {
     planId: plan.id,
-    isCurrentWeek: plan.id === isoWeekFor(new Date().toISOString().slice(0, 10)),
+    isCurrentWeek: plan.id === isoWeekFor(today),
+    timeZone,
     dates: weekDatesFor(plan.id),
     days: [...days]
       .sort(

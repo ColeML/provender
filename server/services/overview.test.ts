@@ -1,6 +1,7 @@
 import type { Database } from "@server/db";
 import { createTestDb } from "@server/db/testing";
 import { isoWeekFor } from "@server/lib/iso-week";
+import { setConfigValue } from "@server/services/config";
 import { createPlan, setPlanDay } from "@server/services/plans";
 import { createRecipe } from "@server/services/recipes";
 import { replaceItems, updateItem } from "@server/services/shopping";
@@ -36,6 +37,7 @@ describe("weekOverview", () => {
     expect(await weekOverview(H, db)).toEqual({
       planId: null,
       isCurrentWeek: false,
+      timeZone: "America/Chicago",
       dates: [],
       days: [],
       recipeIds: [],
@@ -205,5 +207,36 @@ describe("weekOverview", () => {
     );
 
     expect(await weekOverview("someone-else", db)).toMatchObject({ planId: null, days: [] });
+  });
+
+  describe("in the household's time zone", () => {
+    it("is still yesterday's week in Chicago at 7:30 pm, when UTC is already tomorrow", async () => {
+      // Tuesday evening in Chicago, Wednesday in UTC: both in 2026-W48.
+      vi.setSystemTime(new Date("2026-11-25T01:30:00Z"));
+      await createPlan(H, "2026-W48", 120, db);
+
+      expect(await weekOverview(H, db)).toMatchObject({
+        planId: "2026-W48",
+        isCurrentWeek: true,
+        timeZone: "America/Chicago",
+      });
+    });
+
+    it("shows Sunday night's week in Chicago, and Monday's in UTC", async () => {
+      // 9 pm Sunday in Chicago is Monday in UTC, a week later by ISO count.
+      vi.setSystemTime(new Date("2026-11-30T03:00:00Z"));
+      await createPlan(H, "2026-W48", 120, db);
+      await createPlan(H, "2026-W49", 120, db);
+
+      expect(await weekOverview(H, db)).toMatchObject({ planId: "2026-W48", isCurrentWeek: true });
+
+      await setConfigValue(H, "timezone", "UTC", db);
+
+      expect(await weekOverview(H, db)).toMatchObject({
+        planId: "2026-W49",
+        isCurrentWeek: true,
+        timeZone: "UTC",
+      });
+    });
   });
 });

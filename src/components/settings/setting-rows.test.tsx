@@ -39,6 +39,12 @@ afterEach(() => {
 const people: RowSetting = { key: "people", label: "Servings per meal", kind: "count" };
 const budget: RowSetting = { key: "default_budget", label: "Weekly budget", kind: "money" };
 const notes: RowSetting = { key: "preferences", label: "Notes for the planner", kind: "longText" };
+const zone: RowSetting = {
+  key: "timezone",
+  label: "Time zone",
+  kind: "timeZone",
+  fallback: "America/Chicago (default)",
+};
 
 function setup(setting: RowSetting, value: string | undefined) {
   const onSave = vi.fn<(value: string) => Promise<void>>().mockResolvedValue();
@@ -134,6 +140,29 @@ describe("SettingRow", () => {
     await user.click(screen.getByRole("button", { name: "Edit Notes for the planner" }));
 
     expect(screen.getByRole("textbox", { name: "Notes for the planner" }).tagName).toBe("TEXTAREA");
+  });
+
+  it("picks a time zone from a list, opening on the default when none is set", async () => {
+    const { user, onSave } = setup(zone, undefined);
+
+    await user.click(screen.getByRole("button", { name: "Edit Time zone" }));
+
+    const picker = screen.getByRole("combobox", { name: "Time zone" });
+
+    expect(picker).toHaveValue("America/Chicago");
+
+    await user.selectOptions(picker, "America/New_York");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith("America/New_York");
+  });
+
+  it("keeps a saved zone the browser's list leaves out", async () => {
+    const { user } = setup(zone, "UTC");
+
+    await user.click(screen.getByRole("button", { name: "Edit Time zone" }));
+
+    expect(screen.getByRole("combobox", { name: "Time zone" })).toHaveValue("UTC");
   });
 
   it("saves an empty field as a clear", async () => {
