@@ -184,3 +184,30 @@ describe("the recipe notes migration", () => {
     await client.close();
   }, 60_000);
 });
+
+describe("the prep-ahead migration", () => {
+  it("gives every existing recipe an empty list of prep-ahead tasks", async () => {
+    const client = new PGlite();
+    const files = await migrationFiles();
+    const prep = files.findIndex((file) => file.includes("add_recipe_prep_ahead"));
+
+    expect(prep).toBeGreaterThan(0);
+
+    for (const file of files.slice(0, prep)) {
+      await apply(client, file);
+    }
+
+    await client.exec(`
+      INSERT INTO households (id, name) VALUES ('loewer', 'Loewer') ON CONFLICT (id) DO NOTHING;
+      INSERT INTO recipes (household_id, id, title, base_servings) VALUES ('loewer', 'tacos', 'Tacos', 4);
+    `);
+
+    await apply(client, files[prep]);
+
+    const recipes = await client.query<{ prep_ahead: string[] }>("SELECT prep_ahead FROM recipes");
+
+    expect(recipes.rows).toEqual([{ prep_ahead: [] }]);
+
+    await client.close();
+  }, 60_000);
+});
