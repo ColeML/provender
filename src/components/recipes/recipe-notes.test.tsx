@@ -401,8 +401,8 @@ describe("RecipePrepAhead", () => {
     expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.queryByRole("list")).toBeNull();
     expect(container).not.toHaveTextContent(/no tasks/i);
-    expect(screen.getByRole("button", { name: "Add a prep-ahead task" })).toHaveTextContent(
-      "+ Prep ahead",
+    expect(screen.getByRole("button", { name: "Add prep ahead" })).toHaveTextContent(
+      "+ Add prep ahead",
     );
   });
 
@@ -415,15 +415,13 @@ describe("RecipePrepAhead", () => {
         .getAllByRole("listitem")
         .map((item) => item.textContent),
     ).toEqual(["Marinate the chicken overnight.", "Soak the beans."]);
-    expect(screen.getByRole("button", { name: "Add a prep-ahead task" })).toHaveTextContent(
-      "+ Add",
-    );
+    expect(screen.getByRole("button", { name: "Add prep ahead" })).toHaveTextContent("+ Add");
   });
 
   it("adds the first task, saving the list for its recipe, then refreshes the page", async () => {
     const { user } = renderPrep([]);
 
-    await user.click(screen.getByRole("button", { name: "Add a prep-ahead task" }));
+    await user.click(screen.getByRole("button", { name: "Add prep ahead" }));
 
     expect(screen.getByRole("heading", { name: "Prep ahead" })).toBeInTheDocument();
 
@@ -473,11 +471,52 @@ describe("RecipePrepAhead", () => {
     });
   });
 
+  it("keeps the heading from the save until the refreshed list arrives", async () => {
+    const { user } = renderPrep([]);
+
+    await user.click(screen.getByRole("button", { name: "Add prep ahead" }));
+    await user.type(screen.getByRole("textbox", { name: "New task" }), "Thaw the shrimp.");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(screen.queryByRole("textbox")).toBeNull());
+    expect(screen.getByRole("heading", { name: "Prep ahead" })).toBeInTheDocument();
+  });
+
+  it("hides the heading and focuses the add control once the last task is removed", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn<(next: string[]) => Promise<void>>().mockResolvedValue(undefined);
+    const copy = {
+      heading: "Prep ahead",
+      noun: "task",
+      empty: null,
+      addEmpty: "+ Add prep ahead",
+      addLabel: "Add prep ahead",
+    };
+    const view = render(<NoteList notes={["Soak the beans."]} copy={copy} onSave={onSave} />);
+
+    await user.click(screen.getByRole("button", { name: "Remove task: Soak the beans." }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith([]));
+    view.rerender(<NoteList notes={[]} copy={copy} onSave={onSave} />);
+
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add prep ahead" })).toHaveFocus();
+  });
+
+  it("returns focus to the add control when an empty list's add is cancelled", async () => {
+    const { user } = renderPrep([]);
+
+    await user.click(screen.getByRole("button", { name: "Add prep ahead" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add prep ahead" })).toHaveFocus();
+  });
+
   it("says the task, not a note, could not be saved", async () => {
     const { user } = renderPrep([]);
 
     setPrepAhead.mockRejectedValue(new Error("offline"));
-    await user.click(screen.getByRole("button", { name: "Add a prep-ahead task" }));
+    await user.click(screen.getByRole("button", { name: "Add prep ahead" }));
     await user.type(screen.getByRole("textbox", { name: "New task" }), "Thaw the shrimp.");
     await user.click(screen.getByRole("button", { name: "Save" }));
 

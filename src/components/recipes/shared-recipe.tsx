@@ -75,11 +75,13 @@ export function SharedRecipe({ recipe }: Props) {
       </p>
 
       {recipe.prepAhead.length === 0 ? null : (
-        <section aria-label="Prep ahead" className="mt-6">
-          <h2 className="text-muted-foreground text-xs">Prep ahead</h2>
+        <section aria-labelledby="prep-ahead" className="mt-6">
+          <h2 id="prep-ahead" className="text-muted-foreground text-xs">
+            Prep ahead
+          </h2>
 
           <ul
-            aria-label="Prep ahead"
+            aria-labelledby="prep-ahead"
             className="divide-border border-border mt-1 divide-y border-y"
           >
             {/* Keyed on position: the list is never reordered, and two tasks may read the same. */}

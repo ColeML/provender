@@ -77,8 +77,8 @@ matches no ingredient of the recipe, ignoring case. Drop a second measure in par
   element, written for the evening before and carrying the wait the steps give:
   `"Marinate the chicken in the fridge (8–24 hours)."` Steps that call for none of these get `[]`,
   the usual case, and a wait that fits before dinner, such as a 30-minute marinade, stays in the
-  steps. Write each task as plain text with no braces: a task does not scale
-  with the servings.
+  steps. Write each task as plain text that names the food without an amount and uses no braces:
+  a task does not scale with the servings, so "Soak the black beans", not "Soak 2 cups of beans".
 - `costEstimate` covers the whole recipe. Price from `./scripts/prov GET /prices` first, then
   `./scripts/prov GET '/kroger/prices?term=<item>'`, then estimate the rest; count
   `config.pantry_staples` as free and say which lines you estimated. Kroger is opt-in and answers

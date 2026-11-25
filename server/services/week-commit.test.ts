@@ -89,6 +89,22 @@ describe("commitWeek", () => {
     });
   });
 
+  it("stores a new recipe's prep-ahead tasks", async () => {
+    const payload = oneDay();
+
+    await commitWeek(
+      H,
+      WEEK,
+      {
+        ...payload,
+        recipes: [{ ...payload.recipes[0], prepAhead: ["Thaw the gnocchi overnight."] }],
+      },
+      db,
+    );
+
+    expect((await getRecipe(H, "gnocchi", db)).prepAhead).toEqual(["Thaw the gnocchi overnight."]);
+  });
+
   it("records history only for the main, not the side or the extras", async () => {
     await createRecipe(H, "salad", { title: "Green Salad", baseServings: 10 }, [], db);
     await createRecipe(H, "brownies", { title: "Brownies", baseServings: 12 }, [], db);

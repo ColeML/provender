@@ -438,6 +438,11 @@ describe("PATCH /v1/recipes/{recipe}", () => {
     });
   });
 
+  it("rejects prep-ahead tasks that are not a list of strings on PATCH", async () => {
+    expect((await patch("updateMask=prepAhead", { prepAhead: "Soak" })).status).toBe(400);
+    expect((await patch("updateMask=prepAhead", { prepAhead: [1] })).status).toBe(400);
+  });
+
   it("ignores prep-ahead tasks in the body when the mask does not name them", async () => {
     const response = await patch("updateMask=title", { title: "Beef Fajitas", prepAhead: ["No"] });
 

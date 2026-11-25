@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+/** Specs that write a recipe, which the empty-library test must not see. */
+const SEEDED = /prep-ahead\.spec\.ts$/;
+
 /**
  * End-to-end tests against a local dev server, signed in without the login form.
  *
@@ -11,9 +14,6 @@ import { defineConfig, devices } from "@playwright/test";
  * fast required check for a slow one; the Neon branch these would need is also the one a preview
  * deploy uses.
  */
-/** Specs that write a recipe, which the empty-library test must not see. */
-const SEEDED = /prep-ahead\.spec\.ts$/;
-
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/auth.setup.ts",

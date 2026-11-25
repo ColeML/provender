@@ -22,7 +22,7 @@ export interface ListCopy {
   empty: string | null;
   /** The add control's visible text when the list is empty and has no heading to explain it. */
   addEmpty: string;
-  /** The add control's accessible name. */
+  /** The add control's accessible name. It contains the visible text, so voice control finds it. */
   addLabel: string;
 }
 
@@ -38,8 +38,8 @@ const PREP_AHEAD: ListCopy = {
   heading: "Prep ahead",
   noun: "task",
   empty: null,
-  addEmpty: "+ Prep ahead",
-  addLabel: "Add a prep-ahead task",
+  addEmpty: "+ Add prep ahead",
+  addLabel: "Add prep ahead",
 };
 
 function short(note: string) {
@@ -161,6 +161,9 @@ export function NoteList({ notes, copy = NOTES, onSave }: NoteListProps) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [failedDelete, setFailedDelete] = useState<number | null>(null);
+  // From a saved change until the refreshed list arrives. Without it, an empty list's heading would
+  // vanish when the add form closes and come back a moment later with the first entry.
+  const [settling, setSettling] = useState(false);
   // Shared by every change, so a second change never builds on the list the first replaces.
   const [pending, startTransition] = useTransition();
   const hintId = useId();
@@ -173,6 +176,8 @@ export function NoteList({ notes, copy = NOTES, onSave }: NoteListProps) {
   const deleted = useRef<number | null>(null);
 
   useEffect(() => {
+    setSettling(false);
+
     const index = deleted.current;
 
     deleted.current = null;
@@ -223,6 +228,7 @@ export function NoteList({ notes, copy = NOTES, onSave }: NoteListProps) {
     startTransition(async () => {
       try {
         await onSave(next);
+        setSettling(true);
         startTransition(close);
       } catch {
         setError(`Could not save that ${copy.noun}. Try again.`);
@@ -289,7 +295,7 @@ export function NoteList({ notes, copy = NOTES, onSave }: NoteListProps) {
     />
   );
 
-  const headed = copy.empty !== null || notes.length > 0 || open?.kind === "add";
+  const headed = copy.empty !== null || notes.length > 0 || open?.kind === "add" || settling;
 
   return (
     // With no heading there is nothing to label the section by, so it is a plain block until it has

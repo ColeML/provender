@@ -69,7 +69,7 @@ test("adds, edits and removes a prep-ahead task, and shows it read-only on the s
 
   // No tasks: an add control and no empty heading.
   await expect(page.getByRole("heading", { name: "Prep ahead" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Add a prep-ahead task" }).click();
+  await page.getByRole("button", { name: "Add prep ahead" }).click();
   await page.getByRole("textbox", { name: "New task" }).fill("Marinate the chicken.");
   await page.getByRole("button", { name: "Save" }).click();
 
@@ -100,5 +100,5 @@ test("adds, edits and removes a prep-ahead task, and shows it read-only on the s
 
   await page.getByRole("button", { name: "Remove task: Marinate the chicken overnight." }).click();
   await expect(page.getByRole("heading", { name: "Prep ahead" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Add a prep-ahead task" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Add prep ahead" })).toBeFocused();
 });
