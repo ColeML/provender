@@ -90,10 +90,23 @@ let caches: FakeCacheStorage;
 let network: ReturnType<typeof vi.fn<(request: string | RequestLike) => Promise<Response>>>;
 let listeners: Record<string, (event: unknown) => void>;
 
+interface FakeWindow {
+  url: string;
+  focus: ReturnType<typeof vi.fn>;
+  navigate: ReturnType<typeof vi.fn>;
+}
+
+let shown: { title: string; options: NotificationOptions }[];
+let windows: FakeWindow[];
+let opened: string[];
+
 beforeEach(() => {
   caches = new FakeCacheStorage();
   network = vi.fn(offline);
   listeners = {};
+  shown = [];
+  windows = [];
+  opened = [];
 
   const self = {
     location: new URL(ORIGIN),
@@ -101,7 +114,18 @@ beforeEach(() => {
       listeners[type] = listener;
     },
     skipWaiting: async () => {},
-    clients: { claim: async () => {} },
+    clients: {
+      claim: async () => {},
+      matchAll: async () => windows,
+      openWindow: async (url: string) => {
+        opened.push(new URL(url, ORIGIN).href);
+      },
+    },
+    registration: {
+      showNotification: async (title: string, options: NotificationOptions) => {
+        shown.push({ title, options });
+      },
+    },
   };
 
   runInNewContext(SOURCE, { self, caches, fetch: network, URL, Response, Request, Headers });
@@ -140,6 +164,125 @@ async function saveWeek(paths: string[]) {
 
   await Promise.all(pending);
 }
+
+function openWindow(path: string): FakeWindow {
+  const window: FakeWindow = {
+    url: new URL(path, ORIGIN).href,
+    focus: vi.fn(async () => window),
+    navigate: vi.fn(async () => window),
+  };
+
+  windows.push(window);
+
+  return window;
+}
+
+/** Fires a `push` carrying `data` (an object is sent as JSON) and waits for the worker. */
+async function push(data?: unknown) {
+  const pending: Promise<unknown>[] = [];
+  const text = typeof data === "string" ? data : JSON.stringify(data);
+
+  listeners.push({
+    data:
+      data === undefined
+        ? null
+        : {
+            text: () => text,
+            json: () => JSON.parse(text),
+          },
+    waitUntil: (work: Promise<unknown>) => pending.push(work),
+  });
+
+  await Promise.all(pending);
+}
+
+/** Taps a notification whose data is `data`, and waits for the worker. */
+async function tap(data: unknown) {
+  const pending: Promise<unknown>[] = [];
+  const close = vi.fn();
+
+  listeners.notificationclick({
+    notification: { data, close },
+    waitUntil: (work: Promise<unknown>) => pending.push(work),
+  });
+
+  await Promise.all(pending);
+
+  return { close };
+}
+
+describe("sw.js push", () => {
+  it("shows the payload's title and body, and keeps its URL for the tap", async () => {
+    await push({ title: "Tonight", body: "Marinate the chicken.", url: "/plan/2026-11-26" });
+
+    expect(shown).toMatchObject([
+      {
+        title: "Tonight",
+        options: { body: "Marinate the chicken.", data: { url: "/plan/2026-11-26" } },
+      },
+    ]);
+  });
+
+  // A push the browser delivers must show something: Chrome and Safari both penalise a worker
+  // that receives one silently, and Safari ends the subscription.
+  it.each([
+    ["no payload", undefined],
+    ["a payload that is not JSON", "hello"],
+  ])("still shows a notification for %s", async (_, data) => {
+    await push(data);
+
+    expect(shown).toMatchObject([{ title: "Provender", options: { data: { url: "/" } } }]);
+  });
+});
+
+describe("sw.js notificationclick", () => {
+  it("closes the notification", async () => {
+    const { close } = await tap({ url: "/settings" });
+
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("focuses an open tab already on the URL, without reloading it", async () => {
+    const tab = openWindow("/plan/2026-11-26");
+
+    await tap({ url: "/plan/2026-11-26" });
+
+    expect(tab.focus).toHaveBeenCalled();
+    expect(tab.navigate).not.toHaveBeenCalled();
+    expect(opened).toEqual([]);
+  });
+
+  it("focuses an open tab elsewhere in the app and takes it to the URL", async () => {
+    const tab = openWindow("/shop");
+
+    await tap({ url: "/plan/2026-11-26" });
+
+    expect(tab.focus).toHaveBeenCalled();
+    expect(tab.navigate).toHaveBeenCalledWith(`${ORIGIN}/plan/2026-11-26`);
+    expect(opened).toEqual([]);
+  });
+
+  it("opens the URL when no tab is open", async () => {
+    await tap({ url: "/plan/2026-11-26" });
+
+    expect(opened).toEqual([`${ORIGIN}/plan/2026-11-26`]);
+  });
+
+  it("opens the URL in a new window when the open tab cannot be navigated", async () => {
+    const tab = openWindow("/shop");
+    tab.navigate.mockRejectedValue(new TypeError("not controlled"));
+
+    await tap({ url: "/plan/2026-11-26" });
+
+    expect(opened).toEqual([`${ORIGIN}/plan/2026-11-26`]);
+  });
+
+  it("opens the home page rather than another site", async () => {
+    await tap({ url: "https://elsewhere.example/" });
+
+    expect(opened).toEqual([`${ORIGIN}/`]);
+  });
+});
 
 describe("sw.js", () => {
   it("answers a day page from the network while online, and saves it", async () => {

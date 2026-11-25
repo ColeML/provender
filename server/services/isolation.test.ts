@@ -79,6 +79,12 @@ import {
   updateStore,
 } from "@server/services/stores";
 import { schema } from "@server/db";
+import {
+  PushSubscriptionNotFoundError,
+  sendTestPush,
+  subscribeDevice,
+  unsubscribeDevice,
+} from "@server/services/push";
 
 /**
  * The claim the whole household scope exists to make: one household cannot observe or affect
@@ -943,5 +949,43 @@ describe("day shares", () => {
     expect(theirs?.slots).toMatchObject([{ notes: "Theirs", main: { title: "Their Fajitas" } }]);
     expect(theirs?.recipes.fajitas).toMatchObject({ householdId: B, title: "Their Fajitas" });
     expect(theirs?.recipes.fajitas.ingredients).toEqual([]);
+  });
+});
+
+describe("push subscriptions", () => {
+  const PHONE = {
+    endpoint: "https://push.example/phone",
+    keys: { p256dh: "key", auth: "auth" },
+  };
+
+  it("will not let one household unsubscribe another's device", async () => {
+    await subscribeDevice(A, PHONE, db);
+
+    await unsubscribeDevice(B, PHONE.endpoint, db);
+
+    await expect(db.select().from(schema.pushSubscriptions)).resolves.toMatchObject([
+      { endpoint: PHONE.endpoint, householdId: A },
+    ]);
+  });
+
+  it("will not send a test push to another household's device", async () => {
+    const send = vi.fn(async () => {});
+    await subscribeDevice(A, PHONE, db);
+
+    await expect(sendTestPush(B, PHONE.endpoint, db, send)).rejects.toThrow(
+      PushSubscriptionNotFoundError,
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  // The endpoint is a URL only that browser knows, so the browser itself signing in elsewhere is
+  // the only way this happens, and the device should follow the session it last subscribed from.
+  it("moves a device to the household that subscribed it last", async () => {
+    await subscribeDevice(A, PHONE, db);
+    await subscribeDevice(B, PHONE, db);
+
+    await expect(db.select().from(schema.pushSubscriptions)).resolves.toMatchObject([
+      { endpoint: PHONE.endpoint, householdId: B },
+    ]);
   });
 });

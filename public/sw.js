@@ -1,5 +1,6 @@
 // Keeps this week's plan and recipe pages readable offline. Read-only: nothing that edits data is
-// handled here, and every page in scope still comes from the network whenever there is one.
+// handled here, and every page in scope still comes from the network whenever there is one. Also
+// shows Web Push notifications and opens the app when one is tapped.
 
 const PAGES = "provender-pages";
 const ASSETS = "provender-assets";
@@ -194,4 +195,61 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "save-week") {
     event.waitUntil(saveWeek(event.data.paths));
   }
+});
+
+/** A push with no readable payload still has to show something, or the browser drops the worker. */
+function readPush(data) {
+  try {
+    const { title, body, url } = data?.json() ?? {};
+
+    return { title: title || "Provender", body: body || "", url: url || "/" };
+  } catch {
+    return { title: "Provender", body: data?.text() ?? "", url: "/" };
+  }
+}
+
+self.addEventListener("push", (event) => {
+  const { title, body, url } = readPush(event.data);
+
+  event.waitUntil(
+    self.registration.showNotification(title, { body, icon: "/icon-192.png", data: { url } }),
+  );
+});
+
+/** This app's page for a tapped notification. Anything off-site opens the home page instead. */
+function tappedUrl(data) {
+  const url = new URL(data?.url ?? "/", self.location.origin);
+
+  return url.origin === self.location.origin ? url : new URL("/", self.location.origin);
+}
+
+async function openTapped(url) {
+  const tabs = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const tab =
+    tabs.find((candidate) => candidate.url === url.href) ??
+    tabs.find((candidate) => new URL(candidate.url).origin === url.origin);
+
+  if (!tab) {
+    await self.clients.openWindow(url.href);
+    return;
+  }
+
+  // Focus first, while the tap still counts as the user's gesture.
+  await tab.focus();
+
+  if (tab.url === url.href) {
+    return;
+  }
+
+  try {
+    await tab.navigate(url.href);
+  } catch {
+    // A tab this worker does not control cannot be navigated from here.
+    await self.clients.openWindow(url.href);
+  }
+}
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(openTapped(tappedUrl(event.notification.data)));
 });

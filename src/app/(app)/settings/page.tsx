@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 
 import { IngredientStores } from "@/components/settings/ingredient-stores";
 import { KrogerStoreRow } from "@/components/settings/kroger-store-row";
+import { PushSwitch } from "@/components/settings/push-switch";
 import { SettingRows, type SettingRowData } from "@/components/settings/setting-rows";
 import { Stores } from "@/components/settings/stores";
 import { ThemePicker } from "@/components/theme/theme-picker";
@@ -75,6 +76,12 @@ export default async function Settings() {
         <div className="mt-2">
           <ThemePicker />
         </div>
+      </Section>
+
+      <Section id="notifications" title="Notifications">
+        <ul className="divide-border border-border mt-2 divide-y border-y">
+          <PushSwitch />
+        </ul>
       </Section>
 
       <Section id="household" title="Household">
