@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db as defaultDb, schema, type Queryable } from "@server/db";
+import { isTimeZone } from "@server/lib/dates";
 import { findSetting } from "@server/lib/settings";
 import { and, eq, sql } from "drizzle-orm";
 
@@ -64,6 +65,13 @@ function checkSetting(key: string, value: string) {
     throw new InvalidSettingError(
       key,
       `${setting.label} must be an amount above zero, like 120 or 89.50, without a $.`,
+    );
+  }
+
+  if (setting?.kind === "timeZone" && !isTimeZone(value)) {
+    throw new InvalidSettingError(
+      key,
+      `${setting.label} must be a zone name like America/Chicago.`,
     );
   }
 }

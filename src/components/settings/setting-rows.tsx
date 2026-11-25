@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_TIME_ZONE } from "@server/lib/dates";
 import type { Setting, SettingKind } from "@server/lib/settings";
 import { useMutation } from "@tanstack/react-query";
 import { isTRPCClientError } from "@trpc/client";
@@ -36,9 +37,66 @@ const INPUT_MODE: Partial<Record<SettingKind, "numeric" | "decimal">> = {
   money: "decimal",
 };
 
+/**
+ * Every zone the browser knows, plus the saved one. `UTC` is added by hand because the list holds
+ * only zones tied to a place, and a value saved through the API may be a name it leaves out.
+ */
+function timeZoneOptions(saved: string) {
+  return [...new Set([saved, "UTC", ...Intl.supportedValuesOf("timeZone")])].toSorted();
+}
+
 function shown(setting: RowSetting, value: string) {
   // Values written before the money check could already carry the sign.
   return setting.kind === "money" && !value.startsWith("$") ? `$${value}` : value;
+}
+
+interface SettingFieldProps {
+  setting: RowSetting;
+  fieldProps: {
+    id: string;
+    value: string;
+    placeholder: string | undefined;
+    "aria-describedby": string | undefined;
+    autoComplete: string;
+    autoFocus: boolean;
+  };
+  onChange: (value: string) => void;
+}
+
+/** The one control a setting's form edits, picked by its kind. */
+function SettingField({ setting, fieldProps, onChange }: SettingFieldProps) {
+  if (setting.kind === "longText") {
+    return (
+      <textarea
+        {...fieldProps}
+        onChange={(event) => onChange(event.target.value)}
+        rows={6}
+        className={cn(FIELD, "h-auto py-2")}
+      />
+    );
+  }
+
+  if (setting.kind === "timeZone") {
+    return (
+      <select {...fieldProps} onChange={(event) => onChange(event.target.value)} className={FIELD}>
+        {timeZoneOptions(fieldProps.value).map((zone) => (
+          <option key={zone} value={zone}>
+            {zone}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <input
+      {...fieldProps}
+      type="text"
+      inputMode={INPUT_MODE[setting.kind]}
+      onChange={(event) => onChange(event.target.value)}
+      className={FIELD}
+    />
+  );
 }
 
 interface SettingFormProps {
@@ -55,7 +113,10 @@ interface SettingFormProps {
 }
 
 function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFormProps) {
-  const [draft, setDraft] = useState(initial);
+  // A zone list has no blank to pick, so an unset zone opens on the one the app is using.
+  const [draft, setDraft] = useState(
+    setting.kind === "timeZone" && initial === "" ? DEFAULT_TIME_ZONE : initial,
+  );
   const [error, setError] = useState<string | null>(null);
   // A transition, as in the store form: it stays pending through the page refresh, so the old
   // value never shows between the save and the new page.
@@ -99,22 +160,7 @@ function SettingForm({ setting, initial, onSave, onSaved, onCancel }: SettingFor
         <label htmlFor={fieldId} className="text-muted-foreground text-xs">
           {setting.label}
         </label>
-        {setting.kind === "longText" ? (
-          <textarea
-            {...fieldProps}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={6}
-            className={cn(FIELD, "h-auto py-2")}
-          />
-        ) : (
-          <input
-            {...fieldProps}
-            type="text"
-            inputMode={INPUT_MODE[setting.kind]}
-            onChange={(event) => setDraft(event.target.value)}
-            className={FIELD}
-          />
-        )}
+        <SettingField setting={setting} fieldProps={fieldProps} onChange={setDraft} />
         {setting.hint === undefined ? null : (
           <p id={hintId} className="text-muted-foreground text-xs">
             {setting.hint}

@@ -36,6 +36,7 @@ async function renderHome(week: Partial<WeekOverview>) {
   overview.mockResolvedValue({
     planId: null,
     isCurrentWeek: false,
+    timeZone: "America/Chicago",
     dates: W37,
     days: [],
     recipeIds: [],
@@ -251,7 +252,6 @@ describe("the home screen", () => {
   });
 
   it("marks today, and fades the days already past", async () => {
-    vi.stubEnv("TZ", "UTC");
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
 
@@ -262,18 +262,27 @@ describe("the home screen", () => {
     expect(dayRow("Thursday")).not.toHaveClass("text-muted-foreground");
   });
 
-  it("keeps today on the local date after UTC has rolled over", async () => {
-    vi.stubEnv("TZ", "America/Chicago");
+  it("keeps today on the household's date after UTC has rolled over", async () => {
+    // The browser's own zone must not matter: the household's does.
+    vi.stubEnv("TZ", "UTC");
     vi.useFakeTimers({ toFake: ["Date"] });
     // 8pm Wednesday in Chicago, already Thursday in UTC.
     vi.setSystemTime(new Date("2026-09-10T01:00:00Z"));
 
-    await renderHome({ planId: "2026-W37", isCurrentWeek: true });
+    await renderHome({ planId: "2026-W37", isCurrentWeek: true, timeZone: "America/Chicago" });
 
-    expect(screen.getByRole("link", { name: "Wednesday" }).closest("li")).toHaveAttribute(
-      "aria-current",
-      "date",
-    );
+    expect(dayRow("Wednesday")).toHaveAttribute("aria-current", "date");
+  });
+
+  it("moves today with the household's zone", async () => {
+    vi.stubEnv("TZ", "America/Chicago");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-10T01:00:00Z"));
+
+    await renderHome({ planId: "2026-W37", isCurrentWeek: true, timeZone: "UTC" });
+
+    expect(dayRow("Thursday")).toHaveAttribute("aria-current", "date");
+    expect(dayRow("Wednesday")).toHaveClass("text-muted-foreground");
   });
 
   it("marks no day as today when the week shown is an earlier one", async () => {

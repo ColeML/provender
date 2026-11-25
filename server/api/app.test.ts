@@ -72,6 +72,37 @@ describe("PATCH /v1/config", () => {
     });
   });
 
+  it("reads and writes the household time zone", async () => {
+    const response = await patch({ timezone: "America/New_York" });
+
+    expect(response.status).toBe(200);
+    await expect((await api.request("/v1/config", authed)).json()).resolves.toMatchObject({
+      timezone: "America/New_York",
+    });
+  });
+
+  it("answers 400 naming the field for a zone that does not exist, and writes nothing", async () => {
+    const response = await patch({ location: "Edmond, OK", timezone: "Central" });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        status: "INVALID_ARGUMENT",
+        message: expect.stringContaining("Time zone"),
+        details: [
+          {
+            "@type": "type.googleapis.com/google.rpc.BadRequest",
+            fieldViolations: [{ field: "values.timezone", description: expect.any(String) }],
+          },
+        ],
+      },
+    });
+    await expect((await api.request("/v1/config", authed)).json()).resolves.toEqual({
+      people: "4",
+      default_budget: "120",
+    });
+  });
+
   it("accepts any text for a key it does not know", async () => {
     const response = await patch({ render_dir: "~/menus" });
 
