@@ -36,6 +36,7 @@ export default async function Shared({ params }: { params: Promise<{ share_token
         baseServings: shared.recipe.baseServings,
         totalMin: shared.recipe.totalMin,
         sourceUrl: shared.recipe.sourceUrl,
+        prepAhead: shared.recipe.prepAhead,
         instructions: shared.recipe.instructions,
         ingredients: shared.ingredients.map((ingredient) => ({
           id: ingredient.id,

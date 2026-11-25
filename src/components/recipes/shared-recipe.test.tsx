@@ -10,6 +10,7 @@ const fajitas = {
   baseServings: 8,
   totalMin: 40,
   sourceUrl: "https://example.test/fajitas",
+  prepAhead: [],
   instructions: ["Preheat the oven.", "Slice the peppers."],
   ingredients: [
     { id: "a", name: "chili powder", quantity: 2, unit: "Tbsp", notes: null },

@@ -26,6 +26,8 @@ export interface SharedRecipeView {
   baseServings: number;
   totalMin: number | null;
   sourceUrl: string | null;
+  /** Unlike the notes, the dish's own: what anyone cooking it has to start the night before. */
+  prepAhead: string[];
   instructions: string[];
   ingredients: SharedIngredient[];
 }
@@ -71,6 +73,24 @@ export function SharedRecipe({ recipe }: Props) {
           </span>
         )}
       </p>
+
+      {recipe.prepAhead.length === 0 ? null : (
+        <section aria-label="Prep ahead" className="mt-6">
+          <h2 className="text-muted-foreground text-xs">Prep ahead</h2>
+
+          <ul
+            aria-label="Prep ahead"
+            className="divide-border border-border mt-1 divide-y border-y"
+          >
+            {/* Keyed on position: the list is never reordered, and two tasks may read the same. */}
+            {recipe.prepAhead.map((task, index) => (
+              <li key={index} className="py-2.5 text-base break-words whitespace-pre-line">
+                {task}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <RecipeSections ingredients={recipe.ingredients} instructions={recipe.instructions} />
     </main>
