@@ -20,6 +20,14 @@ import { listHistory } from "@server/services/history";
 import { currentOrLatestPlan, deletePlanDay, getPlan, setPlanDay } from "@server/services/plans";
 import { weekPlan } from "@server/services/week-plan";
 import { listPrices } from "@server/services/prices";
+import {
+  PushNotConfiguredError,
+  PushSubscriptionNotFoundError,
+  sendTestPush,
+  subscribeDevice,
+  unsubscribeDevice,
+  vapidPublicKey,
+} from "@server/services/push";
 import { getForecast } from "@server/services/weather";
 import {
   addItem,
@@ -108,6 +116,18 @@ function rejectBadSetting(error: unknown): never {
   throw error;
 }
 
+function rejectPushFailure(error: unknown): never {
+  if (error instanceof PushNotConfiguredError) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message, cause: error });
+  }
+
+  if (error instanceof PushSubscriptionNotFoundError) {
+    throw new TRPCError({ code: "NOT_FOUND", message: error.message, cause: error });
+  }
+
+  throw error;
+}
+
 /** The three cases the REST route tells apart: fix the deployment, fix the request, or retry. */
 function rejectKrogerFailure(error: unknown): never {
   if (error instanceof KrogerNotConfiguredError) {
@@ -156,6 +176,32 @@ export const appRouter = router({
       .input(z.object({ zipCode: z.string().regex(/^\d{5}$/, "Enter a 5-digit ZIP code.") }))
       .query(({ ctx, input }) =>
         findLocations(ctx.householdId, { zipCode: input.zipCode }).catch(rejectKrogerFailure),
+      ),
+  }),
+  /**
+   * This device's Web Push subscription. A device is named by its endpoint, and the household is
+   * always the session's, never the request's.
+   */
+  push: router({
+    vapidPublicKey: protectedProcedure.query(() => vapidPublicKey()),
+    subscribe: protectedProcedure
+      .input(
+        z.object({
+          endpoint: z.url({ protocol: /^https$/ }).max(2048),
+          keys: z.object({
+            p256dh: z.string().min(1).max(256),
+            auth: z.string().min(1).max(256),
+          }),
+        }),
+      )
+      .mutation(({ ctx, input }) => subscribeDevice(ctx.householdId, input, ctx.db)),
+    unsubscribe: protectedProcedure
+      .input(z.object({ endpoint: z.string().min(1) }))
+      .mutation(({ ctx, input }) => unsubscribeDevice(ctx.householdId, input.endpoint, ctx.db)),
+    sendTest: protectedProcedure
+      .input(z.object({ endpoint: z.string().min(1) }))
+      .mutation(({ ctx, input }) =>
+        sendTestPush(ctx.householdId, input.endpoint, ctx.db).catch(rejectPushFailure),
       ),
   }),
   mealHistory: router({

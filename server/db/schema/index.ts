@@ -10,6 +10,7 @@ export * from "./history";
 export * from "./login-attempts";
 export * from "./plans";
 export * from "./prices";
+export * from "./push-subscriptions";
 export * from "./recipes";
 export * from "./shares";
 export * from "./shopping";
