@@ -1,5 +1,6 @@
 "use client";
 
+import { dateIn } from "@server/lib/dates";
 import type { OverviewDay } from "@server/services/overview";
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
@@ -13,20 +14,17 @@ const FOCUS = "focus-visible:ring-ring rounded-sm focus-visible:ring-3 focus-vis
 
 const subscribe = () => () => {};
 
-function localDate() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
 /**
- * The browser's date, not the server's. The server clock is UTC, which is already tomorrow by
- * dinner time in the US. `null` on the server, so the first client render matches its HTML.
+ * Today in the household's zone, read from the browser's clock. The browser rather than the
+ * server, so a copy of the page saved for offline use still marks the right day tomorrow. `null`
+ * on the server, so the first client render matches its HTML.
  */
-function useToday() {
-  return useSyncExternalStore(subscribe, localDate, () => null);
+function useToday(timeZone: string) {
+  return useSyncExternalStore(
+    subscribe,
+    () => dateIn(timeZone, new Date()),
+    () => null,
+  );
 }
 
 interface DayMealsProps {
@@ -75,10 +73,12 @@ function DayMeals({ date, meals }: DayMealsProps) {
 interface Props {
   dates: string[];
   days: OverviewDay[];
+  /** The household's IANA zone, which decides the date marked as today. */
+  timeZone: string;
 }
 
-export function WeekDays({ dates, days }: Props) {
-  const today = useToday();
+export function WeekDays({ dates, days, timeZone }: Props) {
+  const today = useToday(timeZone);
 
   return (
     <ul className="divide-border mt-6 divide-y">

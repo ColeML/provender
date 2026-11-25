@@ -35,8 +35,8 @@ describe("getConfig", () => {
 });
 
 describe("the known settings", () => {
-  it("are thirteen rows plus the Kroger store name, which has none", () => {
-    expect(SETTINGS.filter((setting) => !setting.hidden)).toHaveLength(13);
+  it("are fourteen rows plus the Kroger store name, which has none", () => {
+    expect(SETTINGS.filter((setting) => !setting.hidden)).toHaveLength(14);
     expect(SETTINGS.find((setting) => setting.key === "kroger_location_name")).toMatchObject({
       hidden: true,
     });
@@ -67,6 +67,9 @@ describe("setConfigValue", () => {
     ["dislikes", ""],
     ["no_repeat_days", ""],
     ["render_dir", "anything at all"],
+    ["timezone", "America/Chicago"],
+    ["timezone", "UTC"],
+    ["timezone", ""],
   ])("accepts %s = %j", async (key, value) => {
     const db = await freshDb();
 
@@ -84,6 +87,8 @@ describe("setConfigValue", () => {
     ["default_budget", "0"],
     ["default_budget", "12.345"],
     ["no_repeat_days", "-1"],
+    ["timezone", "Central"],
+    ["timezone", "America/Nowhere"],
   ])("refuses %s = %j", async (key, value) => {
     const db = await freshDb();
 
@@ -98,6 +103,14 @@ describe("setConfigValue", () => {
 
     await expect(setConfigValue("loewer", "default_meals", "9", db)).rejects.toThrow(
       "Dinners per week must be a whole number from 1 to 7.",
+    );
+  });
+
+  it("names the time zone setting and an example", async () => {
+    const db = await freshDb();
+
+    await expect(setConfigValue("loewer", "timezone", "Central", db)).rejects.toThrow(
+      "Time zone must be a zone name like America/Chicago.",
     );
   });
 });

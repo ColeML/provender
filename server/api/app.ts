@@ -118,7 +118,11 @@ api.openapi(
         description: "The settings after the change",
         content: { "application/json": { schema: ConfigSchema } },
       },
-      400: { description: "A known setting has a value of the wrong kind; nothing was written" },
+      400: {
+        description:
+          "A known setting has a value of the wrong kind; nothing was written. The detail names " +
+          "the field, as `values.<key>`.",
+      },
     },
   }),
   async (c) => {
@@ -129,7 +133,12 @@ api.openapi(
       await setConfigValues(householdId, values);
     } catch (error) {
       if (error instanceof InvalidSettingError) {
-        return apiError(c, "INVALID_ARGUMENT", error.message);
+        return apiError(c, "INVALID_ARGUMENT", error.message, [
+          {
+            "@type": "type.googleapis.com/google.rpc.BadRequest",
+            fieldViolations: [{ field: `values.${error.key}`, description: error.message }],
+          },
+        ]);
       }
 
       throw error;

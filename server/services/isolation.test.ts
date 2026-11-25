@@ -56,6 +56,7 @@ import {
 } from "@server/services/prices";
 import { planningRotation } from "@server/services/planning";
 import { weekOverview } from "@server/services/overview";
+import { householdTimeZone } from "@server/services/today";
 import { daySlots, weekPlan } from "@server/services/week-plan";
 import { createShare, deleteShare, getShare, getSharedRecipe } from "@server/services/shares";
 import { commitWeek, UnknownRecipeError } from "@server/services/week-commit";
@@ -745,10 +746,18 @@ describe("week overview", () => {
     );
   });
 
+  it("reads the time zone of its own household, not another's", async () => {
+    await setConfigValue(A, "timezone", "UTC", db);
+
+    await expect(weekOverview(B, db)).resolves.toMatchObject({ timeZone: "America/Chicago" });
+    await expect(householdTimeZone(B, db)).resolves.toBe("America/Chicago");
+  });
+
   it("does not fall back to another household's plan", async () => {
     await expect(weekOverview(B, db)).resolves.toEqual({
       planId: null,
       isCurrentWeek: false,
+      timeZone: "America/Chicago",
       dates: [],
       days: [],
       recipeIds: [],
@@ -765,6 +774,7 @@ describe("week overview", () => {
     await expect(weekOverview(B, db)).resolves.toEqual({
       planId: WEEK,
       isCurrentWeek: false,
+      timeZone: "America/Chicago",
       dates: [
         "2026-08-31",
         "2026-09-01",

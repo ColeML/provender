@@ -1,3 +1,5 @@
+import { DEFAULT_TIME_ZONE } from "@server/lib/dates";
+
 /**
  * The household settings the app knows by name. Config stays an open key/value table, so a key
  * missing here is still stored and shown, under its raw name, in the Settings page's Other section.
@@ -8,7 +10,14 @@
  * `krogerStore` is picked from a ZIP code search, never typed. A `list` is stored as its items
  * joined with ", ", because the planning skills read it as written.
  */
-export type SettingKind = "text" | "longText" | "list" | "count" | "money" | "krogerStore";
+export type SettingKind =
+  | "text"
+  | "longText"
+  | "list"
+  | "count"
+  | "money"
+  | "timeZone"
+  | "krogerStore";
 
 export type SettingSection = "household" | "food" | "planning" | "shopping";
 
@@ -45,6 +54,14 @@ export const SETTINGS: readonly Setting[] = [
     kind: "text",
     hint: "For the weather forecast.",
     placeholder: "Oklahoma City, OK",
+  },
+  {
+    key: "timezone",
+    label: "Time zone",
+    section: "household",
+    kind: "timeZone",
+    hint: "When the home page's day starts.",
+    fallback: `${DEFAULT_TIME_ZONE} (default)`,
   },
   { key: "allergies", label: "Allergies", section: "food", kind: "list" },
   { key: "dietary_restrictions", label: "Dietary restrictions", section: "food", kind: "text" },

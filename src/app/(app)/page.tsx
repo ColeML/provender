@@ -29,9 +29,8 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const { planId, isCurrentWeek, dates, days, recipeIds, outstandingItems } = await weekOverview(
-    householdForSession(session),
-  );
+  const { planId, isCurrentWeek, timeZone, dates, days, recipeIds, outstandingItems } =
+    await weekOverview(householdForSession(session));
 
   return (
     <main className="mx-auto max-w-2xl p-4">
@@ -62,7 +61,7 @@ export default async function Home() {
             )}
           </p>
 
-          <WeekDays dates={dates} days={days} />
+          <WeekDays dates={dates} days={days} timeZone={timeZone} />
           <SaveWeekOffline
             paths={[
               "/",
