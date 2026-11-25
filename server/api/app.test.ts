@@ -273,6 +273,32 @@ describe("the OpenAPI document", () => {
   });
 });
 
+describe("the recipe schemas in the OpenAPI document", () => {
+  it("carry prepAhead on the recipe, its input, and the update body", async () => {
+    const document = (await (await api.request("/v1/openapi.json")).json()) as {
+      components: { schemas: Record<string, { properties: Record<string, unknown> }> };
+      paths: Record<
+        string,
+        Record<
+          string,
+          {
+            requestBody?: {
+              content: Record<string, { schema: { properties: Record<string, unknown> } }>;
+            };
+          }
+        >
+      >;
+    };
+
+    expect(document.components.schemas.Recipe.properties).toHaveProperty("prepAhead");
+    expect(document.components.schemas.RecipeInput.properties).toHaveProperty("prepAhead");
+    expect(
+      document.paths["/v1/recipes/{recipe}"].patch.requestBody?.content["application/json"].schema
+        .properties,
+    ).toHaveProperty("prepAhead");
+  });
+});
+
 describe("a body that is not JSON", () => {
   it("is the caller's error, not the server's", async () => {
     const response = await api.request("/v1/units:convert", {

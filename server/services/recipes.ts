@@ -40,6 +40,7 @@ export interface RecipeInput {
   costEstimate?: number | null;
   tags?: string[];
   instructions?: string[];
+  prepAhead?: string[];
 }
 
 /** Raised when a caller tries to create a recipe whose id is taken (AIP-133 → ALREADY_EXISTS). */
@@ -384,6 +385,7 @@ export async function insertRecipe(
           : String(input.costEstimate),
       tags: input.tags ?? [],
       instructions: input.instructions ?? [],
+      prepAhead: normalizeNotes(input.prepAhead ?? []),
     })
     .onConflictDoNothing({ target: [schema.recipes.householdId, schema.recipes.id] })
     .returning();
@@ -399,7 +401,10 @@ export async function insertRecipe(
   return recipe;
 }
 
-/** What every write stores: trimmed, no blanks, and no note twice when only the case differs. */
+/**
+ * What every write of a text list stores — notes and prep-ahead tasks alike: trimmed, no blanks,
+ * and no entry twice when only the case differs.
+ */
 export function normalizeNotes(notes: string[]) {
   const seen = new Set<string>();
 
@@ -487,6 +492,7 @@ export async function updateRecipe(
     if (fields.has("instructions")) patch.instructions = input.instructions ?? [];
     if (fields.has("rating")) patch.rating = input.rating ?? null;
     if (fields.has("notes")) patch.notes = normalizeNotes(input.notes ?? []);
+    if (fields.has("prepAhead")) patch.prepAhead = normalizeNotes(input.prepAhead ?? []);
 
     const [recipe] = await tx
       .update(schema.recipes)

@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+/** Specs that write a recipe, which the empty-library test must not see. */
+const SEEDED = /prep-ahead\.spec\.ts$/;
+
 /**
  * End-to-end tests against a local dev server, signed in without the login form.
  *
@@ -25,6 +28,15 @@ export default defineConfig({
     // 390px is the phone the cook view and /shop are designed against.
     {
       name: "phone",
+      testIgnore: SEEDED,
+      use: { ...devices["Pixel 7"], channel: "chrome", viewport: { width: 390, height: 844 } },
+    },
+    // Specs that add a recipe for the length of the test. They wait for `phone` to finish, since
+    // its empty-state tests fail while a recipe exists.
+    {
+      name: "phone-seeded",
+      testMatch: SEEDED,
+      dependencies: ["phone"],
       use: { ...devices["Pixel 7"], channel: "chrome", viewport: { width: 390, height: 844 } },
     },
   ],

@@ -24,6 +24,7 @@ vi.mock("@/lib/trpc/client", () => ({
       },
       setRating: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
       setNotes: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
+      setPrepAhead: { mutationOptions: () => ({ mutationFn: vi.fn() }) },
     },
   }),
 }));
@@ -36,6 +37,7 @@ const RECIPE: CookRecipe = {
   sourceUrl: "https://example.com/fajitas",
   rating: null,
   notes: [],
+  prepAhead: [],
   instructions: ["Slice the peppers.", "Sear the chicken.", "Warm the tortillas."],
   ingredients: [
     {
@@ -387,6 +389,16 @@ describe("the cook view", () => {
     expect("wakeLock" in navigator).toBe(false);
     expect(() => renderCook()).not.toThrow();
     expect(screen.getByText("Chicken Fajitas")).toBeInTheDocument();
+  });
+
+  it("shows the prep-ahead tasks above the steps", () => {
+    renderCook({ prepAhead: ["Marinate the chicken overnight."] });
+
+    const prep = screen.getByRole("list", { name: "Prep ahead" });
+    const method = screen.getByRole("list", { name: "Method" });
+
+    expect(prep).toHaveTextContent("Marinate the chicken overnight.");
+    expect(prep.compareDocumentPosition(method) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("renders a recipe with no steps at all", () => {

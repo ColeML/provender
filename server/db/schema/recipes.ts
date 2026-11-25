@@ -60,6 +60,11 @@ export const recipes = pgTable(
     rating: integer("rating"),
     /** The household's tips, one per element, in the order they were added. */
     notes: text("notes").array().notNull().default([]),
+    /**
+     * What has to be started the night before — marinating, soaking, an overnight chill — one task
+     * per element. Plain text with no `{amount}` braces: a task does not scale with the servings.
+     */
+    prepAhead: text("prep_ahead").array().notNull().default([]),
     createTime: timestamp("create_time", { withTimezone: true }).notNull().defaultNow(),
     updateTime: timestamp("update_time", { withTimezone: true }).notNull().defaultNow(),
   },

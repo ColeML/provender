@@ -458,6 +458,18 @@ export const appRouter = router({
           ctx.db,
         ),
       ),
+    setPrepAhead: protectedProcedure
+      .input(z.object({ recipeId: z.string().min(1), prepAhead: z.array(z.string()) }))
+      .mutation(({ ctx, input }) =>
+        updateRecipe(
+          ctx.householdId,
+          input.recipeId,
+          ["prepAhead"],
+          { prepAhead: input.prepAhead },
+          undefined,
+          ctx.db,
+        ),
+      ),
     share: protectedProcedure
       .input(z.object({ recipeId: z.string().min(1) }))
       .mutation(({ ctx, input }) => createShare(ctx.householdId, input.recipeId, ctx.db)),

@@ -78,6 +78,9 @@ export const RecipeSchema = z
     instructions: z.array(z.string()),
     rating: z.number().int().min(1).max(5).nullable(),
     notes: z.array(z.string()).openapi({ example: ["Use a rotisserie chicken"] }),
+    prepAhead: z
+      .array(z.string())
+      .openapi({ example: ["Marinate the chicken in the fridge (8–24 hours)."] }),
     createTime: z.string().openapi({ example: "2026-09-07T03:00:00.000Z" }),
     updateTime: z.string(),
   })
@@ -107,6 +110,11 @@ export const RecipeInputSchema = z
           .openapi({ example: "Whisk {1/3 cup|mayonnaise} mayonnaise with the honey." }),
       )
       .optional(),
+    // Plain text for the night before, with no braces: a task does not scale with the servings.
+    prepAhead: z
+      .array(z.string())
+      .optional()
+      .openapi({ example: ["Marinate the chicken in the fridge (8–24 hours)."] }),
     ingredients: z.array(IngredientInputSchema).optional(),
   })
   .openapi("RecipeInput");

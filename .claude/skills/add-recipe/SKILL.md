@@ -72,6 +72,13 @@ a per-piece portion such as `1/3 cup batter per waffle`. A brace holds a whole n
 `1/3` or `1 1/2`, an optional unit, then the link. The API refuses anything else, and a link that
 matches no ingredient of the recipe, ignoring case. Drop a second measure in parentheses, such as
 `(19g)`, since it would not scale.
+- `prepAhead` lists what has to be started the night before, read from the steps: marinating,
+  brining, soaking, an overnight chill or rest, thawing, overnight oats or chia. One task per
+  element, written for the evening before and carrying the wait the steps give:
+  `"Marinate the chicken in the fridge (8–24 hours)."` Steps that call for none of these get `[]`,
+  the usual case, and a wait that fits before dinner, such as a 30-minute marinade, stays in the
+  steps. Write each task as plain text that names the food without an amount and uses no braces:
+  a task does not scale with the servings, so "Soak the black beans", not "Soak 2 cups of beans".
 - `costEstimate` covers the whole recipe. Price from `./scripts/prov GET /prices` first, then
   `./scripts/prov GET '/kroger/prices?term=<item>'`, then estimate the rest; count
   `config.pantry_staples` as free and say which lines you estimated. Kroger is opt-in and answers
@@ -114,7 +121,8 @@ cat > .provender/drafts/<slug>.json <<'JSON'
     { "ingredientName": "skirt steak", "quantity": 2, "unit": "lb", "category": "meat", "notes": null, "scaling": "linear" },
     { "ingredientName": "kosher salt", "quantity": 1, "unit": "tsp", "category": "pantry", "notes": null, "scaling": "seasoning" }
   ],
-  "instructions": ["Season {2 lb|skirt steak} skirt steak with the salt and marinate for at least 1 hour.", "Grill 4 minutes per side."]
+  "instructions": ["Season {2 lb|skirt steak} skirt steak with the salt and marinate in the fridge for 8 to 24 hours.", "Grill 4 minutes per side."],
+  "prepAhead": ["Season the skirt steak and marinate it in the fridge (8–24 hours)."]
 }
 JSON
 ```
