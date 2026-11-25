@@ -15,6 +15,15 @@ import { RecipeNotes } from "./recipe-notes";
 import { RecipeRating } from "./recipe-rating";
 import { StepText } from "./step-text";
 
+/**
+ * The stepper moves the recipe by halves, ½× upward. Halves only, so a halved odd count is a
+ * readable 2½ servings and the API's `multipleOf(0.5)` holds.
+ */
+const STEP = 0.5;
+
+/** The scale input's cap. The stepper stops below it rather than asking for a refused count. */
+const MAX_SERVINGS = 500;
+
 export interface CookIngredient {
   id: string;
   name: string;
@@ -42,7 +51,8 @@ export interface CookRecipe {
  */
 export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: ReactNode }) {
   const trpc = useTRPC();
-  const [servings, setServings] = useState(recipe.baseServings);
+  const [multiplier, setMultiplier] = useState<number>(1);
+  const servings = recipe.baseServings * multiplier;
   // Row positions, not ids: a rescale rebuilds every id, and the list order never changes.
   const [gathered, setGathered] = useState<ReadonlySet<number>>(new Set());
 
@@ -117,38 +127,56 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
           Servings
         </h2>
 
-        <div className="mt-1 flex items-center gap-3">
+        {/* The count is the big number, because it is what the amounts below are for. The scale
+            tag is how far the stepper has moved, which is what a tap changes. Sans, not mono:
+            the mono face draws ½ as a tiny stacked fraction at this size. */}
+        <div className="mt-1 flex items-center gap-2">
           <button
             type="button"
-            aria-label="Fewer servings"
-            disabled={servings <= 1}
-            onClick={() => setServings((current) => Math.max(current - 1, 1))}
+            aria-label="Scale down"
+            disabled={
+              multiplier <= STEP || recipe.baseServings * (multiplier - STEP) > MAX_SERVINGS
+            }
+            onClick={() => setMultiplier((current) => Math.max(current - STEP, STEP))}
             className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
           >
             −
           </button>
 
-          <span className="w-16 text-center font-mono text-xl">{servings}</span>
+          <output aria-live="polite" className="w-20 text-center text-2xl font-semibold">
+            {formatQuantity(servings, null)}
+            <span className="sr-only">
+              {servings <= 1 ? " serving" : " servings"}, {formatQuantity(multiplier, null)}× scale
+            </span>
+          </output>
 
           <button
             type="button"
-            aria-label="More servings"
-            onClick={() => setServings((current) => Math.min(current + 1, 500))}
-            className="border-border size-11 rounded-lg border text-xl"
+            aria-label="Scale up"
+            disabled={recipe.baseServings * (multiplier + STEP) > MAX_SERVINGS}
+            onClick={() => setMultiplier((current) => current + STEP)}
+            className="border-border size-11 rounded-lg border text-xl disabled:opacity-40"
           >
             +
           </button>
 
-          {servings === recipe.baseServings ? null : (
+          {multiplier === 1 ? null : (
             <button
               type="button"
-              onClick={() => setServings(recipe.baseServings)}
-              className="text-muted-foreground text-sm underline"
+              aria-label="Reset scale"
+              onClick={() => setMultiplier(1)}
+              className="text-muted-foreground min-h-11 px-2 text-sm underline"
             >
-              Reset to {recipe.baseServings}
+              Reset
             </button>
           )}
         </div>
+
+        <p aria-hidden className="mt-2">
+          <span className="bg-muted rounded-full px-2.5 py-0.5 text-sm">
+            {formatQuantity(multiplier, null)}× scale
+          </span>
+        </p>
 
         {curved ? (
           <p className="text-muted-foreground mt-2 text-sm">

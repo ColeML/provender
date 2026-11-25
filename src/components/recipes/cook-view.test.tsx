@@ -177,7 +177,7 @@ describe("the cook view", () => {
 
     const user = renderCook({ instructions: ["Rub {1 1/2 tbsp} chili powder over the chicken."] });
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     await waitFor(() => {
       expect(screen.getByRole("list", { name: "Method" })).toHaveTextContent(
@@ -191,7 +191,7 @@ describe("the cook view", () => {
 
     const user = renderCook({ instructions: ["Rub {1 1/2 tbsp} chili powder over the chicken."] });
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     expect(screen.getByRole("list", { name: "Method" })).toHaveAttribute("aria-busy", "true");
   });
@@ -201,7 +201,7 @@ describe("the cook view", () => {
 
     const user = renderCook();
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     expect(screen.getByRole("list", { name: "Method" })).toHaveAttribute("aria-busy", "false");
   });
@@ -219,10 +219,10 @@ describe("the cook view", () => {
 
     const user = renderCook();
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     await waitFor(() => {
-      expect(scale).toHaveBeenCalledWith({ recipeId: "fajitas", targetServings: 9 });
+      expect(scale).toHaveBeenCalledWith({ recipeId: "fajitas", targetServings: 12 });
     });
   });
 
@@ -232,7 +232,7 @@ describe("the cook view", () => {
 
     const user = renderCook();
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     expect(screen.getByText(/still for 8, scaling/)).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Ingredients" })).toHaveAttribute("aria-busy", "true");
@@ -245,7 +245,7 @@ describe("the cook view", () => {
 
     const user = renderCook();
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     await waitFor(() => {
       expect(screen.queryByText(/still for 8, scaling/)).toBeNull();
@@ -259,7 +259,7 @@ describe("the cook view", () => {
 
     const user = renderCook();
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/Could not scale/);
@@ -268,14 +268,96 @@ describe("the cook view", () => {
     expect(screen.getByText("1½ lb")).toBeInTheDocument();
   });
 
-  it("will not go below one serving", async () => {
+  it("starts at the stored count and 1× scale", () => {
+    renderCook();
+
+    expect(screen.getByRole("status")).toHaveTextContent("8 servings, 1× scale");
+    expect(screen.getByText("1× scale")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset scale" })).toBeNull();
+  });
+
+  it("steps by half the recipe in both directions", async () => {
+    scale.mockResolvedValue({ ingredients: [], instructions: [] });
+
+    const user = renderCook();
+
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("12 servings, 1½× scale");
+    expect(screen.getByText("1½× scale")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("16 servings, 2× scale");
+
+    await user.click(screen.getByRole("button", { name: "Scale down" }));
+    await user.click(screen.getByRole("button", { name: "Scale down" }));
+    await user.click(screen.getByRole("button", { name: "Scale down" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("4 servings, ½× scale");
+    expect(screen.getByText("½× scale")).toBeInTheDocument();
+  });
+
+  it("halves an odd count to a half serving", async () => {
+    scale.mockResolvedValue({ ingredients: [], instructions: [] });
+
+    const user = renderCook({ baseServings: 5 });
+
+    await user.click(screen.getByRole("button", { name: "Scale down" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("2½ servings, ½× scale");
+
+    await waitFor(() => {
+      expect(scale).toHaveBeenCalledWith({ recipeId: "fajitas", targetServings: 2.5 });
+    });
+  });
+
+  it("will not go below ½×, and says serving for half of one", async () => {
+    scale.mockResolvedValue({ ingredients: [], instructions: [] });
+
     const user = renderCook({ baseServings: 1 });
 
-    expect(screen.getByRole("button", { name: "Fewer servings" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Scale down" }));
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    expect(screen.getByRole("status")).toHaveTextContent("½ serving, ½× scale");
+    expect(screen.getByRole("button", { name: "Scale down" })).toBeDisabled();
+  });
 
-    expect(screen.getByRole("button", { name: "Fewer servings" })).toBeEnabled();
+  it("stops before the 500-serving cap", async () => {
+    scale.mockResolvedValue({ ingredients: [], instructions: [] });
+
+    const user = renderCook({ baseServings: 200 });
+
+    expect(screen.getByRole("button", { name: "Scale up" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("500 servings");
+    expect(screen.getByRole("button", { name: "Scale up" })).toBeDisabled();
+  });
+
+  it("will not scale a recipe stored past the cap down to a count still past it", () => {
+    renderCook({ baseServings: 1200 });
+
+    expect(screen.getByRole("button", { name: "Scale down" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Scale up" })).toBeDisabled();
+  });
+
+  it("goes back to the stored amounts on reset, without another request", async () => {
+    scale.mockResolvedValue({
+      ingredients: [{ name: "chicken breast", quantity: 3, unit: "lb", notes: null }],
+    });
+
+    const user = renderCook();
+
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
+    await screen.findByText("3 lb");
+    await user.click(screen.getByRole("button", { name: "Reset scale" }));
+
+    expect(screen.getByText("1½ lb")).toBeInTheDocument();
+    expect(scale).toHaveBeenCalledTimes(1);
   });
 
   it("holds a wake lock while it is open, and releases it on the way out", async () => {
@@ -348,7 +430,7 @@ describe("the curve note under the stepper", () => {
     async (scaling) => {
       const user = renderCook({ ingredients: [...RECIPE.ingredients, { ...cumin, scaling }] });
 
-      await scaleBy(user, "More servings");
+      await scaleBy(user, "Scale up");
 
       expect(screen.getByText(NOTE)).toBeInTheDocument();
     },
@@ -359,7 +441,7 @@ describe("the curve note under the stepper", () => {
 
     const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
@@ -369,7 +451,7 @@ describe("the curve note under the stepper", () => {
 
     const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
 
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
     await screen.findByRole("alert");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
@@ -378,7 +460,7 @@ describe("the curve note under the stepper", () => {
   it("is hidden when scaled down, where every kind is linear", async () => {
     const user = renderCook({ ingredients: [...RECIPE.ingredients, cumin] });
 
-    await scaleBy(user, "Fewer servings");
+    await scaleBy(user, "Scale down");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
@@ -386,7 +468,7 @@ describe("the curve note under the stepper", () => {
   it("is hidden when the only seasoning is to taste", async () => {
     const user = renderCook();
 
-    await scaleBy(user, "More servings");
+    await scaleBy(user, "Scale up");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
@@ -394,7 +476,7 @@ describe("the curve note under the stepper", () => {
   it("is hidden when nothing scaled up is a seasoning or leavening", async () => {
     const user = renderCook({ ingredients: [{ ...cumin, scaling: "whole" }] });
 
-    await scaleBy(user, "More servings");
+    await scaleBy(user, "Scale up");
 
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
   });
@@ -438,7 +520,7 @@ describe("crossing off ingredients", () => {
     const user = renderCook();
 
     await user.click(screen.getByRole("checkbox", { name: /^salt/ }));
-    await user.click(screen.getByRole("button", { name: "More servings" }));
+    await user.click(screen.getByRole("button", { name: "Scale up" }));
 
     await waitFor(() => {
       expect(screen.queryByText("1½ lb")).toBeNull();

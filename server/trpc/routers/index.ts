@@ -421,7 +421,9 @@ export const appRouter = router({
       .input(
         z.object({
           recipeId: z.string().min(1),
-          targetServings: z.number().int().positive().max(500),
+          // Halves, not whole servings only: the cook view offers ½×, so a 5-serving recipe halves
+          // to 2.5.
+          targetServings: z.number().multipleOf(0.5).positive().max(500),
         }),
       )
       .query(({ ctx, input }) =>
