@@ -13,7 +13,34 @@ import { cn } from "@/lib/utils";
 
 type Open = { kind: "add" } | { kind: "edit"; index: number } | null;
 
-const SAVE_FAILED = "Could not save that note. Try again.";
+/** The words that tell one list from another. Everything else about the lists is the same. */
+export interface ListCopy {
+  heading: string;
+  /** One entry, as in "Edit note" and "Could not save that note". */
+  noun: string;
+  /** Shown under the heading when the list is empty. Null hides the heading, leaving the add control. */
+  empty: string | null;
+  /** The add control's visible text when the list is empty and has no heading to explain it. */
+  addEmpty: string;
+  /** The add control's accessible name. */
+  addLabel: string;
+}
+
+const NOTES: ListCopy = {
+  heading: "Notes",
+  noun: "note",
+  empty: "No notes",
+  addEmpty: "+ Add",
+  addLabel: "Add a note",
+};
+
+const PREP_AHEAD: ListCopy = {
+  heading: "Prep ahead",
+  noun: "task",
+  empty: null,
+  addEmpty: "+ Prep ahead",
+  addLabel: "Add a prep-ahead task",
+};
 
 function short(note: string) {
   return note.length > 40 ? `${note.slice(0, 40)}…` : note;
@@ -120,12 +147,16 @@ function NoteForm({
 
 interface NoteListProps {
   notes: string[];
+  copy?: ListCopy;
   /** Saves the whole list. Rejects when nothing was saved, so the form keeps what was typed. */
   onSave: (next: string[]) => Promise<void>;
 }
 
-/** The household's notes on a recipe, one ruled row each, with no data layer of its own. */
-export function NoteList({ notes, onSave }: NoteListProps) {
+/**
+ * A household-edited list on a recipe — its notes or its prep-ahead tasks — one ruled row each,
+ * with no data layer of its own.
+ */
+export function NoteList({ notes, copy = NOTES, onSave }: NoteListProps) {
   const [open, setOpen] = useState<Open>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +164,7 @@ export function NoteList({ notes, onSave }: NoteListProps) {
   // Shared by every change, so a second change never builds on the list the first replaces.
   const [pending, startTransition] = useTransition();
   const hintId = useId();
+  const headingId = useId();
   const noteButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const addButton = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -193,7 +225,7 @@ export function NoteList({ notes, onSave }: NoteListProps) {
         await onSave(next);
         startTransition(close);
       } catch {
-        setError(SAVE_FAILED);
+        setError(`Could not save that ${copy.noun}. Try again.`);
       }
     });
   }
@@ -257,21 +289,27 @@ export function NoteList({ notes, onSave }: NoteListProps) {
     />
   );
 
+  const headed = copy.empty !== null || notes.length > 0 || open?.kind === "add";
+
   return (
-    <section aria-labelledby="notes" className="mt-6">
-      <h2 id="notes" className="text-muted-foreground text-xs">
-        Notes
-      </h2>
+    // With no heading there is nothing to label the section by, so it is a plain block until it has
+    // an entry — or the add form is open, which needs the heading to say what is being added.
+    <section aria-labelledby={headed ? headingId : undefined} className={headed ? "mt-6" : "mt-2"}>
+      {headed ? (
+        <h2 id={headingId} className="text-muted-foreground text-xs">
+          {copy.heading}
+        </h2>
+      ) : null}
 
       {notes.length === 0 ? (
-        <p className="text-muted-foreground mt-1 text-sm">No notes</p>
+        copy.empty !== null && <p className="text-muted-foreground mt-1 text-sm">{copy.empty}</p>
       ) : (
         <>
           <p id={hintId} className="sr-only">
             Long press or press Enter to edit.
           </p>
           <ul
-            aria-labelledby="notes"
+            aria-labelledby={headingId}
             className="divide-border border-border mt-1 divide-y border-y"
           >
             {notes.map((note, index) => (
@@ -279,7 +317,7 @@ export function NoteList({ notes, onSave }: NoteListProps) {
               <li key={index} className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   {open?.kind === "edit" && open.index === index ? (
-                    form("Edit note")
+                    form(`Edit ${copy.noun}`)
                   ) : (
                     <NoteButton
                       note={note}
@@ -300,7 +338,7 @@ export function NoteList({ notes, onSave }: NoteListProps) {
                   type="button"
                   onClick={() => remove(index)}
                   aria-disabled={pending}
-                  aria-label={`Remove note: ${short(note)}`}
+                  aria-label={`Remove ${copy.noun}: ${short(note)}`}
                   className={cn(PENCIL, "aria-disabled:opacity-40")}
                 >
                   <Trash2 aria-hidden className="size-4" />
@@ -312,16 +350,16 @@ export function NoteList({ notes, onSave }: NoteListProps) {
       )}
 
       {open?.kind === "add" ? (
-        form("New note")
+        form(`New ${copy.noun}`)
       ) : (
         <button
           ref={addButton}
           type="button"
           onClick={() => show({ kind: "add" }, "")}
-          aria-label="Add a note"
+          aria-label={copy.addLabel}
           className="focus-visible:ring-ring text-muted-foreground mt-1 min-h-11 text-sm focus-visible:ring-3 focus-visible:outline-none"
         >
-          + Add
+          {headed ? "+ Add" : copy.addEmpty}
         </button>
       )}
     </section>
@@ -340,6 +378,31 @@ export function RecipeNotes({ recipeId, notes }: { recipeId: string; notes: stri
       notes={notes}
       onSave={async (next) => {
         await save.mutateAsync({ recipeId, notes: next });
+        router.refresh();
+      }}
+    />
+  );
+}
+
+export function RecipePrepAhead({
+  recipeId,
+  prepAhead,
+}: {
+  recipeId: string;
+  prepAhead: string[];
+}) {
+  const trpc = useTRPC();
+  const router = useRouter();
+  const save = useMutation(
+    trpc.recipes.setPrepAhead.mutationOptions({ scope: { id: `prep-ahead-${recipeId}` } }),
+  );
+
+  return (
+    <NoteList
+      notes={prepAhead}
+      copy={PREP_AHEAD}
+      onSave={async (next) => {
+        await save.mutateAsync({ recipeId, prepAhead: next });
         router.refresh();
       }}
     />

@@ -5,15 +5,19 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { NoteList, RecipeNotes } from "./recipe-notes";
+import { NoteList, RecipeNotes, RecipePrepAhead } from "./recipe-notes";
 
 const setNotes = vi.fn();
+const setPrepAhead = vi.fn();
 const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/lib/trpc/client", () => ({
   useTRPC: () => ({
-    recipes: { setNotes: { mutationOptions: () => ({ mutationFn: setNotes }) } },
+    recipes: {
+      setNotes: { mutationOptions: () => ({ mutationFn: setNotes }) },
+      setPrepAhead: { mutationOptions: () => ({ mutationFn: setPrepAhead }) },
+    },
   }),
 }));
 
@@ -373,5 +377,112 @@ describe("RecipeNotes", () => {
       recipeId: "fajitas",
       notes: ["Warm the tortillas", "Double the sauce"],
     });
+  });
+});
+
+describe("RecipePrepAhead", () => {
+  function renderPrep(prepAhead: string[]) {
+    const user = userEvent.setup();
+
+    setPrepAhead.mockReset().mockResolvedValue({});
+    refresh.mockReset();
+    const view = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RecipePrepAhead recipeId="fajitas" prepAhead={prepAhead} />
+      </QueryClientProvider>,
+    );
+
+    return { user, container: view.container };
+  }
+
+  it("shows only an add control, with no empty heading, when there are no tasks", () => {
+    const { container } = renderPrep([]);
+
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(container).not.toHaveTextContent(/no tasks/i);
+    expect(screen.getByRole("button", { name: "Add a prep-ahead task" })).toHaveTextContent(
+      "+ Prep ahead",
+    );
+  });
+
+  it("shows its tasks under a Prep ahead heading", () => {
+    renderPrep(["Marinate the chicken overnight.", "Soak the beans."]);
+
+    expect(screen.getByRole("heading", { name: "Prep ahead" })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("list", { name: "Prep ahead" }))
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Marinate the chicken overnight.", "Soak the beans."]);
+    expect(screen.getByRole("button", { name: "Add a prep-ahead task" })).toHaveTextContent(
+      "+ Add",
+    );
+  });
+
+  it("adds the first task, saving the list for its recipe, then refreshes the page", async () => {
+    const { user } = renderPrep([]);
+
+    await user.click(screen.getByRole("button", { name: "Add a prep-ahead task" }));
+
+    expect(screen.getByRole("heading", { name: "Prep ahead" })).toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "New task" }),
+      "Marinate the chicken overnight.",
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(setPrepAhead.mock.calls[0][0]).toEqual({
+      recipeId: "fajitas",
+      prepAhead: ["Marinate the chicken overnight."],
+    });
+  });
+
+  it("edits a task in place with Enter", async () => {
+    const { user } = renderPrep(["Soak the beans."]);
+
+    within(screen.getByRole("list", { name: "Prep ahead" }))
+      .getByRole("button", { name: "Soak the beans." })
+      .focus();
+    await user.keyboard("{Enter}");
+
+    const field = screen.getByRole("textbox", { name: "Edit task" });
+
+    await user.clear(field);
+    await user.type(field, "Soak the beans overnight.");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(setPrepAhead).toHaveBeenCalledOnce());
+    expect(setPrepAhead.mock.calls[0][0]).toEqual({
+      recipeId: "fajitas",
+      prepAhead: ["Soak the beans overnight."],
+    });
+  });
+
+  it("removes a task by its name", async () => {
+    const { user } = renderPrep(["Marinate the chicken overnight.", "Soak the beans."]);
+
+    await user.click(screen.getByRole("button", { name: "Remove task: Soak the beans." }));
+
+    await waitFor(() => expect(setPrepAhead).toHaveBeenCalledOnce());
+    expect(setPrepAhead.mock.calls[0][0]).toEqual({
+      recipeId: "fajitas",
+      prepAhead: ["Marinate the chicken overnight."],
+    });
+  });
+
+  it("says the task, not a note, could not be saved", async () => {
+    const { user } = renderPrep([]);
+
+    setPrepAhead.mockRejectedValue(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: "Add a prep-ahead task" }));
+    await user.type(screen.getByRole("textbox", { name: "New task" }), "Thaw the shrimp.");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save that task. Try again.",
+    );
   });
 });

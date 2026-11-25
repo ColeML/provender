@@ -11,7 +11,7 @@ import { formatQuantity } from "@/lib/quantity";
 import { useTRPC } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { RecipeNotes } from "./recipe-notes";
+import { RecipeNotes, RecipePrepAhead } from "./recipe-notes";
 import { RecipeRating } from "./recipe-rating";
 import { StepText } from "./step-text";
 
@@ -41,6 +41,7 @@ export interface CookRecipe {
   sourceUrl: string | null;
   rating: number | null;
   notes: string[];
+  prepAhead: string[];
   instructions: string[];
   ingredients: CookIngredient[];
 }
@@ -121,6 +122,9 @@ export function CookView({ recipe, actions }: { recipe: CookRecipe; actions?: Re
       <RecipeRating recipeId={recipe.recipeId} initialRating={recipe.rating} />
 
       <RecipeNotes recipeId={recipe.recipeId} notes={recipe.notes} />
+
+      {/* Above the servings and steps: it is what the night before needs, and it does not scale. */}
+      <RecipePrepAhead recipeId={recipe.recipeId} prepAhead={recipe.prepAhead} />
 
       <section aria-labelledby="servings" className="mt-6">
         <h2 id="servings" className="text-muted-foreground text-xs">

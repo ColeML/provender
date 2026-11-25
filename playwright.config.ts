@@ -11,6 +11,9 @@ import { defineConfig, devices } from "@playwright/test";
  * fast required check for a slow one; the Neon branch these would need is also the one a preview
  * deploy uses.
  */
+/** Specs that write a recipe, which the empty-library test must not see. */
+const SEEDED = /prep-ahead\.spec\.ts$/;
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/auth.setup.ts",
@@ -25,6 +28,15 @@ export default defineConfig({
     // 390px is the phone the cook view and /shop are designed against.
     {
       name: "phone",
+      testIgnore: SEEDED,
+      use: { ...devices["Pixel 7"], channel: "chrome", viewport: { width: 390, height: 844 } },
+    },
+    // Specs that add a recipe for the length of the test. They wait for `phone` to finish, since
+    // its empty-state tests fail while a recipe exists.
+    {
+      name: "phone-seeded",
+      testMatch: SEEDED,
+      dependencies: ["phone"],
       use: { ...devices["Pixel 7"], channel: "chrome", viewport: { width: 390, height: 844 } },
     },
   ],
